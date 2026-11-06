@@ -49,3 +49,39 @@ npm run build
 - 不直接複製台北通商標或官方圖片。
 - 新增 bridge 方法時，同步補上 `frontend/src/lib/webview.test.js` 測試與 README 說明。
 - GitHub Pages base path 由 `frontend/vite.config.js` 處理，不要硬編碼 `/30w/`。
+
+## Git 提交與分支規範
+
+依照 [Git_Guide.md](https://github.com/Ynn622/ProfiqAI/blob/main/Git_Guide.md) 執行，重點如下。
+
+### Commit 訊息
+
+```text
+[類型] 變更摘要
+
+1. 詳細變更項目
+2. 詳細變更項目
+```
+
+- 摘要用一句話說明修改，不超過 70 字；只有多項修改時才需要編號細項。
+- 使用以下類型：`[new]` 新增功能／模組／頁面、`[fix]` 修正錯誤、`[refactor]` 不改變功能的重構、`[style]` 樣式／排版／格式、`[docs]` 文件、`[perf]` 效能、`[ci]` 自動化／部署。
+- 例如：`[new] 新增每分鐘前端版本檢查`、`[docs] 更新專案開發規範`。
+- 避免 `update`、`fix again`、`try test` 等無意義訊息。
+- Commit 前檢查修改範圍與影響，確認可執行且不破壞既有功能；程式修改須通過 `npm test` 與 `npm run build`。
+
+### 分支流程
+
+- 分支名稱使用 `英文名/功能名稱`，例如 `Yn/版本檢查`；英文名沿用使用者提供或專案既有命名，不自行猜測。
+- 所有新分支必須從同步後的最新 `main` 建立，依序執行：
+
+```bash
+git checkout main
+git fetch origin
+git pull origin main
+git checkout -b Yn/版本檢查
+```
+
+- 切換分支前先確認工作目錄，保留使用者尚未提交的修改。
+- 開發完成後，檢查變更並只加入本次任務的檔案，再依上述格式 commit；需要推送時，推送至自己的功能分支。
+- 不自行合併至 `main`。功能完成後保留分支，交由負責人進行 merge。
+- 不提交用途不明或影響尚未確認的程式碼。
