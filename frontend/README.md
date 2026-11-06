@@ -57,6 +57,17 @@ App 回覆時，網頁透過 `window.flutterObject.addEventListener('message', c
 
 本專案的服務點擊暫時使用自訂 `open_service`，正式介接時需在 App 端建立同名 handler。一般瀏覽器沒有 bridge 時會進入示範模式。舊的 WebKit、Android 與 React Native bridge 僅保留為 fallback。
 
+## 介接測試面板
+
+從底部導覽進入「我的 → 城市通介接測試」，選擇官方方法、編輯 `data` JSON，點選測試後即可查看要求內容與 App 回傳 JSON。
+
+- 提供官方文件的 9 個方法；所有要求均由使用者手動觸發。
+- `open_link`、`notify`、`1999agree` 成功時不回覆，因此只標示已送出。
+- 其他方法等待 30 秒，QR Code 掃描等待 120 秒；逾時僅代表尚未收到回覆。
+- 一般瀏覽器未注入 `flutterObject` 時不送出要求，也不以假資料冒充 App 回覆。
+- 顯示資料僅保留於元件記憶體，切換分頁或按「清除結果」即可移除。
+- 實機驗證需由城市通 App WebView 開啟此網站，確認允許的來源網域及 App handler 已設定。
+
 ## GitHub Pages
 
 `.github/workflows/deploy-frontend.yml` 會在 `main` 分支的 `frontend/**` 變更後執行測試、建置並部署 `dist/`。Vite 會依 `GITHUB_REPOSITORY` 自動判斷：

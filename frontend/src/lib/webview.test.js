@@ -51,6 +51,25 @@ describe('sendToNative', () => {
 })
 
 describe('TownPass message helpers', () => {
+  it('preserves false replies rather than treating them as missing data', () => {
+    expect(parseTownPassMessage('{"name":"phone_call","data":false}'))
+      .toEqual({ name: 'phone_call', data: false })
+  })
+
+  it('preserves and restores an existing onmessage subscriber', () => {
+    const previousHandler = vi.fn()
+    const flutterObject = { onmessage: previousHandler }
+    const listener = vi.fn()
+    const unsubscribe = subscribeToNativeMessages(listener, { flutterObject })
+    const event = { data: '{"name":"deviceinfo","data":{"model":"test-device"}}' }
+
+    flutterObject.onmessage(event)
+    expect(previousHandler).toHaveBeenCalledWith(event)
+    expect(listener).toHaveBeenCalledWith({ name: 'deviceinfo', data: { model: 'test-device' } }, event)
+    unsubscribe()
+    expect(flutterObject.onmessage).toBe(previousHandler)
+  })
+
   it('creates the documented name and data envelope', () => {
     expect(createTownPassMessage('open_link', 'https://www.gov.taipei/'))
       .toBe('{"name":"open_link","data":"https://www.gov.taipei/"}')

@@ -5,8 +5,6 @@
   <img src="https://img.shields.io/badge/Vue.js-35495E?logo=vuedotjs&logoColor=4FC08D" alt="Vue.js">
   <img src="https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white" alt="Vite">
   <img src="https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black" alt="JavaScript">
-  <img src="https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI">
 </p>
 
 ---
@@ -14,7 +12,6 @@
 ## 技術框架
 
 - 前端：Vue 3、JavaScript、Vite
-- 後端：Python、FastAPI
 - 測試：Vitest
 - 部署：GitHub Pages
 

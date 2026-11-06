@@ -67,10 +67,14 @@ export function subscribeToNativeMessages(listener, host = globalThis) {
   }
 
   const previousHandler = townPassBridge.onmessage
-  townPassBridge.onmessage = handleMessage
+  const combinedHandler = (event) => {
+    if (typeof previousHandler === 'function') previousHandler.call(townPassBridge, event)
+    handleMessage(event)
+  }
+  townPassBridge.onmessage = combinedHandler
 
   return () => {
-    if (townPassBridge.onmessage === handleMessage) {
+    if (townPassBridge.onmessage === combinedHandler) {
       townPassBridge.onmessage = previousHandler ?? null
     }
   }

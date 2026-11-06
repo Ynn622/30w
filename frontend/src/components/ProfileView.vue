@@ -1,5 +1,6 @@
 <script setup>
 import AppIcon from './AppIcon.vue'
+import NativeMethodsPanel from './NativeMethodsPanel.vue'
 
 defineProps({ bridgeLabel: { type: String, required: true } })
 defineEmits(['native-action'])
@@ -37,6 +38,8 @@ const settings = [
         <AppIcon name="chevron" :size="18" />
       </button>
     </div>
+
+    <NativeMethodsPanel />
 
     <p class="version-label">CityLink WebView Demo · v0.1.0</p>
   </section>
