@@ -9,6 +9,8 @@ npm install
 npm run dev
 ```
 
+本機開發網址：`http://localhost:7890`。
+
 測試與正式建置：
 
 ```bash

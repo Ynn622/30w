@@ -20,6 +20,10 @@ export function resolveBasePath(repository, explicitBase) {
 }
 
 export default defineConfig({
+  server: {
+    port: 7890,
+    strictPort: true,
+  },
   plugins: [vue(), {
     name: 'emit-version-json',
     generateBundle() {

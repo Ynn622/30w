@@ -29,7 +29,7 @@ npm install
 npm run dev
 ```
 
-啟動後依照終端機顯示的網址開啟頁面，預設通常為 `http://localhost:5173`。
+啟動後開啟 `http://localhost:7890`。若 port 已被占用，請先釋放再啟動。
 
 ## 測試與建置
 
