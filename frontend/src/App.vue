@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import BottomNav from './components/BottomNav.vue'
+import ApiTestView from './components/ApiTestView.vue'
 import HomeView from './components/HomeView.vue'
 import ProfileView from './components/ProfileView.vue'
 import ServicesView from './components/ServicesView.vue'
@@ -133,6 +134,7 @@ function handleNativeReply({ name, data }) {
         @native-action="handleNativeAction"
         @navigate="navigate"
       />
+      <ApiTestView v-else-if="activeTab === 'api'" key="api" />
       <ProfileView
         v-else
         key="profile"
