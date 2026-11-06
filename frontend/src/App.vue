@@ -8,12 +8,16 @@ import ServicesView from './components/ServicesView.vue'
 import WalletView from './components/WalletView.vue'
 import { serviceCategories, serviceItems } from './data/services.js'
 import { getNativeChannel, sendToNative, subscribeToNativeMessages } from './lib/webview.js'
+import { startVersionChecker } from './lib/versionChecker.js'
 
 const activeTab = ref('home')
 const toastMessage = ref('')
 const bridgeChannel = ref(getNativeChannel(window))
 let toastTimer
 let unsubscribeFromNative = () => {}
+let stopVersionCheck = () => {}
+let reloadTimer
+const updateAvailable = ref(false)
 
 const dateLabel = computed(() => new Intl.DateTimeFormat('zh-TW', {
   month: 'long',
@@ -35,11 +39,19 @@ const bridgeLabel = computed(() => {
 onMounted(() => {
   bridgeChannel.value = getNativeChannel(window)
   unsubscribeFromNative = subscribeToNativeMessages(handleNativeReply, window)
+  stopVersionCheck = startVersionChecker({
+    onVersionMismatch: () => {
+      updateAvailable.value = true
+      reloadTimer = window.setTimeout(() => window.location.reload(), 10_000)
+    },
+  })
 })
 
 onUnmounted(() => {
   unsubscribeFromNative()
   window.clearTimeout(toastTimer)
+  stopVersionCheck()
+  window.clearTimeout(reloadTimer)
 })
 
 function navigate(tab) {
@@ -145,8 +157,12 @@ function handleNativeReply({ name, data }) {
 
     <BottomNav :active-tab="activeTab" @navigate="navigate" />
 
+    <div v-if="updateAvailable" class="toast" role="status" aria-live="polite">
+      偵測到新版本，10 秒後自動重新整理頁面。
+    </div>
+
     <Transition name="toast">
-      <div v-if="toastMessage" class="toast" role="status" aria-live="polite">{{ toastMessage }}</div>
+      <div v-if="toastMessage && !updateAvailable" class="toast" role="status" aria-live="polite">{{ toastMessage }}</div>
     </Transition>
   </main>
 </template>
