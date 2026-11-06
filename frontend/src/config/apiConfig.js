@@ -5,11 +5,6 @@ const baseURL = (
 
 export const apiConfig = Object.freeze({
   baseURL,
-  endpoints: Object.freeze({
-    hello: `${baseURL}/hello`,
-    // health 位於伺服器根目錄，不在 /api/v1 下。
-    health: new URL('/health', baseURL).href,
-  }),
 })
 
 export default apiConfig

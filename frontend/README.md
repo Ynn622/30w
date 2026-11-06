@@ -18,13 +18,13 @@ npm run build
 
 ## 後端 API
 
-端點集中在 `src/config/apiConfig.js`，預設 base URL 為 `https://30wbackend.idfc.dev/api/v1`。
+`src/config/apiConfig.js` 僅管理 base URL，預設為 `https://30wbackend.idfc.dev/api/v1`。
 如需切換環境，可將 `.env.example` 複製為 `.env.local` 並修改 `VITE_API_BASE_URL`，之後重新啟動或建置。
 
 ```js
 import apiConfig from './config/apiConfig.js'
 
-const url = new URL(apiConfig.endpoints.hello)
+const url = new URL(`${apiConfig.baseURL}/hello`)
 url.searchParams.set('name', 'CityLink')
 const response = await fetch(url)
 if (!response.ok) throw new Error(`API request failed: ${response.status}`)
@@ -32,8 +32,6 @@ const result = await response.json()
 // result.data.message
 ```
 
-- `apiConfig.endpoints.hello`：GET `/api/v1/hello`，可選 query `name`。
-- `apiConfig.endpoints.health`：GET `/health`，回傳 `status` 與 `uptime`。
 - [Swagger](https://30wbackend.idfc.dev/docs/) · [OpenAPI](https://30wbackend.idfc.dev/openapi.json)
 
 ## WebView 訊息格式

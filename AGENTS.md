@@ -26,7 +26,7 @@ npm run build
 - `frontend/src/components/`：首頁、服務、票夾、個人頁與共用元件。
 - `frontend/src/data/services.js`：示範服務資料。
 - `frontend/src/lib/webview.js`：城市通雙向溝通封裝。
-- `frontend/src/config/apiConfig.js`：後端 base URL 與 API 端點；使用 `VITE_API_BASE_URL` 切換環境。
+- `frontend/src/config/apiConfig.js`：僅管理後端 base URL；使用 `VITE_API_BASE_URL` 切換環境。
 - `frontend/src/styles.css`：行動版樣式與 safe-area。
 - `.github/workflows/deploy-frontend.yml`：GitHub Pages 部署流程。
 
