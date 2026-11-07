@@ -305,11 +305,14 @@ body { background: #edf3f7; }
 .map-tools .q-icon-button { width: 44px; height: 44px; box-shadow: 0 2px 8px #2447561a; background: #fff; border: 1px solid #dce6ed; border-radius: 50%; color: #385c6e; }
 .minus-icon { font-size: 26px; line-height: 1; }
 /* 地圖場所標記：按鈕本身 44px 透明可點，內層標記約 26px。 */
-.q-map-pin { display: grid; place-items: end center; width: 44px; height: 44px; padding: 0 0 4px; border: 0; background: transparent; cursor: pointer; }
-.q-map-pin-mark { display: grid; place-items: center; width: 26px; height: 27px; background: var(--q-brand); color: #fff; border: 2px solid #fff; border-radius: 9px 9px 9px 3px; font-size: 15px; line-height: 1; box-shadow: 0 2px 6px #2753682e; }
-.q-map-pin.indoor .q-map-pin-mark { background: #8c64a1; }
+.q-map-pin { display: flex; flex-direction: column; align-items: center; min-width: 44px; max-width: 96px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.q-map-pin-icon { display: block; width: 28px; height: 36px; filter: drop-shadow(0 2px 3px #1d3c4a40); transition: transform .15s ease; transform-origin: 50% 100%; }
+.q-map-pin-icon svg { display: block; }
+.q-map-pin:hover .q-map-pin-icon { transform: scale(1.08); }
+.q-map-pin-label { display: block; max-width: 96px; margin-top: 1px; padding: 0 4px; overflow: hidden; border-radius: 4px; background: #ffffffe6; color: #263b46; font-size: 11px; font-weight: 600; line-height: 16px; white-space: nowrap; text-overflow: ellipsis; box-shadow: 0 1px 2px #1d3c4a24; }
+.q-pin-labels-hidden .q-map-pin-label { display: none; }
 .q-map-pin:focus-visible { outline: none; }
-.q-map-pin:focus-visible .q-map-pin-mark { outline: 3px solid #0391a780; outline-offset: 2px; }
+.q-map-pin:focus-visible .q-map-pin-icon { outline: 3px solid #0391a780; outline-offset: 2px; border-radius: 50%; }
 .q-user-dot { width: 13px; height: 13px; border: 2.5px solid #fff; border-radius: 50%; background: #2d96ed; box-shadow: 0 0 0 8px #4eacfa2b; }
 .q-area-dot { width: 12px; height: 12px; border: 2px solid var(--q-brand); background: #fff; border-radius: 4px; box-shadow: 0 0 0 8px #0391a726; }
 .map-data-note { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 3px 10px; font-size: 12px; color: var(--q-muted); padding: 0 3px; }
@@ -495,7 +498,7 @@ body { background: #edf3f7; }
 .q-low-stimulus .quiet-app .sensory-weather,
 .q-low-stimulus .quiet-app .report-grid button { background: #f7f9fa; }
 .q-low-stimulus .quiet-app :is(.sense-tile, .report-grid button, .q-tag, .score-chip, .sensory-map, .detail-tags) { filter: saturate(.55); }
-.q-low-stimulus .quiet-app .q-map-pin-mark { box-shadow: none; }
+.q-low-stimulus .quiet-app .q-map-pin-icon { filter: none; }
 .q-low-stimulus :is(.quiet-app, .quiet-overlay) :is(.q-primary, .q-secondary, .q-text-button, .report-grid button, .filter-select select, .explore-tabs button, .detail-tabs button) { min-height: 52px; }
 .q-low-stimulus :is(.quiet-app, .quiet-overlay) .q-icon-button { min-width: 52px; min-height: 52px; }
 

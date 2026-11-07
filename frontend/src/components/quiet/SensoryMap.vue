@@ -22,6 +22,34 @@ function applyStimulus() {
   map.setPaintProperty('sensory-heat', 'heatmap-opacity', props.lowStimulus ? .22 : .43)
   map.setPaintProperty('sensory-observed', 'circle-opacity', props.lowStimulus ? .5 : .65)
 }
+// 場所標記：水滴形圖釘（依類型配色＋白底小圖示）與下方小字名稱。
+// 圖示是固定的 SVG 字串，不含 API 資料；名稱來自 API，一律用 textContent。
+const PIN_KINDS = {
+  park: { color: '#3c8a4a', icon: '<path d="M20 3C10 2 3 6 4 13s14 11 16-10Z"/><path d="M3 22 16 9"/>' },
+  library: { color: '#7b5ea7', icon: '<path d="M4 5h6a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H4Z"/><path d="M20 5h-6a2 2 0 0 0-2 2v12a2 2 0 0 1 2-2h6Z"/>' },
+  hall: { color: '#0391A7', icon: '<path d="M3 11 12 4l9 7v9H3Z"/><path d="M10 20v-5h4v5"/>' },
+}
+const PIN_HEIGHT = 36
+function pinElement(place) {
+  const kind = PIN_KINDS[place.artwork] || PIN_KINDS.hall
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = 'q-map-pin'
+  button.setAttribute('aria-label', `查看${place.name}`)
+  const icon = document.createElement('span')
+  icon.className = 'q-map-pin-icon'
+  icon.setAttribute('aria-hidden', 'true')
+  icon.innerHTML = `<svg width="28" height="${PIN_HEIGHT}" viewBox="0 0 28 36"><path d="M14 35s11-11.6 11-20.5A11 11 0 0 0 3 14.5C3 23.4 14 35 14 35Z" fill="${kind.color}" stroke="#fff" stroke-width="2"/><circle cx="14" cy="14.5" r="7.5" fill="#fff"/><g transform="translate(8.5 9) scale(.46)" fill="none" stroke="${kind.color}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${kind.icon}</g></svg>`
+  const label = document.createElement('span')
+  label.className = 'q-map-pin-label'
+  label.setAttribute('aria-hidden', 'true')
+  label.textContent = place.name
+  button.append(icon, label)
+  button.addEventListener('click', () => emit('select', place.id))
+  return button
+}
+// 縮小到街廓以外時隱藏名稱，避免標籤互相重疊。
+function updateLabelVisibility() { container.value?.classList.toggle('q-pin-labels-hidden', (map?.getZoom() ?? 15) < 14) }
 function clearMarkers() { markers.forEach(marker => marker.remove()); markers = [] }
 function sync() {
   if (!ready.value || !map) return
@@ -34,17 +62,8 @@ function sync() {
   map.getSource('sensory')?.setData({ type: 'FeatureCollection', features })
   clearMarkers()
   props.places.filter(place => isCoordinate(place.location)).forEach(place => {
-    const button = document.createElement('button')
-    button.type = 'button'; button.className = `q-map-pin ${place.indoor ? 'indoor' : ''}`
-    button.setAttribute('aria-label', `查看${place.name}`)
-    // 可點範圍維持 44px，畫面上的標記縮小；文字來自 API，使用 textContent，禁止插入 HTML。
-    const mark = document.createElement('span')
-    mark.className = 'q-map-pin-mark'
-    mark.setAttribute('aria-hidden', 'true')
-    mark.textContent = place.indoor ? '▤' : '♧'
-    button.append(mark)
-    button.addEventListener('click', () => emit('select', place.id))
-    markers.push(new maplibre.Marker({ element: button, anchor: 'bottom' }).setLngLat([place.location.lng, place.location.lat]).addTo(map))
+    // 元素頂端為圖釘頂端，往上位移圖釘高度，讓尖端對準座標、名稱在下方。
+    markers.push(new maplibre.Marker({ element: pinElement(place), anchor: 'top', offset: [0, -PIN_HEIGHT] }).setLngLat([place.location.lng, place.location.lat]).addTo(map))
   })
   centerMarker?.remove()
   const dot = document.createElement('div'); dot.className = props.deviceLocated ? 'q-user-dot' : 'q-area-dot'
@@ -85,6 +104,7 @@ async function initialize() {
       ready.value = true; applyStimulus(); applyVisibility(); sync()
     })
     // 停止拖曳／縮放 0.5 秒後回報地圖中心，讓上層抓取該處附近的地點與熱區。
+    map.on('zoom', updateLabelVisibility)
     map.on('moveend', () => {
       clearTimeout(moveTimer)
       moveTimer = setTimeout(() => {
