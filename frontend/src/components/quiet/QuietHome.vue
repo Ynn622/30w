@@ -30,6 +30,8 @@ const recentNoise = computed(() => {
 })
 // 點選感官卡片時開啟的資料說明小視窗。
 const infoKey = ref(null)
+// 最近的量測紀錄預設收起，點標題才展開。
+const historyOpen = ref(false)
 const updatedClock = computed(() => {
   const value = props.city.overview.meta.value?.updatedAt
   if (!value || !Number.isFinite(new Date(value).getTime())) return '時間未知'
@@ -117,8 +119,8 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
       </button>
       <p class="microcopy"><AppIcon name="shield" :size="14" />由你決定是否分享摘要，不儲存或上傳錄音。</p>
       <section v-if="recentNoise.length" class="noise-history" aria-label="最近的量測紀錄">
-        <h3>最近的量測紀錄</h3>
-        <ol>
+        <h3><button type="button" class="noise-history-toggle" :aria-expanded="historyOpen" aria-controls="noise-history-list" @click="historyOpen = !historyOpen"><span>最近的量測紀錄<small>{{ recentNoise.length }} 筆</small></span><AppIcon class="noise-history-chevron" :class="{ open: historyOpen }" name="chevron" :size="18" /></button></h3>
+        <ol v-show="historyOpen" id="noise-history-list">
           <li v-for="item in recentNoise" :key="item.id">
             <strong>{{ item.db === null ? '—' : `約 ${item.db}` }}<small>dB</small><span v-if="item.level" class="noise-history-level" :class="`level-${item.level.id}`">{{ item.level.label }}</span></strong>
             <span>{{ formatTime(item.measuredAt) }}{{ item.locationLabel ? ` · ${item.locationLabel}` : '' }}<br>原始 {{ item.averageDbfs }} dBFS</span>

@@ -347,10 +347,6 @@ body { background: #edf3f7; }
 .q-switch:checked { background: var(--q-brand); }
 .q-switch:checked::before { transform: translateX(17px); }
 .q-setting-row select { max-width: 106px; min-height: 44px; border: 1px solid var(--q-line); border-radius: 8px; padding: 6px 2px; font-size: 14px; color: #3f5360; background: #fff; }
-.privacy-copy { font-size: 15px; color: #5f707c; line-height: 1.8; margin-top: 15px; }
-.privacy-copy strong { color: var(--q-ink); font-weight: 600; }
-.source-link { display: flex; align-items: center; justify-content: space-between; gap: 9px; border: 0; border-top: 1px solid #edf1f4; background: transparent; color: var(--q-deep); min-height: 56px; padding: 12px 0 0; width: 100%; font-size: 15px; text-align: left; }
-.source-link > span { display: flex; gap: 7px; align-items: center; }
 
 /* 對話框、快速回報與麥克風量測 */
 .quiet-overlay { position: fixed; z-index: 100; inset: 0; background: #172c3c66; backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: flex-end; padding-top: calc(28px + env(safe-area-inset-top)); animation: q-overlay-in .2s ease-out; }
@@ -392,7 +388,13 @@ body { background: #edf3f7; }
 .noise-history-level.level-moderate { color: #7a5b12; background: #fbf2d9; }
 .noise-history-level.level-noisy { color: #8f3b44; background: #fbe7e8; }
 .noise-history { margin-top: 14px; }
-.noise-history h3 { margin: 0 0 8px; font-size: 15px; color: var(--q-ink); }
+.noise-history h3 { margin: 0; font-size: 15px; color: var(--q-ink); }
+.noise-history-toggle { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px; padding: 0 2px; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
+.noise-history-toggle small { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--q-muted); }
+.noise-history-chevron { color: #647681; transition: transform .2s; }
+.noise-history-chevron.open { transform: rotate(90deg); }
+.noise-history ol[id] { margin-top: 4px; }
+@media (prefers-reduced-motion: reduce) { .noise-history-chevron { transition: none; } }
 .noise-history ol { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .noise-history li { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; padding: 8px 12px; border: 1px solid #d8e9f0; border-radius: 12px; background: #f5fbfd; }
 .noise-history strong { font-size: 18px; font-weight: 600; color: var(--q-deep); white-space: nowrap; }
