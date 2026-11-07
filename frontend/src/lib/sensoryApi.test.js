@@ -154,18 +154,18 @@ describe('honest sensory values', () => {
     expect(filterPlaces(mockPlaces('zhongzheng', NOW), { ...AREAS[0], radius: 300, indoor: true, light: 'low' }, NOW)).toEqual([])
     expect(filterPlaces(mockPlaces('zhongzheng', NOW), { ...AREAS[0], radius: 500, indoor: true, light: 'low' }, NOW)).toHaveLength(1)
   })
-  it('restores only supported preferences and tolerates unavailable storage', () => {
-    const restored = readPreferences({ getItem: () => '{"radius":3,"noise":"yes","shareMeasurement":true}' })
-    // 無效值回到預設：低噪篩選預設關閉（後端場所尚無感官資料時才不會一開始就是空清單）。
-    expect(restored).toMatchObject({ radius: 500, noise: false })
-    expect(restored).not.toHaveProperty('shareMeasurement')
-    expect(readPreferences({ getItem: () => { throw new Error('blocked') } })).toMatchObject({ radius: 500 })
+  it('drops removed filter preferences and unknown keys, and tolerates unavailable storage', () => {
+    // 舊版存下的感官篩選與距離偏好已移除，讀取時一律略過。
+    const restored = readPreferences({ getItem: () => '{"radius":1000,"noise":true,"odor":true,"indoor":true,"shareMeasurement":true}' })
+    for (const key of ['radius', 'noise', 'light', 'crowd', 'odor', 'indoor', 'shareMeasurement']) expect(restored).not.toHaveProperty(key)
+    expect(restored).toMatchObject({ sort: 'fit', lowStimulus: false })
+    expect(readPreferences({ getItem: () => { throw new Error('blocked') } })).toMatchObject({ sort: 'fit', sensitivities: { noise: 4 } })
   })
   it('restores sensitivities, sort and low-stimulus mode with independent defaults', () => {
-    const restored = readPreferences({ getItem: () => JSON.stringify({ sort: 'distance', lowStimulus: true, odor: true, sensitivities: { noise: 5, light: 0, crowd: 2.5, odor: 3 } }) })
-    expect(restored).toMatchObject({ sort: 'distance', lowStimulus: true, odor: true, sensitivities: { noise: 5, light: 2, crowd: 3, odor: 3 } })
+    const restored = readPreferences({ getItem: () => JSON.stringify({ sort: 'distance', lowStimulus: true, sensitivities: { noise: 5, light: 0, crowd: 2.5, odor: 3 } }) })
+    expect(restored).toMatchObject({ sort: 'distance', lowStimulus: true, sensitivities: { noise: 5, light: 2, crowd: 3, odor: 3 } })
     const oldFormat = readPreferences({ getItem: () => '{"noise":false,"radius":1000}' })
-    expect(oldFormat).toMatchObject({ noise: false, radius: 1000, sort: 'fit', lowStimulus: false, sensitivities: { noise: 4, light: 2, crowd: 3, odor: 1 } })
+    expect(oldFormat).toMatchObject({ sort: 'fit', lowStimulus: false, sensitivities: { noise: 4, light: 2, crowd: 3, odor: 1 } })
     oldFormat.sensitivities.noise = 1
     expect(readPreferences({ getItem: () => 'null' }).sensitivities.noise).toBe(4)
     expect(readPreferences({ getItem: () => '{"sort":"ssi","sensitivities":"bad"}' })).toMatchObject({ sort: 'fit', sensitivities: { noise: 4 } })

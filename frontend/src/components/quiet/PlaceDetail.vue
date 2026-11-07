@@ -33,7 +33,7 @@ function navigate() {
 async function share() {
   try {
     const text = `${place.value.name}｜城市靜音鍵${meta.value?.mock ? '（模擬資料）' : ''}`
-    if (navigator.share) await navigator.share({ title: '我的安靜角落', text })
+    if (navigator.share) await navigator.share({ title: '城市靜音鍵場所', text })
     else if (navigator.clipboard) { await navigator.clipboard.writeText(text); emit('notify', '已複製場所名稱，可分享給朋友。') }
     else emit('notify', '此瀏覽器不支援分享，請手動複製場所名稱。')
   } catch (reason) { if (reason.name !== 'AbortError') emit('notify', '分享未完成，請稍後再試。') }
@@ -45,7 +45,7 @@ async function share() {
     <header class="detail-header">
       <button type="button" class="q-icon-button" aria-label="返回上一頁" @click="$emit('back')"><AppIcon name="back" :size="23"/></button>
       <h1>場所詳情</h1>
-      <div><button type="button" class="q-icon-button" aria-label="分享場所" :disabled="!place" @click="share"><AppIcon name="share" :size="22"/></button><button type="button" class="q-icon-button" :aria-label="city.favorites.value.includes(id) ? '取消收藏' : '收藏場所'" :aria-pressed="city.favorites.value.includes(id)" :class="{ 'is-saved': city.favorites.value.includes(id) }" :disabled="!place" @click="city.toggleFavorite(id)"><AppIcon name="heart" :size="24"/></button></div>
+      <div><button type="button" class="q-icon-button" aria-label="分享場所" :disabled="!place" @click="share"><AppIcon name="share" :size="22"/></button></div>
     </header>
     <AsyncState v-if="state !== 'ready'" :state="state" :message="error" retry @retry="load" />
     <template v-else-if="place">
@@ -80,7 +80,7 @@ async function share() {
         </div>
       </Transition>
       <section class="detail-sources"><AppIcon name="shield" :size="19"/><div><strong>資料來源與時間</strong><p>{{ place.reportCount ?? 0 }} 筆主觀回報 · {{ { high: '信心高', medium: '信心中等', low: '信心低', insufficient: '資料不足' }[place.confidence] || '信心未知' }}<br>{{ formatTime(place.updatedAt) }} {{ meta.mock ? '模擬資料' : '更新' }}</p><template v-for="(source, index) in place.sources || meta.sources" :key="index"><a v-if="source.url?.startsWith('https://')" :href="source.url" target="_blank" rel="noopener noreferrer">{{ source.name }}</a><span v-else>{{ source.name }}</span></template></div></section>
-      <div class="detail-actions"><button type="button" class="q-secondary" @click="navigate"><AppIcon name="route" :size="21"/>步行導航</button><button type="button" class="q-primary" @click="city.toggleFavorite(id)"><AppIcon :name="city.favorites.value.includes(id) ? 'check' : 'leaf'" :size="21"/>{{ city.favorites.value.includes(id) ? '已在我的安靜角落' : '設為我的安靜角落' }}</button></div>
+      <div class="detail-actions"><button type="button" class="q-primary" @click="navigate"><AppIcon name="route" :size="21"/>步行導航</button></div>
     </template>
   </section>
 </template>
@@ -90,7 +90,6 @@ async function share() {
 .detail-header { gap: 5px; min-height: 46px; margin: 0 -5px 9px; }
 .detail-header h1 { margin: 0; font-size: 19px; font-weight: 650; line-height: 1.4; color: #27323a; }
 .detail-header .q-icon-button { min-width: 44px; min-height: 44px; padding: 9px; color: #34434c; }
-.detail-header .is-saved svg { color: #ce726c; fill: #f7dfdb; }
 .detail-art { height: 145px; position: relative; border-radius: 11px; overflow: hidden; background: #e9f1f4; }
 .detail-art > span { bottom: 8px; right: 8px; padding: 4px 7px; font-size: 12px; line-height: 1.4; border-radius: 5px; color: #fff; background: #263b46c7; }
 .detail-title { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; margin: 13px 0 11px; }
@@ -132,9 +131,9 @@ async function share() {
 .detail-sources p { margin: 5px 0; font-size: 12px; line-height: 1.65; color: #5e6d78; }
 .detail-sources span, .detail-sources a { color: #637681; font-size: 12px; line-height: 1.5; }
 .detail-sources a { color: var(--q-deep, #007a90); min-height: 44px; }
-.detail-actions { gap: 10px; margin-top: 19px; }
+.detail-actions { display: grid; margin-top: 19px; }
 .detail-actions .q-secondary { min-height: 49px; padding: 10px; color: var(--q-deep, #007a90); border-color: var(--q-brand, #0391a7); border-radius: 10px; background: #fff; font-size: 16px; font-weight: 600; }
-.detail-actions .q-primary { min-height: 49px; padding: 10px; color: #fff; background: var(--q-brand, #0391a7); border-radius: 10px; font-size: 19px; font-weight: 700; line-height: 1.35; }
+.detail-actions .q-primary { width: 100%; min-height: 49px; padding: 10px; color: #fff; background: var(--q-brand, #0391a7); border-radius: 10px; font-size: 19px; font-weight: 700; line-height: 1.35; }
 .detail-description { margin: 0 0 9px; color: #556671; font-size: 15px; line-height: 1.8; }
 .info-list > div { gap: 11px; padding: 13px 0; color: var(--q-deep, #007a90); border-color: #e5ebee; }
 .info-list p { color: #5c6d77; font-size: 15px; line-height: 1.7; }

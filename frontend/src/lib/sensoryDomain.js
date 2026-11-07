@@ -99,7 +99,10 @@ export function filterPlaces(places, query = {}, now = Date.now()) {
     }))
     .sort((a, b) => a.distanceM - b.distanceM)
 }
-export const DEFAULT_PREFERENCES = Object.freeze({ noise: false, light: false, crowd: false, odor: false, radius: 500, indoor: false, lowStimulus: false, sort: 'fit' })
+// 探索範圍固定以查詢中心 500 公尺直線距離（已移除使用者自訂的感官篩選與距離偏好）。
+export const SEARCH_RADIUS = 500
+// 本機偏好只剩介面與排序；舊版存下的 noise／light／crowd／odor／indoor／radius 讀取時會被略過。
+export const DEFAULT_PREFERENCES = Object.freeze({ lowStimulus: false, sort: 'fit' })
 export function readPreferences(storage) {
   const defaults = () => ({ ...DEFAULT_PREFERENCES, sensitivities: { ...DEFAULT_SENSITIVITIES } })
   try {
@@ -107,7 +110,7 @@ export function readPreferences(storage) {
     const preferences = defaults()
     for (const [key, value] of Object.entries(data || {})) {
       if (!Object.hasOwn(DEFAULT_PREFERENCES, key)) continue
-      if (key === 'radius' ? [300, 500, 1000].includes(value) : key === 'sort' ? ['fit', 'distance'].includes(value) : typeof value === 'boolean') preferences[key] = value
+      if (key === 'sort' ? ['fit', 'distance'].includes(value) : typeof value === 'boolean') preferences[key] = value
     }
     for (const key of Object.keys(DEFAULT_SENSITIVITIES)) {
       const value = data?.sensitivities?.[key]

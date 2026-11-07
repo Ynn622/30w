@@ -72,7 +72,7 @@ describe('sensory queries', () => {
     scope.stop()
     expect(vi.getTimerCount()).toBe(0)
   })
-  it('re-ranks by local sensitivities and odor without sending personal settings to the backend', async () => {
+  it('re-ranks by local sensitivities without sending personal settings or filters to the backend', async () => {
     vi.useFakeTimers(); vi.setSystemTime(new Date(NOW))
     const setItem = vi.fn()
     vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem } })
@@ -86,13 +86,14 @@ describe('sensory queries', () => {
     city.preferences.value.sensitivities = { noise: 1, light: 5, crowd: 1, odor: 1 }
     await nextTick()
     expect(city.recommendations.value.map(place => place.id)).toEqual(['zhongzheng-park', 'zhongzheng-reading', 'zhongzheng-hall'])
-    city.preferences.value.odor = true
     city.preferences.value.sort = 'distance'
     await nextTick()
-    expect(city.recommendations.value.map(place => place.id)).not.toContain('zhongzheng-hall')
+    expect(city.recommendations.value.map(place => place.id)).toEqual(['zhongzheng-reading', 'zhongzheng-park', 'zhongzheng-hall'])
     expect(sensoryApi.getPlaces).toHaveBeenCalledTimes(1)
-    for (const key of ['sensitivities', 'odor', 'sort', 'lowStimulus']) expect(sensoryApi.getPlaces.mock.calls[0][0]).not.toHaveProperty(key)
-    expect(JSON.parse(setItem.mock.calls.at(-1)[1])).toMatchObject({ odor: true, sort: 'distance', sensitivities: { light: 5 } })
+    // 已移除感官篩選：查詢只帶區域、座標與固定 500 公尺範圍。
+    expect(Object.keys(sensoryApi.getPlaces.mock.calls[0][0]).sort()).toEqual(['areaId', 'lat', 'lng', 'radius'])
+    expect(sensoryApi.getPlaces.mock.calls[0][0].radius).toBe(500)
+    expect(JSON.parse(setItem.mock.calls.at(-1)[1])).toMatchObject({ sort: 'distance', sensitivities: { light: 5 } })
     scope.stop()
   })
   it('announces the mock fallback once, keeps retrying the backend and announces recovery', async () => {
@@ -212,6 +213,16 @@ describe('sensory queries', () => {
     await city.locate()
     expect(city.mapCenter.value).toBeNull()
     expect(city.searchingElsewhere.value).toBe(false)
+    scope.stop()
+  })
+  it('removes saved favorites left by the old version and no longer exposes favorites', () => {
+    const removeItem = vi.fn()
+    vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn(), removeItem } })
+    const scope = effectScope()
+    const city = scope.run(() => useQuietCity(vi.fn()))
+    expect(removeItem).toHaveBeenCalledWith('quiet-city-favorites')
+    expect(city).not.toHaveProperty('favorites')
+    expect(city).not.toHaveProperty('toggleFavorite')
     scope.stop()
   })
 })

@@ -13,7 +13,9 @@ Vue 3 + JavaScript + Vite 的行動版城市感官服務。首頁、探索、我
 
 感官資料一律先呼叫後端（`VITE_API_BASE_URL`）；連不上、路由不存在（404）、伺服器錯誤或回應格式不符時，該次請求改用 `frontend/src/data/quietMock.js` 的完整模擬資料，並跳出通知「後端感官服務暫時無法連線，已改用模擬資料顯示。」。模擬期間畫面以「模擬」小標與資料來源頁說明標示（競賽規則要求清楚標示模擬內容），每 60 秒持續重試後端，三種資料都取得後端回應時自動切回並通知。取消請求不改用模擬；回報／量測只有在無法連線或路由不存在時才模擬完成（不上傳），驗證錯誤與頻率限制仍顯示錯誤讓使用者重試。 請複製 `.env.example` 至 `.env.local` 設定，之後重新啟動或建置。元件卸載時清除輪詢。
 
-首頁展示聲音、光線、人潮、氣味四維與另列的空品 AQI（不納入 SSI），主觀回報與手機音量分開統計。資料不足／感官觀測過期會顯示未知，推薦再次過濾過期與 null 值；所有距離皆為直線。偏好與收藏 ID 僅本機儲存，位置與量測只在記憶體。
+首頁展示聲音、光線、人潮、氣味四維與另列的空品 AQI（不納入 SSI），主觀回報與手機音量分開統計。資料不足／感官觀測過期會顯示未知，推薦再次過濾過期與 null 值；所有距離皆為直線。敏感度與介面設定僅本機儲存，位置與量測只在記憶體。
+
+已移除「我的感官偏好」（低噪、柔光、少人、氣味、只看室內、探索距離）與「我的安靜角落」收藏功能：地點查詢只帶區域、座標與固定 500 公尺（`SEARCH_RADIUS`），舊版存下的這些偏好讀取時略過，舊收藏編號 `quiet-city-favorites` 會在開啟時從此裝置清除。
 
 ### 首頁區域、定位與探索頁
 
@@ -27,7 +29,7 @@ Vue 3 + JavaScript + Vite 的行動版城市感官服務。首頁、探索、我
 ### SSI、SFS 與低刺激模式
 
 - `src/lib/sensoryIndex.js`：`assessSensory(record, sensitivities, now)` 只採 `sensoryIndex.scoreVersion=ssi-v0.1`、信心非 insufficient、`sourceType=subjective_report`、有樣本且 30 分鐘內有效的維度；回傳 SSI、SFS、`coverage`（環境權重）、`fitCoverage`（個人權重）與 `dimensionCoverage`。缺值、過期與不支援版本不當作低刺激；舊版只有 `senses` 的回應仍顯示各維，但不推造 SSI。
-- `useQuietCity` 的 `city.assess(record, meta)` 供各畫面使用；`city.recommendations` 在本機依 SFS（完整資料優先）或直線距離排序，並在本機套用氣味篩選。敏感度、排序、氣味與低刺激模式皆不加入 API query。
+- `useQuietCity` 的 `city.assess(record, meta)` 供各畫面使用；`city.recommendations` 在本機依 SFS（完整資料優先）或直線距離排序，敏感度、排序與低刺激模式皆不加入 API query。
 - 「我的」提供四維 1–5 敏感度（預設 聲音 4／光線 2／人潮 3／氣味 1）與低刺激模式；舊版或損壞的 localStorage 會回到有效預設。
 - 低刺激模式在 `body` 加上 `q-low-stimulus`，讓 Teleport sheet 一併套用：柔和配色、停止動畫與地圖飛行、降低熱區不透明度、加大操作區並隱藏裝飾插畫；錯誤、模擬資料標示與資料不足仍以文字保留。
 - 快速回報的四種刺激感受提供未預選的強度（`none | mild | noticeable | strong`）；comfortable／other 不送強度。改用模擬資料時可完整操作但不上傳；後端模式需 `VITE_REPORT_INTENSITY=true` 才顯示並送出 `intensity`，否則維持舊 body。

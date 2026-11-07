@@ -1,6 +1,6 @@
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { MOCK_NOTICE, sensoryApi } from '../lib/sensoryApi.js'
-import { distanceMeters, isCoordinate, nearestArea, readPreferences } from '../lib/sensoryDomain.js'
+import { SEARCH_RADIUS, distanceMeters, isCoordinate, nearestArea, readPreferences } from '../lib/sensoryDomain.js'
 import { getNativeChannel } from '../lib/webview.js'
 import { requestNative } from '../lib/nativeClient.js'
 import { assessSensory, rankPlaces } from '../lib/sensoryIndex.js'
@@ -50,11 +50,8 @@ export function useQuietCity(notify) {
   function assess(record, meta) {
     return assessSensory(record, preferences.value.sensitivities, now.value)
   }
-  const favorites = ref([])
-  try {
-    const saved = JSON.parse(storage?.getItem('quiet-city-favorites') || '[]')
-    if (Array.isArray(saved)) favorites.value = saved.filter(id => typeof id === 'string').slice(0, 100)
-  } catch { /* 略過損壞資料。 */ }
+  // 收藏功能已移除：清掉舊版留在此裝置的收藏編號。
+  try { storage?.removeItem('quiet-city-favorites') } catch { /* 無法存取儲存空間時略過。 */ }
   function persist(key, data) {
     try {
       if (!storage) throw new Error('unavailable')
@@ -62,7 +59,6 @@ export function useQuietCity(notify) {
     } catch { notify('瀏覽器無法儲存設定，本次仍可使用；關閉後可能遺失。') }
   }
   watch(preferences, value => persist('quiet-city-preferences', value), { deep: true })
-  watch(favorites, value => persist('quiet-city-favorites', value), { deep: true })
   // 只在定位成功且位於臺北市時查一次地址（不隨輪詢重查）；失敗時畫面退回顯示行政區。
   const address = ref(''), addressState = ref('idle')
   let addressController
@@ -80,7 +76,7 @@ export function useQuietCity(notify) {
     }
   })
   const query = computed(() => serviceAvailable.value
-    ? { areaId: areaId.value, lat: center.value.lat, lng: center.value.lng, radius: preferences.value.radius } : null)
+    ? { areaId: areaId.value, lat: center.value.lat, lng: center.value.lng, radius: SEARCH_RADIUS } : null)
   // 探索地圖停止移動後，地點與熱區改抓地圖中心附近；首頁概況與回報位置仍用目前定位。
   const mapCenter = ref(null)
   const searchCenter = computed(() => serviceAvailable.value ? (mapCenter.value || center.value) : null)
@@ -96,19 +92,16 @@ export function useQuietCity(notify) {
     mapCenter.value = { lat: point.lat, lng: point.lng }
   }
   const mapQuery = computed(() => searchArea.value
-    ? { areaId: searchArea.value.id, lat: searchCenter.value.lat, lng: searchCenter.value.lng, radius: preferences.value.radius } : null)
-  const placeQuery = computed(() => mapQuery.value && ({ ...mapQuery.value,
-    noise: preferences.value.noise ? 'low' : 'any', light: preferences.value.light ? 'low' : 'any',
-    crowd: preferences.value.crowd ? 'low' : 'any', indoor: preferences.value.indoor,
-  }))
+    ? { areaId: searchArea.value.id, lat: searchCenter.value.lat, lng: searchCenter.value.lng, radius: SEARCH_RADIUS } : null)
+  // 已移除使用者感官篩選，地點查詢只帶區域、座標與固定範圍。
+  const placeQuery = mapQuery
   const overview = useRemote(query, sensoryApi.getOverview)
   const map = useRemote(mapQuery, sensoryApi.getMap)
   const places = useRemote(placeQuery, sensoryApi.getPlaces)
-  // Odor and personalization are local additions; do not send unsupported query fields to older backends.
   // 篩選範圍以地圖中心計算，但清單顯示的直線距離一律從目前位置算。
   const recommendations = computed(() => rankPlaces((places.data.value?.places || []).map(place => ({
     ...place, distanceM: distanceMeters(center.value, place.location) ?? place.distanceM, assessment: assess(place, places.meta.value),
-  })).filter(place => !preferences.value.odor || (place.assessment.dimensions.odor !== null && place.assessment.dimensions.odor <= 33)), preferences.value.sort))
+  })), preferences.value.sort))
   // 任一資料改用模擬就視為模擬模式；三者都取得後端資料才算恢復。
   const dataSource = computed(() => {
     const sources = [overview, map, places].map(remote => remote.source.value)
@@ -172,14 +165,10 @@ export function useQuietCity(notify) {
     }
     finally { locating.value = false }
   }
-  function toggleFavorite(id) {
-    favorites.value = favorites.value.includes(id) ? favorites.value.filter(value => value !== id) : [...favorites.value, id].slice(-100)
-    notify(favorites.value.includes(id) ? '已收進我的安靜角落' : '已取消收藏')
-  }
   const reportLocation = computed(() => serviceAvailable.value ? { lat: center.value.lat, lng: center.value.lng,
     source: 'device', areaId: areaId.value, label: `目前位置（${area.value.name}）` } : null)
   onScopeDispose(() => { disposed = true; locationController?.abort(); addressController?.abort(); clearInterval(refreshTimer); window.removeEventListener?.('focus', resume) })
   // 模擬模式下強度選項可完整操作；後端模式需後端宣告支援。
   const reportIntensityEnabled = computed(() => sensoryApi.supportsReportIntensity || usingMock.value)
-  return { mapCenter, searchArea, searchAvailable, searchingElsewhere, setMapCenter, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, favorites, overview, map, places, locating, locate, toggleFavorite, reportLocation }
+  return { mapCenter, searchArea, searchAvailable, searchingElsewhere, setMapCenter, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, map, places, locating, locate, reportLocation }
 }

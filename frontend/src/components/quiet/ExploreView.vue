@@ -5,7 +5,7 @@ import AsyncState from '../AsyncState.vue'
 import PlaceCard from './PlaceCard.vue'
 import BottomSheet from './BottomSheet.vue'
 import LocationGate from './LocationGate.vue'
-import { MOCK_LABEL, formatTime } from '../../lib/sensoryDomain.js'
+import { MOCK_LABEL, SEARCH_RADIUS, formatTime } from '../../lib/sensoryDomain.js'
 
 const SensoryMap = defineAsyncComponent(() => import('./SensoryMap.vue'))
 defineProps({ city: { type: Object, required: true } })
@@ -31,7 +31,6 @@ const showLayer = ref(true)
 
     <div class="explore-context">
       <span class="q-area-select"><AppIcon name="pin" :size="16"/>{{ city.area.value.name }}<button type="button" class="q-icon-button relocate" :disabled="city.locating.value" :aria-label="city.locating.value ? '定位中' : '重新定位'" @click="city.locate"><AppIcon name="locate" :size="17"/></button></span>
-      <button type="button" class="indoor-filter" :class="{ selected: city.preferences.value.indoor }" :aria-pressed="city.preferences.value.indoor" @click="city.preferences.value.indoor = !city.preferences.value.indoor"><AppIcon name="home" :size="16"/>只看室內<AppIcon v-if="city.preferences.value.indoor" name="check" :size="14"/></button>
       <label class="layer-switch"><span>聲音圖層</span><input v-model="showLayer" class="q-switch" type="checkbox" role="switch" :aria-checked="showLayer" aria-label="顯示聲音刺激圖層"/></label>
     </div>
 
@@ -39,11 +38,11 @@ const showLayer = ref(true)
       <SensoryMap :places="city.recommendations.value" :low-stimulus="city.preferences.value.lowStimulus" :cells="city.map.data.value?.cells || []" :center="city.center.value" :layer="layer" :layer-visible="showLayer" :device-located="Boolean(city.deviceLocation.value)" @select="$emit('select', $event)" @locate="city.locate" @viewchange="city.setMapCenter" />
       <BottomSheet v-model:snap="sheet" :peek="SHEET_PEEK" label="附近靜音推薦">
         <template #header>
-          <div class="section-heading"><h2>{{ mode === 'quiet' ? '符合你的靜音推薦' : '附近靜音推薦' }}<small>（{{ city.searchingElsewhere.value ? '地圖中心 ' : '' }}{{ city.preferences.value.radius }} 公尺內）</small></h2><span class="count-badge">{{ city.searchAvailable.value ? city.recommendations.value.length : 0 }} 處</span></div>
+          <div class="section-heading"><h2>{{ mode === 'quiet' ? '符合你的靜音推薦' : '附近靜音推薦' }}<small>（{{ city.searchingElsewhere.value ? '地圖中心 ' : '' }}{{ SEARCH_RADIUS }} 公尺內）</small></h2><span class="count-badge">{{ city.searchAvailable.value ? city.recommendations.value.length : 0 }} 處</span></div>
           <div class="map-data-note"><span>{{ city.searchingElsewhere.value ? `地圖中心・${city.searchArea.value?.name || '臺北市外'}` : '目前位置' }} · {{ city.map.meta.value?.mock ? '模擬圖層' : '近期回報' }}</span><button type="button" class="q-text-button" @click="$emit('sources')"><AppIcon name="shield" :size="14"/>{{ formatTime(city.map.meta.value?.updatedAt) }}</button></div>
         </template>
         <AsyncState v-if="city.map.state.value === 'error'" state="error" :message="city.map.error.value" retry @retry="city.map.reload" />
-        <p class="q-helper preference-help">依你在「我的」設定的感官偏好篩選；{{ city.preferences.value.sort === 'fit' ? '依你在「我的」設定的敏感度排序，完整資料優先。' : '依直線距離排序。' }}未知或過期資料不會被當成低刺激。</p>
+        <p class="q-helper preference-help">{{ SEARCH_RADIUS }} 公尺內的地點，{{ city.preferences.value.sort === 'fit' ? '依你在「我的」設定的敏感度排序，完整資料優先。' : '依直線距離排序。' }}未知或過期資料不會被當成低刺激。</p>
         <p v-if="city.places.meta.value?.mock" class="mock-inline">{{ MOCK_LABEL }}</p>
         <p v-if="!city.searchAvailable.value" class="outside-search" role="status">地圖中心不在臺北市內，無法提供此區域的地點；請把地圖移回臺北市。</p>
         <AsyncState v-else-if="city.places.state.value !== 'ready'" :state="city.places.state.value" :message="city.places.error.value" retry @retry="city.places.reload" />
@@ -72,8 +71,6 @@ const showLayer = ref(true)
 .q-area-select { color: var(--q-ink, #27323a); font-weight: 600; }
 .q-area-select svg { color: var(--q-brand, #0391a7); }
 .relocate { width: 44px; min-height: 44px; padding: 0; color: var(--q-brand, #0391a7); }
-.indoor-filter { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 44px; padding: 5px 7px; border: 0; background: transparent; color: #697982; font-size: 13px; }
-.indoor-filter.selected { color: var(--q-deep, #007a90); font-weight: 600; }
 .outside-search { margin: 4px 0 10px; padding: 9px 11px; border-radius: 8px; background: #fff4e8; color: #7a4a1f; font-size: 13px; line-height: 1.6; }
 .layer-switch { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; color: #4f5f69; font-size: 13px; white-space: nowrap; cursor: pointer; }
 .layer-switch .q-switch { margin: 0; }
@@ -90,11 +87,8 @@ const showLayer = ref(true)
 .mock-inline { margin: 0 0 8px; padding: 6px 8px; background: #f4f7f9; color: #65747d; border-radius: 6px; font-size: 12px; line-height: 1.6; }
 .list-footnote { gap: 6px; margin: 15px 0 3px; font-size: 12px; line-height: 1.6; color: #6c7c85; }
 @media (max-width: 359px) {
-  /* 320px 時省略「只看室內」圖示，讓區域、室內與圖層開關維持一行。 */
-  .indoor-filter > svg:first-child { display: none; }
-  .indoor-filter, .outside-search { margin: 4px 0 10px; padding: 9px 11px; border-radius: 8px; background: #fff4e8; color: #7a4a1f; font-size: 13px; line-height: 1.6; }
-.layer-switch { font-size: 12px; }
+  .layer-switch { font-size: 12px; }
   .explore-view { padding-inline: 10px; }
-          .section-heading h2 small { font-size: 12px; }
+  .section-heading h2 small { font-size: 12px; }
 }
 </style>
