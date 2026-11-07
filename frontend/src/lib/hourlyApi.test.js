@@ -1,0 +1,90 @@
+import { describe, expect, it, vi } from 'vitest'
+import { ApiError } from './apiClient.js'
+import { createHourlyApi, cropGrid, slotLabel, taipeiSlot, validHourlyMeta, validHourlyPoint } from './hourlyApi.js'
+import { hourlyMetaFor, hourlyPayloadFor, hourlyPointFor, hourlyPointsFor } from './hourlyApi.fixture.js'
+
+const ok = payload => vi.fn(async () => ({ data: payload }))
+const SLOT = { dayType: 'weekday', hour: 8 }
+
+describe('hourly mock grid adapter (issue #5)', () => {
+  it('requests the whole slot from test/mock/hourly, never the retired places route', async () => {
+    const request = ok(hourlyPayloadFor())
+    const result = await createHourlyApi({ request }).getGrid({ ...SLOT, radius: 1500, scenario: 'weekday_day' })
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(request).toHaveBeenCalledWith('test/mock/hourly', { query: { dayType: 'weekday', hour: 8, limit: 30000, offset: 0 }, signal: undefined })
+    expect(request.mock.calls.flat().join(' ')).not.toContain('test/mock/places')
+    expect(result.data.points).toHaveLength(5)
+    expect(result.data.total).toBe(5)
+    expect(result.meta.simulatedAt).toBe('2026-11-07T19:00:26.660Z')
+  })
+  it('follows nextOffset until every page is loaded and keeps the latest simulated time', async () => {
+    const points = hourlyPointsFor()
+    const request = vi.fn()
+      .mockResolvedValueOnce({ data: hourlyPayloadFor(SLOT, points.slice(0, 3), { total: 5, nextOffset: 3 }) })
+      .mockResolvedValueOnce({ data: { ...hourlyPayloadFor(SLOT, points.slice(3), { total: 5, offset: 3 }), meta: hourlyMetaFor({ ...SLOT, simulatedAt: '2026-11-07T19:00:30.000Z' }) } })
+    const result = await createHourlyApi({ request }).getGrid(SLOT)
+    expect(request.mock.calls.map(call => call[1].query.offset)).toEqual([0, 3])
+    expect(result.data.points.map(point => point.id)).toEqual(points.map(point => point.id))
+    expect(result.meta.simulatedAt).toBe('2026-11-07T19:00:30.000Z')
+  })
+  it('rejects incomplete or inconsistent pages', async () => {
+    const short = ok(hourlyPayloadFor(SLOT, hourlyPointsFor().slice(0, 2), { total: 5 }))
+    await expect(createHourlyApi({ request: short }).getGrid(SLOT)).rejects.toThrow('筆數不完整')
+    const looping = ok(hourlyPayloadFor(SLOT, hourlyPointsFor(), { nextOffset: 0 }))
+    await expect(createHourlyApi({ request: looping }).getGrid(SLOT)).rejects.toThrow('分頁不一致')
+  })
+  it('rejects responses whose version, slot, ids, coordinates or scores do not match', async () => {
+    const cases = [
+      { ...hourlyPayloadFor(), meta: { ...hourlyMetaFor(), datasetVersion: 'taipei-hourly-grid-v2' } },
+      { ...hourlyPayloadFor(), meta: { ...hourlyMetaFor(), demo: false } },
+      { ...hourlyPayloadFor(), meta: hourlyMetaFor({ hour: 9 }) },
+      { ...hourlyPayloadFor(), meta: hourlyMetaFor({ dayType: 'weekend' }) },
+      hourlyPayloadFor(SLOT, [hourlyPointFor({ id: '147df5ff-68a7-530b-b9d2-8355bf25f71e' })]),
+      hourlyPayloadFor(SLOT, [hourlyPointFor({ location: { lat: 'x', lng: 121.5 } })]),
+      hourlyPayloadFor(SLOT, [hourlyPointFor({ senses: { noise: 101, light: 1, crowd: 1, odor: 1 } })]),
+      hourlyPayloadFor(SLOT, [hourlyPointFor({ senses: { noise: 1.5, light: 1, crowd: 1, odor: 1 } })]),
+      hourlyPayloadFor(SLOT, [hourlyPointFor({ coordinateKind: 'facility_reference_point' })]),
+      hourlyPayloadFor(SLOT, [hourlyPointFor({ sound: { value: 50, unit: 'dB' } })]),
+      { data: { cells: [] }, meta: hourlyMetaFor() },
+    ]
+    for (const payload of cases) await expect(createHourlyApi({ request: ok(payload) }).getGrid(SLOT)).rejects.toThrow('模擬網格格式不符')
+  })
+  it('keeps null as unknown instead of turning it into zero', () => {
+    const point = hourlyPointsFor()[3]
+    expect(validHourlyPoint(point)).toBe(true)
+    expect(point.senses).toEqual({ noise: null, light: null, crowd: null, odor: null })
+    expect(validHourlyMeta(hourlyMetaFor(), SLOT)).toBe(true)
+  })
+  it('refuses unknown slots before calling the backend', async () => {
+    const request = ok(hourlyPayloadFor())
+    for (const slot of [{ dayType: 'holiday', hour: 8 }, { dayType: 'weekday', hour: 24 }, { dayType: 'weekday', hour: '8' }]) {
+      await expect(createHourlyApi({ request }).getGrid(slot)).rejects.toThrow('未知的模擬時段')
+    }
+    expect(request).not.toHaveBeenCalled()
+  })
+  it('shows 400/404/429/503 as visible messages instead of falling back to built-in mock data', async () => {
+    for (const [status, text] of [[400, '400'], [404, '404'], [429, '429'], [503, '503']]) {
+      const request = vi.fn(async () => { throw new ApiError('HTTP', { status, code: 'HTTP_ERROR' }) })
+      await expect(createHourlyApi({ request }).getGrid(SLOT)).rejects.toMatchObject({ name: 'HourlyDataError', status, message: expect.stringContaining(text) })
+    }
+  })
+  it('passes cancellation through untouched', async () => {
+    const cancelled = new ApiError('取消', { code: 'CANCELLED' })
+    await expect(createHourlyApi({ request: vi.fn(async () => { throw cancelled }) }).getGrid(SLOT)).rejects.toBe(cancelled)
+  })
+})
+
+describe('hourly helpers', () => {
+  it('crops the grid to the map range around the search center', () => {
+    const ids = cropGrid(hourlyPointsFor(), { lat: 25.0336, lng: 121.5363 }, 500).map(point => point.id)
+    expect(ids).toEqual(['tg07270', 'tg07271', 'tg07272', 'tg07273'])
+    expect(cropGrid(hourlyPointsFor(), null, 500)).toEqual([])
+  })
+  it('labels slots and picks the Taipei weekday and hour as the default', () => {
+    expect(slotLabel({ dayType: 'weekend', hour: 20 })).toBe('週末 20:00')
+    expect(slotLabel({ dayType: 'x', hour: 1 })).toBe('未選擇時段')
+    // 2026-11-07（週六）19:00Z = 臺北 11-08（週日）03:00。
+    expect(taipeiSlot(Date.parse('2026-11-07T19:00:00Z'))).toEqual({ dayType: 'weekend', hour: 3 })
+    expect(taipeiSlot(Date.parse('2026-11-09T01:30:00Z'))).toEqual({ dayType: 'weekday', hour: 9 })
+  })
+})

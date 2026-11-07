@@ -177,10 +177,18 @@ export function placesRadius(needed, { free = false } = {}) {
 }
 export const placesRadiusCap = ({ free = false } = {}) => free ? FREE_RADIUS_RANGE.max : MAX_SEARCH_RADIUS
 // 本機偏好只剩介面與排序；舊版存下的 noise／light／crowd／odor／indoor／radius 讀取時會被略過。
-// dataMode：live（正式資料）或 remote-mock（後端測試專用 Mock API）；預設可由 VITE_DATA_MODE 設定，使用者可在「我的」切換。
-const DEFAULT_DATA_MODE = import.meta.env?.VITE_DATA_MODE === 'remote-mock' ? 'remote-mock' : 'live'
-export const DEFAULT_PREFERENCES = Object.freeze({ lowStimulus: false, sort: 'fit', dataMode: DEFAULT_DATA_MODE, scenario: 'weekday_day' })
-const PREFERENCE_VALUES = { sort: ['fit', 'distance'], dataMode: ['live', 'remote-mock'], scenario: ['weekday_day', 'weekday_evening', 'weekend_day'] }
+// 臺北時間的「平日／週末＋小時」，作為模擬時段的預設值（只決定初次顯示，不代表即時資料）。
+export function taipeiSlot(now = Date.now()) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Taipei', weekday: 'short', hour: 'numeric', hourCycle: 'h23' }).formatToParts(new Date(now))
+  const weekday = parts.find(part => part.type === 'weekday')?.value
+  const hour = Number(parts.find(part => part.type === 'hour')?.value)
+  return { dayType: ['Sat', 'Sun'].includes(weekday) ? 'weekend' : 'weekday', hour: Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : 12 }
+}
+// dataMode：live（正式資料）或 remote-hourly（後端測試專用逐小時模擬網格，Ynn622/30w#5）；預設可由 VITE_DATA_MODE 設定，使用者可在「我的」切換。
+// 舊版 remote-mock（已退役的 60 點 API）讀取時略過，回到正式資料。
+const DEFAULT_DATA_MODE = import.meta.env?.VITE_DATA_MODE === 'remote-hourly' ? 'remote-hourly' : 'live'
+export const DEFAULT_PREFERENCES = Object.freeze({ lowStimulus: false, sort: 'fit', dataMode: DEFAULT_DATA_MODE, ...taipeiSlot() })
+const PREFERENCE_VALUES = { sort: ['fit', 'distance'], dataMode: ['live', 'remote-hourly'], dayType: ['weekday', 'weekend'], hour: Array.from({ length: 24 }, (_, hour) => hour) }
 export function readPreferences(storage) {
   const defaults = () => ({ ...DEFAULT_PREFERENCES, sensitivities: { ...DEFAULT_SENSITIVITIES } })
   try {

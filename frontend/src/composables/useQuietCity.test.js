@@ -11,10 +11,11 @@ import { reverseGeocoder } from '../lib/reverseGeocode.js'
 const fakeLocationMock = vi.hoisted(() => ({ enabled: false, lat: 25.1144737, lng: 121.5351923, name: '天母體育館' }))
 vi.mock('../config/locationConfig.js', () => ({ fakeLocation: fakeLocationMock }))
 vi.mock('../lib/sensoryApi.js', () => ({ MOCK_NOTICE: 'MOCK_NOTICE', sensoryApi: { supportsReportIntensity: false, supportsFreeRadius: false, getOverview: vi.fn(), getMap: vi.fn(), getPlaces: vi.fn() } }))
-// 測試情境 Mock API：保留真實的評分與排序，只替換網路呼叫。
-vi.mock('../lib/mockApi.js', async importOriginal => ({ ...(await importOriginal()), mockApi: { getPlaces: vi.fn(), getPlace: vi.fn() } }))
-import { mockApi } from '../lib/mockApi.js'
-import { CLOSED_ID, DAAN_ID, PLAIN_ID, UNKNOWN_ID, mockPayloadFor, mockPlaceFor, mockPlacesFor } from '../lib/mockApi.fixture.js'
+// 測試情境 hourly 模擬網格：保留真實的裁切與標示工具，只替換網路呼叫。
+vi.mock('../lib/hourlyApi.js', async importOriginal => ({ ...(await importOriginal()), hourlyApi: { getGrid: vi.fn() } }))
+import { hourlyApi } from '../lib/hourlyApi.js'
+import { SIMULATED_AT, hourlyPayloadFor } from '../lib/hourlyApi.fixture.js'
+import { buildSensoryField } from '../lib/sensoryField.js'
 afterEach(() => { fakeLocationMock.enabled = false; vi.unstubAllGlobals(); vi.clearAllMocks(); vi.useRealTimers() })
 // 服務只依目前定位提供：測試直接設定裝置位置。
 const at = (lat, lng) => ({ lat, lng, source: 'device', label: '目前位置' })
@@ -335,92 +336,109 @@ describe('sensory queries', () => {
   })
 })
 
-describe('remote-mock test scenarios (issue #4)', () => {
-  const liveApis = () => [sensoryApi.getMap, sensoryApi.getPlaces]
+describe('remote-hourly test grid (issue #5)', () => {
+  const flush = async () => { await nextTick(); await Promise.resolve(); await Promise.resolve() }
   function setup() {
     vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
     for (const fn of [sensoryApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
-    // 樣本場所都在中正區座標附近（約 1 公里內）。
-    return located(vi.fn(), at(25.0333, 121.5358))
+    // 樣本網格在大安區附近，另有一點在天母。
+    return located(vi.fn(), at(25.0336, 121.5363))
   }
-  it('stops live map and places queries, asks the mock API for the scenario only and blocks writes', async () => {
-    mockApi.getPlaces.mockResolvedValue(mockPayloadFor())
+  function remote(city, slot = { dayType: 'weekday', hour: 8 }) { Object.assign(city.preferences.value, { dataMode: 'remote-hourly', ...slot }) }
+  it('replaces only the live sensory map with the grid, keeps official places and blocks writes', async () => {
+    hourlyApi.getGrid.mockResolvedValue(hourlyPayloadFor())
     const { scope, city } = setup()
     await nextTick()
-    for (const fn of liveApis()) fn.mockClear()
-    city.preferences.value.dataMode = 'remote-mock'
-    await nextTick(); await Promise.resolve(); await Promise.resolve()
-    for (const fn of liveApis()) expect(fn).not.toHaveBeenCalled()
-    expect(mockApi.getPlaces).toHaveBeenCalledTimes(1)
-    expect(mockApi.getPlaces.mock.calls[0][0]).toEqual({ scenario: 'weekday_day' })
+    sensoryApi.getMap.mockClear(); sensoryApi.getPlaces.mockClear()
+    remote(city)
+    await flush()
+    expect(sensoryApi.getMap).not.toHaveBeenCalled()
+    expect(hourlyApi.getGrid).toHaveBeenCalledTimes(1)
+    expect(hourlyApi.getGrid.mock.calls[0][0]).toEqual({ dayType: 'weekday', hour: 8 })
+    expect(city.map.data.value).toBeNull()
     expect(city.remoteMock.value).toBe(true)
     expect(city.writesEnabled.value).toBe(false)
-    expect(city.places.data.value).toBeNull()
-    expect(city.map.data.value).toBeNull()
-    const ids = city.recommendations.value.map(place => place.id)
-    expect(ids.slice(-2).sort()).toEqual([CLOSED_ID, UNKNOWN_ID].sort())
-    expect(ids).toEqual(expect.arrayContaining([DAAN_ID, PLAIN_ID]))
-    expect(city.recommendations.value.every(place => place.mock && place.mockAssessment)).toBe(true)
-    expect(city.recommendations.value.find(place => place.id === CLOSED_ID).mockAssessment.quiet).toBeNull()
+    // 具名推薦仍來自正式 places（radius 與 max 規則不變）。
+    city.setMapView({ lat: 25.0336, lng: 121.5363, radius: 1234 })
+    await nextTick()
+    expect(sensoryApi.getPlaces).toHaveBeenCalled()
+    expect(sensoryApi.getPlaces.mock.calls.at(-1)[0]).toMatchObject({ max: 100 })
     scope.stop()
   })
-  it('cancels the previous scenario so a late reply cannot replace the newer one', async () => {
+  it('feeds the cropped grid into the sensitivity layer using the backend simulated time', async () => {
+    hourlyApi.getGrid.mockResolvedValue(hourlyPayloadFor())
+    const { scope, city } = setup()
+    remote(city)
+    await flush()
+    expect(city.fieldCells.value.map(point => point.id)).toEqual(['tg07270', 'tg07271', 'tg07272', 'tg07273'])
+    expect(city.fieldNow.value).toBe(Date.parse(SIMULATED_AT))
+    // 裝置時鐘快了一小時也照樣畫得出來；資料不足（null）的網格不當成安靜。
+    const field = buildSensoryField(city.fieldCells.value, city.preferences.value.sensitivities, city.fieldNow.value)
+    expect(field).not.toBeNull()
+    expect(buildSensoryField(city.fieldCells.value, city.preferences.value.sensitivities, Date.parse(SIMULATED_AT) + 3_600_000)).toBeNull()
+    expect(buildSensoryField([city.fieldCells.value[3]], city.preferences.value.sensitivities, city.fieldNow.value)).toBeNull()
+    city.setMapView({ lat: 25.1145, lng: 121.5352, radius: 300 })
+    await nextTick()
+    expect(city.fieldCells.value.map(point => point.id)).toEqual(['tg19999'])
+    expect(hourlyApi.getGrid).toHaveBeenCalledTimes(1)
+    scope.stop()
+  })
+  it('cancels the previous slot so a late reply cannot replace the newer one', async () => {
     const pending = []
-    mockApi.getPlaces.mockImplementation((query, { signal }) => new Promise(resolve => pending.push({ query, signal, resolve })))
+    hourlyApi.getGrid.mockImplementation((query, { signal }) => new Promise(resolve => pending.push({ query, signal, resolve })))
     const { scope, city } = setup()
-    city.preferences.value.dataMode = 'remote-mock'
+    remote(city)
     await nextTick()
-    city.preferences.value.scenario = 'weekday_evening'
+    city.preferences.value.hour = 20
     await nextTick()
-    expect(pending.map(item => item.query.scenario)).toEqual(['weekday_day', 'weekday_evening'])
-    expect(pending[0].signal.aborted).toBe(true)
-    pending[1].resolve(mockPayloadFor('weekday_evening'))
+    city.preferences.value.dayType = 'weekend'
+    await nextTick()
+    expect(pending.map(item => item.query)).toEqual([{ dayType: 'weekday', hour: 8 }, { dayType: 'weekday', hour: 20 }, { dayType: 'weekend', hour: 20 }])
+    expect(pending[0].signal.aborted && pending[1].signal.aborted).toBe(true)
+    pending[2].resolve(hourlyPayloadFor({ dayType: 'weekend', hour: 20 }))
     await Promise.resolve()
-    pending[0].resolve(mockPayloadFor('weekday_day'))
+    pending[0].resolve(hourlyPayloadFor({ dayType: 'weekday', hour: 8 }))
     await Promise.resolve()
-    expect(city.mock.data.value.places[0].scenario).toBe('weekday_evening')
+    expect(city.hourly.meta.value).toMatchObject({ dayType: 'weekend', hour: 20 })
     scope.stop()
-    expect(pending[1].signal.aborted).toBe(true)
+    expect(pending[2].signal.aborted).toBe(true)
   })
-  it('lists only points inside the map circle', async () => {
-    const far = mockPlaceFor({ id: '22222222-3333-5444-8555-666666666666', name: '遠方場所', location: { lat: 25.13, lng: 121.5 } })
-    mockApi.getPlaces.mockResolvedValue(mockPayloadFor('weekday_day', [...mockPlacesFor(), far]))
+  it('shows a grid error without falling back to built-in mock data or the live map', async () => {
+    hourlyApi.getGrid.mockRejectedValue(Object.assign(new Error('模擬網格資料暫時無法使用（503），請稍後再試。'), { status: 503 }))
     const { scope, city } = setup()
-    city.preferences.value.dataMode = 'remote-mock'
-    await nextTick(); await Promise.resolve(); await Promise.resolve()
-    expect(city.recommendations.value.map(place => place.name)).not.toContain('遠方場所')
-    city.setMapView({ lat: 25.13, lng: 121.5, radius: 800 })
-    await nextTick()
-    expect(city.recommendations.value.map(place => place.name)).toEqual(['遠方場所'])
-    expect(mockApi.getPlaces).toHaveBeenCalledTimes(1)
-    scope.stop()
-  })
-  it('shows a mock API error without falling back to built-in mock data', async () => {
-    mockApi.getPlaces.mockRejectedValue(Object.assign(new Error('測試資料暫時無法使用（503），請稍後再試。'), { status: 503 }))
-    const { scope, city } = setup()
-    city.preferences.value.dataMode = 'remote-mock'
-    await nextTick(); await Promise.resolve(); await Promise.resolve()
-    expect(city.mock.state.value).toBe('error')
-    expect(city.mock.error.value).toContain('503')
-    expect(city.recommendations.value).toEqual([])
-    expect(sensoryApi.getPlaces).not.toHaveBeenCalled()
+    remote(city)
+    await flush()
+    expect(city.fieldSource.value).toBe(city.hourly)
+    expect(city.hourly.state.value).toBe('error')
+    expect(city.hourly.error.value).toContain('503')
+    expect(city.fieldCells.value).toEqual([])
+    expect(sensoryApi.getMap).not.toHaveBeenCalled()
     scope.stop()
   })
-  it('leaves no mock residue after switching back to live data', async () => {
-    mockApi.getPlaces.mockResolvedValue(mockPayloadFor())
+  it('leaves no grid residue after switching back to live data', async () => {
+    hourlyApi.getGrid.mockResolvedValue(hourlyPayloadFor())
     const { scope, city } = setup()
-    city.preferences.value.dataMode = 'remote-mock'
-    await nextTick(); await Promise.resolve(); await Promise.resolve()
-    expect(city.recommendations.value.length).toBeGreaterThan(0)
-    sensoryApi.getPlaces.mockClear()
+    remote(city)
+    await flush()
+    expect(city.fieldCells.value.length).toBeGreaterThan(0)
+    sensoryApi.getMap.mockClear()
     city.preferences.value.dataMode = 'live'
     await nextTick()
-    expect(city.mock.data.value).toBeNull()
-    expect(city.mock.state.value).toBe('idle')
+    expect(city.hourly.data.value).toBeNull()
+    expect(city.hourly.state.value).toBe('idle')
     expect(city.writesEnabled.value).toBe(true)
-    expect(sensoryApi.getPlaces).toHaveBeenCalledTimes(1)
-    await Promise.resolve(); await Promise.resolve()
-    expect(city.recommendations.value.some(place => place.mock)).toBe(false)
+    expect(city.fieldSource.value).toBe(city.map)
+    expect(sensoryApi.getMap).toHaveBeenCalledTimes(1)
+    await flush()
+    expect(city.fieldCells.value).toEqual([])
+    expect(city.fieldNow.value).toBe(city.now.value)
+    scope.stop()
+  })
+  it('ignores the retired remote-mock preference and reads saved day type and hour', () => {
+    vi.stubGlobal('window', { localStorage: { getItem: () => JSON.stringify({ dataMode: 'remote-mock', scenario: 'weekday_day', dayType: 'weekend', hour: 21 }), setItem: vi.fn() } })
+    const { scope, city } = located()
+    expect(city.preferences.value).toMatchObject({ dataMode: 'live', dayType: 'weekend', hour: 21 })
+    expect(city.preferences.value).not.toHaveProperty('scenario')
     scope.stop()
   })
 })

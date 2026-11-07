@@ -5,7 +5,6 @@ import QuietHome from './QuietHome.vue'
 import ExploreView from './ExploreView.vue'
 import QuietProfile from './QuietProfile.vue'
 import PlaceDetail from './PlaceDetail.vue'
-import MockPlaceDetail from './MockPlaceDetail.vue'
 import ReportSheet from './ReportSheet.vue'
 import NoiseSheet from './NoiseSheet.vue'
 import { useQuietCity } from '../../composables/useQuietCity.js'
@@ -19,10 +18,10 @@ watchEffect(() => { if (typeof document !== 'undefined') document.body.classList
 onUnmounted(() => document.body.classList.remove('q-low-stimulus'))
 // 服務只依目前定位提供，開啟時即請求定位。
 onMounted(() => city.locate())
-// 測試情境（remote-mock）禁止正式回報與量測，避免出現假的上傳成功。
+// 測試情境（remote-hourly）禁止正式回報與量測，避免出現假的上傳成功。
 function openReport(kind) { if (city.writesEnabled.value) report.value = kind; else emit('notify', '測試情境模式不開放回報。') }
 function openMeasure() { if (city.writesEnabled.value) measuring.value = true; else emit('notify', '測試情境模式不開放環境量測。') }
-// 切換資料模式時關閉詳情，避免正式與 Mock 的場所編號互相殘留。
+// 切換資料模式時關閉詳情與回報，避免正式與模擬的狀態互相殘留。
 watch(() => city.preferences.value.dataMode, () => { placeId.value = null; report.value = null; measuring.value = false })
 function navigate(id) { tab.value = id; placeId.value = null }
 function selected(id) { placeId.value = id }
@@ -33,8 +32,7 @@ function reported(message) { report.value = null; emit('notify', message); refre
 <template>
   <div class="quiet-app" :data-low-stimulus="city.preferences.value.lowStimulus || undefined">
     <Transition name="quiet-page" mode="out-in">
-      <MockPlaceDetail v-if="placeId && city.remoteMock.value" :key="`mock-${placeId}`" :id="placeId" :city="city" @back="placeId = null" @notify="$emit('notify', $event)"/>
-      <PlaceDetail v-else-if="placeId" :key="`place-${placeId}`" :id="placeId" :city="city" @back="placeId = null" @notify="$emit('notify', $event)"/>
+      <PlaceDetail v-if="placeId" :key="`place-${placeId}`" :id="placeId" :city="city" @back="placeId = null" @notify="$emit('notify', $event)"/>
       <QuietHome v-else-if="tab === 'home'" key="home" :city="city" @report="openReport" @measure="openMeasure" @explore="navigate('explore')" @select="selected"/>
       <ExploreView v-else-if="tab === 'explore'" key="explore" :city="city" @select="selected"/>
       <QuietProfile v-else key="profile" :city="city" @select="selected" @explore="navigate('explore')"/>

@@ -104,10 +104,12 @@ describe('location-only service', () => {
     expect(html).not.toContain('sensory-weather')
     expect(html).not.toContain('快速回報')
   })
-  it('disables quick reports and measurement in remote-mock mode and shows the synthetic label', async () => {
+  it('disables quick reports and measurement in remote-hourly mode and shows the simulated label', async () => {
     const city = { ...cityFor(sampleOverview()), remoteMock: ref(true), writesEnabled: ref(false) }
+    city.preferences.value = { ...city.preferences.value, dayType: 'weekend', hour: 20 }
     const html = await renderToString(createSSRApp(QuietHome, { city }))
-    expect(html).toContain('人工情境推估・合成分數・非即時')
+    expect(html).toContain('測試情境：週末 20:00')
+    expect(html).toContain('模擬情境・非即時觀測')
     expect(html).toContain('測試情境模式不開放回報與量測')
     expect(html.match(/<button[^>]*disabled/g).length).toBeGreaterThanOrEqual(9)
   })

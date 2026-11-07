@@ -26,17 +26,15 @@ Vue 3 + JavaScript + Vite 的行動版城市感官服務。首頁、探索、我
 - 首頁「附近的安靜角落」以 `QuietHome.vue` 的 `SHOW_NEARBY` 暫時隱藏。改用模擬資料時，模擬場所與格網以使用者目前位置為中心產生。
 - 探索頁的 h1 只保留給螢幕閱讀器；地圖填滿畫面，推薦清單放在可拖曳的底部抽屜（`BottomSheet.vue`，收合／半開／全開三段，點把手或上下方向鍵也可切換）。收合時地圖底緣留在抽屜上方，確保 OpenStreetMap 等授權標示可見。
 
-### 測試情境（remote-mock，Ynn622/30w#4）
+### 測試情境（remote-hourly，Ynn622/30w#5）
 
-「我的 › 測試資料」可明確切換「正式資料」與後端 `test/mock/places` 的三個情境（平日白天、平日晚上、週末白天）；預設值由 `VITE_DATA_MODE` 決定，選擇存在此裝置。
+「我的 › 測試資料」可明確切換「正式資料」與後端逐小時模擬網格 `test/mock/hourly`（臺北 30,000 個固定網格 × 24 小時 × 平日／週末），並選擇平日／週末與小時；預設值由 `VITE_DATA_MODE` 決定，時段預設為臺北時間的當下，選擇存在此裝置。舊的 60 點 `test/mock/places` 已由後端退役（404），前端已移除相關程式。
 
-- 介接在 `src/lib/mockApi.js`，與正式 `sensoryApi` 分開：只送 `scenario`，並驗證 `meta.mock`、`mode: test-only`、`datasetVersion`、`mapping.version`、情境、UUID、0–100 或 null 的分數、`senses.noise` 為 null、聲音單位與 GeoJSON 點位。400／404／429／503 顯示錯誤並可重試，**不改用內建 quietMock**；取消請求不顯示錯誤。
-- 每個情境一次取回 60 個設施代表點（避開每分鐘 100 次限流），清單與地圖依地圖圓形範圍在前端篩選；切換情境會取消舊請求，切回正式資料時 Mock 場所與狀態立即清空。
-- 首頁、探索頁與詳情長駐標示「人工情境推估・合成分數・非即時」。光線、人潮、氣味顯示為合成分數，聲音另列「推估 N dB(A)」與人工容許帶，null 顯示「未知」；不顯示觀測時間，也不混入 SSI／SFS。清單的「合成安靜度」只用三項合成分數依敏感度加權，僅供排序。
-- 情境中休館（closed）與狀態未知（unknown）仍列出但排在最後、不給分，地圖以灰色點表示；部分開放（partial）顯示 `estimatedInterval`。
-- 探索地圖只畫點位（設施代表點），不畫敏感圖層與綠區，圖例改為測試情境說明；詳情以同一 UUID 與情境查 `test/mock/places/{id}`。
-- 回報與環境量測在測試情境停用（按鈕停用並提示），避免把測試操作送進正式資料。
-- 照片只在後端提供時載入（目前大安森林公園、北投公園），網址必須是該場所精確的 `/api/v1/test/mock/places/{id}/photo` 並以 API origin 解析，`<img>` 帶 `crossorigin="anonymous"`、`referrerpolicy="no-referrer"`、`loading="lazy"`；詳情顯示作者、授權連結、來源、修改說明與「歷史影像」註記，載入失敗或沒有照片時退回示意插畫。
+- 介接在 `src/lib/hourlyApi.js`，與正式 `sensoryApi` 分開：每個時段以 `limit=30000` 一次取完整市（gzip 約 0.5 MB，依 `nextOffset` 續取），驗證 `meta.mock`／`demo`、`mode: test-only`、`datasetVersion: taipei-hourly-grid-v1`、時段、`timeBasis`、`tg00001` 格式網格 ID、座標、四維 0–100 整數或 null、聲音單位與筆數完整。400／404／429／503 顯示錯誤並可重試，**不改用內建 quietMock**；取消請求不顯示錯誤。
+- 網格只用來畫敏感圖層：依地圖範圍（外加 400 公尺）裁切後交給與正式資料相同的內插與個人敏感度加權，綠區篩選照常運作；正式 `sensory/map` 在此模式停用。網格沒有名稱、照片，也不是可進入場所，**推薦清單與詳情仍是正式 places**。
+- 新鮮度以後端 `meta.simulatedAt` 判斷（點的 `observedAt` 與其相同、有效 30 分鐘），不受裝置時鐘誤差影響；正式資料的新鮮度與 SSI 規則不變，資料不足（null）的網格不當作安靜。
+- 首頁、探索地圖長駐「測試情境：平日 08:00・模擬情境・非即時觀測」，圖例標示「模擬情境」並說明載入中／失敗／無資料；「我的」列出後端 `meta.sources`（沒有名稱的項目顯示 id）。
+- 切換時段會取消舊請求，切回正式資料時網格立即清空、恢復正式感官地圖；回報與環境量測在測試情境停用（按鈕停用並提示）。
 - 後端 CORS 只允許 `http://localhost:5173` 與 GitHub Pages，其他埠開發時測試情境會顯示讀取錯誤。
 
 ### SSI、SFS 與低刺激模式

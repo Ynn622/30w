@@ -1,15 +1,15 @@
 <script setup>
 import { computed } from 'vue'
-import { MOCK_LABEL, MOCK_SCENARIOS } from '../../lib/mockApi.js'
+import { HOURLY_LABEL, slotLabel } from '../../lib/hourlyApi.js'
 
-// 測試情境（remote-mock）長駐標示：情境與「人工情境推估・合成分數・非即時」。
+// 測試情境（remote-hourly）長駐標示：所選典型時段與「模擬情境・非即時觀測」。
 const props = defineProps({ city: { type: Object, required: true }, compact: Boolean })
-const scenario = computed(() => MOCK_SCENARIOS.find(item => item.id === props.city.preferences.value.scenario))
+const slot = computed(() => slotLabel(props.city.preferences.value))
 </script>
 
 <template>
   <p v-if="city.remoteMock.value" class="mock-banner" :class="{ compact }" role="note">
-    <strong>測試情境：{{ scenario?.label }}</strong><span>{{ MOCK_LABEL }}</span>
+    <strong>測試情境：{{ slot }}</strong><span>{{ HOURLY_LABEL }}</span>
   </p>
 </template>
 

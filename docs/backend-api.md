@@ -501,19 +501,20 @@ dimensionCoverage = 有效維度數 / 4
 - 前端已在本機計算與排序，偏好不送後端：「我的」提供四維 1–5 敏感度；探索頁可切換「距離優先／安靜程度優先」，安靜程度依敏感度佔比加權場所四維 `senses`（見第 3 節「每個場所必須提供四維感官值」），可直接使用未版本化的 `senses`；環境指數 SSI 仍只在提供版本化 `sensoryIndex` 時計算。後端仍依直線距離回傳即可，不需也不應自行排序。
 - 低刺激模式已由前端實作：柔和配色、停止動畫與地圖飛行、降低熱區不透明度、較大操作區並隱藏裝飾插畫；警示保留文字，不只依賴顏色或聲音。不需新增後端接口。
 
-## 測試情境 Mock API（Ynn622/30w#4，前端已串接）
+## 測試情境 hourly 模擬網格（Ynn622/30w#5，前端已串接）
 
-僅供測試與展示（`meta.mode: "test-only"`），前端在「我的 › 測試資料」明確切換後才呼叫，與正式接口互不備援。
+僅供測試與展示（`meta.mode: "test-only"`），前端在「我的 › 測試資料」明確切換後才呼叫，與正式接口互不備援。舊的 60 點 `test/mock/places`（含 `/{id}`、`/photo`）已退役回 404，前端不再呼叫。
 
 | 接口 | 前端用法 |
 |---|---|
-| `GET test/mock/places?scenario=` | 只送 `scenario`（`weekday_day`／`weekday_evening`／`weekend_day`），一次取回 60 筆與 GeoJSON Point 地圖，前端依地圖圓形範圍篩選 |
-| `GET test/mock/places/{id}?scenario=` | 詳情，id 須與清單同一個 UUID，回應 id 不一致即視為格式錯誤 |
-| `GET test/mock/places/{id}/photo` | 只對 `photo.url` 完全等於此路徑的場所載入，以 API origin 解析；404 時退回示意插畫 |
+| `GET test/mock/hourly?dayType=&hour=&limit=30000&offset=0` | 每個時段一次取全市 30,000 點（gzip 約 0.5 MB、約 2–3 秒），依 `nextOffset` 續取；不帶圈選（圈選只收 300／500／1000m，探索地圖範圍可能更大），前端依地圖範圍裁切 |
+| `GET test/mock/hourly/{tg00001}?dayType=&hour=` | 前端目前未使用（網格沒有詳情頁） |
 
-前端驗證：`meta.mock === true`、`mode === "test-only"`、`datasetVersion === "taipei-sensory-mock-v1"`、`mapping.version === "mock-band-normal-v1"`、`meta.scenario` 與查詢相同；每筆 UUID、座標、`openStatus ∈ open|partial|closed|unknown`、`senses.noise === null`、光線／人潮／氣味為 0–100 整數或 null、`sound.unit === "dB(A)"`；地圖 feature 皆為 Point（`[lng, lat]`）且 id 對應清單。不符即顯示「測試資料格式不符」，不改用內建模擬資料。400／404／429／503 各自顯示說明並可重試。
+前端驗證：`meta.mock === true`、`demo === true`、`mode === "test-only"`、`datasetVersion === "taipei-hourly-grid-v1"`、`meta.dayType`／`hour` 與查詢相同、`timeBasis === "simulated_request_time"`、`simulatedAt` 為有效時間；每點 `id` 符合 `tg\d{5}`、座標有效、`coordinateKind === "synthetic_grid_center"`、`quality ∈ estimated|insufficient`、四維為 0–100 整數或 null、`sound.unit === "dB(A)"`；回傳筆數須等於 `total`。不符即顯示「模擬網格格式不符」，不改用內建模擬資料。400／404／429／503 各自顯示說明並可重試。
 
-顯示規則：長駐「人工情境推估・合成分數・非即時」；不顯示觀測時間、不計入 SSI／SFS；聲音只顯示推估 dB(A) 與人工容許帶；closed／unknown 保留但排在最後且不推薦；partial 顯示 `estimatedInterval`；回報與量測停用。
+顯示規則：長駐「模擬情境・非即時觀測」與所選典型時段；網格只畫敏感圖層與綠區，推薦與詳情仍讀正式 `places`；新鮮度以 `meta.simulatedAt` 判斷；null 不補 0、不當作安靜；不計入正式 SSI；回報與量測停用。
+
+待後端確認：`meta.sources` 有些項目只有 `id`（例如 `curated-v2`），沒有名稱、網址與授權，前端只能顯示 id，建議補齊。
 
 ## HTTP 與部署
 

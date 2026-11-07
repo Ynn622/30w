@@ -2,29 +2,14 @@
 import AppIcon from '../AppIcon.vue'
 import PlaceArtwork from './PlaceArtwork.vue'
 import SensoryScore from './SensoryScore.vue'
-import MockPhoto from './MockPhoto.vue'
 import { SENSES, levelText } from '../../lib/sensoryDomain.js'
-// 測試情境（Mock）卡片：合成三維與推估聲音分開，休館／未知不當推薦。
-const MOCK_SENSES = SENSES.filter(sense => sense.key !== 'noise')
-const STATUS_TEXT = { open: '情境中開放', partial: '部分時段開放', closed: '情境中休館', unknown: '開放狀態未知' }
 
 defineProps({ place: { type: Object, required: true }, mock: Boolean })
 defineEmits(['select'])
 </script>
 
 <template>
-  <button v-if="place.mock" class="q-place-card mock-card" :class="{ unavailable: ['closed', 'unknown'].includes(place.openStatus) }" type="button" @click="$emit('select', place.id)">
-    <div class="place-thumbnail"><MockPhoto :place="place" /></div>
-    <div class="place-card-copy">
-      <div class="place-card-title"><h3>{{ place.name }}</h3><span class="q-tag status-tag" :class="place.openStatus">{{ STATUS_TEXT[place.openStatus] }}{{ place.openStatus === 'partial' && place.estimatedInterval ? ` ${place.estimatedInterval}` : '' }}</span></div>
-      <p class="place-card-meta"><span class="place-category"><AppIcon :name="place.indoor ? 'book' : 'leaf'" :size="15" />{{ place.category }}</span><span class="place-distance">{{ place.distanceM == null ? '距離待確認' : `${place.distanceM} 公尺直線` }}</span></p>
-      <div class="mini-senses"><span v-for="sense in MOCK_SENSES" :key="sense.key"><AppIcon :name="sense.icon" :size="17" /><span class="sr-only">{{ sense.label }}（合成）</span>{{ levelText(place.senses?.[sense.key]) }}</span><span><AppIcon name="sound" :size="17" /><span class="sr-only">聲音</span>{{ place.sound?.value == null ? '未知' : `推估 ${place.sound.value} dB(A)` }}</span></div>
-      <p class="mock-card-score"><span v-if="place.mockAssessment?.quiet != null" class="score-chip">合成安靜度 {{ place.mockAssessment.quiet }}</span><span>合成分數・非即時</span></p>
-      <p v-if="place.photo" class="mock-card-credit">照片：{{ place.photo.author }}・{{ place.photo.license }}（歷史影像）</p>
-    </div>
-    <AppIcon class="place-chevron" name="chevron" :size="19" />
-  </button>
-  <button v-else class="q-place-card" type="button" @click="$emit('select', place.id)">
+  <button class="q-place-card" type="button" @click="$emit('select', place.id)">
     <div class="place-thumbnail"><PlaceArtwork :kind="place.artwork" /></div>
     <div class="place-card-copy">
       <div class="place-card-title"><h3>{{ place.name }}</h3><span class="q-tag">{{ place.tag || '候選休息點' }}</span></div>
@@ -55,14 +40,6 @@ defineEmits(['select'])
 .mini-senses > span:nth-child(3) { color: #48778a; }
 .mini-senses > span:nth-child(4) svg { color: #3c9f9d; }
 .place-chevron { flex-shrink: 0; color: #58646c; }
-.mock-card.unavailable { background: #f7f8f9; }
-.mock-card.unavailable .place-thumbnail { opacity: .6; }
-.status-tag.open { color: #337438; background: #e6f5df; }
-.status-tag.partial { color: #7a5b12; background: #fbf2d9; }
-.status-tag.closed, .status-tag.unknown { color: #55646d; background: #eef1f2; }
-.mock-card-score { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 6px 0 0; color: #7a5a2c; font-size: 12px; }
-.mock-card-score .score-chip { padding: 2px 6px; border-radius: 5px; color: #075f6e; background: #e5f5f8; font-weight: 600; }
-.mock-card-credit { margin: 4px 0 0; color: #66747d; font-size: 11px; line-height: 1.5; }
 @media (max-width: 359px) {
   .q-place-card { gap: 8px; padding: 9px; }
   .place-thumbnail { width: 62px; height: 85px; }
