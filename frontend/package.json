@@ -12,7 +12,6 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "mock:cells": "node scripts/generate-mock-cells.mjs",
     "geo:villages": "node scripts/build-villages.mjs"
   },
   "dependencies": {

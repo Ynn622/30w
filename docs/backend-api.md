@@ -31,7 +31,7 @@ VITE_REPORT_INTENSITY=false
 | 方法與路徑 | 用途 | 前端使用處 |
 | --- | --- | --- |
 | `GET sensory/overview` | 區域感官概況、天氣、空品、回報與量測計數 | 首頁 |
-| `GET sensory/map` | 近期匿名彙整感官熱區 | 探索地圖 |
+| `GET sensory/map` | 近期匿名彙整感官熱區 | 探索地圖（2026-11-08 起前端改用 hourly 模擬網格，暫不呼叫） |
 | `GET places` | 查詢中心指定半徑內、符合資料條件的場所 | 探索地圖與清單 |
 | `GET places/{id}` | 場所詳情、可進入性、感官與來源 | 詳情三分頁 |
 | `POST reports` | 接收個人主觀感受 | 兩步快速回報 |
@@ -117,6 +117,8 @@ VITE_REPORT_INTENSITY=false
 - `weather.temperatureC` 僅在上游提供所選預報時段的對應溫度時填入；若只有最低／最高溫，不取中點冒充氣溫。預報應另保留 `issuedAt`、`validFrom`、`validTo`，空品應保留測站座標、距離與發布時間（可擴充原物件）；這些擴充欄位目前前端尚未呈現。
 
 ## 2 感官地圖
+
+> 2026-11-08 起前端敏感圖層改用 [hourly 模擬網格](#hourly-模擬網格ynn62230w5前端敏感圖層唯一來源)，暫不呼叫本接口；以下契約保留供日後改回正式資料。
 
 `GET sensory/map` 使用相同格式的區域、座標與距離 query；探索頁停止拖曳／縮放 0.5 秒後，前端以**地圖中心**為 `lat`／`lng`、該處推估的行政區為 `areaId` 重新查詢（移動不到 80 公尺不查；地圖中心在臺北市外時不查）。回傳 `data`：
 
@@ -501,21 +503,20 @@ dimensionCoverage = 有效維度數 / 4
 - 前端已在本機計算與排序，偏好不送後端：「我的」提供四維 1–5 敏感度；探索頁可切換「距離優先／安靜程度優先」，安靜程度依敏感度佔比加權場所四維 `senses`（見第 3 節「每個場所必須提供四維感官值」），可直接使用未版本化的 `senses`；環境指數 SSI 仍只在提供版本化 `sensoryIndex` 時計算。後端仍依直線距離回傳即可，不需也不應自行排序。
 - 低刺激模式已由前端實作：柔和配色、停止動畫與地圖飛行、降低熱區不透明度、較大操作區並隱藏裝飾插畫；警示保留文字，不只依賴顏色或聲音。不需新增後端接口。
 
-## 測試情境 hourly 模擬網格（Ynn622/30w#5，前端已串接）
+## hourly 模擬網格（Ynn622/30w#5，前端敏感圖層唯一來源）
 
-僅供測試與展示（`meta.mode: "test-only"`），前端在「我的 › 測試資料」明確切換後才呼叫，與正式接口互不備援。舊的 60 點 `test/mock/places`（含 `/{id}`、`/photo`）已退役回 404，前端不再呼叫。
+後端標示 `meta.mode: "test-only"`。前端探索地圖的敏感圖層一律使用它：平常取臺北當下時段，開啟「模擬環境」時用自選時段；`sensory/map` 已不再呼叫，與正式接口互不備援。舊的 60 點 `test/mock/places`（含 `/{id}`、`/photo`）已退役回 404，前端不再呼叫。
 
 | 接口 | 前端用法 |
 |---|---|
 | `GET test/mock/hourly?dayType=&hour=&limit=30000&offset=0` | 每個時段一次取全市 30,000 點（gzip 約 0.5 MB、約 2–3 秒），依 `nextOffset` 續取；不帶圈選（圈選只收 300／500／1000m，探索地圖範圍可能更大），前端依地圖範圍裁切 |
 | `GET test/mock/hourly/{tg00001}?dayType=&hour=` | 前端目前未使用（網格沒有詳情頁） |
-| `GET test/mock/overview?lat=&lng=` | 首頁感官概況：只送目前位置座標（帶 `radius`／`dayType`／`hour`／`limit`／`offset` 會 400），後端固定 150 公尺、自動取當下臺北時段；驗證 `aggregationVersion: hourly-radius-mean-v1`、`radiusMeters: 150`、時段一致、四維 0–100（可小數）或 null、`validPointCounts ≤ pointCount`、`confidence` 與全 null 一致、`observedAt`／`reportCount` 為 null |
 
 前端驗證：`meta.mock === true`、`demo === true`、`mode === "test-only"`、`datasetVersion === "taipei-hourly-grid-v1"`、`meta.dayType`／`hour` 與查詢相同、`timeBasis === "simulated_request_time"`、`simulatedAt` 為有效時間；每點 `id` 符合 `tg\d{5}`、座標有效、`coordinateKind === "synthetic_grid_center"`、`quality ∈ estimated|insufficient`、四維為 0–100 整數或 null、`sound.unit === "dB(A)"`；回傳筆數須等於 `total`。不符即顯示「模擬網格格式不符」，不改用內建模擬資料。400／404／429／503 各自顯示說明並可重試。
 
-顯示規則：長駐「模擬情境・非即時觀測」與所選典型時段；網格只畫敏感圖層與綠區，推薦與詳情仍讀正式 `places`；新鮮度以 `meta.simulatedAt` 判斷；null 不補 0、不當作安靜；不計入正式 SSI；回報與量測停用。
+顯示規則：只影響探索地圖——圖例標示模擬資料，開啟模擬環境時長駐「模擬環境：時段・典型時段推估・非即時觀測」，網格只畫敏感圖層與綠區；推薦、詳情、首頁概況、回報與量測仍為正式資料；時段滑桿放開才查詢；新鮮度以 `meta.simulatedAt` 判斷；null 不補 0、不當作安靜；不計入正式 SSI。
 
-待後端確認：`meta.sources` 有些項目只有 `id`（例如 `curated-v2`），沒有名稱、網址與授權，前端只能顯示 id，建議補齊。
+待後端確認：`meta.sources` 有些項目只有 `id`（例如 `curated-v2`），沒有名稱、網址與授權。前端畫面目前不列出模擬網格的資料來源清單（開發者 2026-11-08 決定）。
 
 ## HTTP 與部署
 

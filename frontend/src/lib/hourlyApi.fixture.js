@@ -42,18 +42,3 @@ export function hourlyPayloadFor(slot = {}, points = hourlyPointsFor(), page = {
     meta: hourlyMetaFor(slot),
   }
 }
-
-// 首頁 150 公尺模擬平均（GET test/mock/overview）。
-export function hourlyOverviewFor({ dayType = 'weekend', hour = 3, senses = { noise: 26.6, light: 23.7, crowd: 11.4, odor: 12.4 }, pointCount = 9, validPointCounts = { noise: 8, light: 7, crowd: 7, odor: 8 }, missingReason = null } = {}) {
-  const allNull = Object.values(senses).every(value => value === null)
-  const meta = { ...hourlyMetaFor({ dayType, hour }), aggregationVersion: 'hourly-radius-mean-v1', aggregation: { method: 'arithmetic_mean', radiusMeters: 150 } }
-  return {
-    data: {
-      location: { lat: 25.0333, lng: 121.5358 }, radiusMeters: 150, dayType, hour, timezone: 'Asia/Taipei', senses, pointCount, validPointCounts,
-      confidence: allNull ? 'insufficient' : 'low', headline: '附近150公尺感官模擬平均', description: '所選典型時段的網格推估平均，非即時觀測。',
-      observedAt: null, updatedAt: null, simulatedAt: meta.simulatedAt, validUntil: meta.validUntil,
-      reportCount: null, measurementCount: null, sensoryIndex: null, missingReason: allNull ? (missingReason || 'no_points_within_radius') : null,
-    },
-    meta,
-  }
-}

@@ -1,5 +1,5 @@
 import { apiRequest } from './apiClient.js'
-import { mockCells, mockMeta, mockOverview, mockPlace, mockPlaces } from '../data/quietMock.js'
+import { mockMeta, mockOverview, mockPlace, mockPlaces } from '../data/quietMock.js'
 import { filterPlaces, INTENSITY_KINDS, isCoordinate, REPORT_INTENSITIES, REPORT_PERSISTENCE, REPORT_SETTINGS, reportKind } from './sensoryDomain.js'
 
 export const MOCK_NOTICE = '後端感官服務暫時無法連線，已改用模擬資料顯示。'
@@ -9,8 +9,6 @@ export const MOCK_NOTICE = '後端感官服務暫時無法連線，已改用模�
 export function createSensoryApi({
   request = apiRequest, now = () => Date.now(),
   reportIntensity = import.meta.env.VITE_REPORT_INTENSITY === 'true',
-  // 展示用：VITE_MOCK_MAP=true 時感官地圖一律用模擬格網（不呼叫 sensory/map），仍以 meta.mock 標示並跳通知。
-  mockMap = import.meta.env.VITE_MOCK_MAP === 'true',
   // 後端 places 已接受任意整數半徑；設 VITE_PLACES_FREE_RADIUS=false 可退回 300／500／1000 級距。
   freeRadius = import.meta.env.VITE_PLACES_FREE_RADIUS !== 'false',
 } = {}) {
@@ -42,7 +40,6 @@ export function createSensoryApi({
     catch (error) {
       if (cancelled(error, signal)) throw error
       const time = now()
-      // 模擬地圖格網需非同步載入 JSON，其餘模擬資料為同步；一律 await。
       const data = await fallback(time)
       if (data == null) throw error
       return { data: JSON.parse(JSON.stringify(data)), meta: mockMeta(time, reasonOf(error)) }
@@ -73,12 +70,12 @@ export function createSensoryApi({
       if (!result.data.senses || typeof result.data.senses !== 'object') throw new Error('感官概況格式不符，缺少 senses。')
       return result
     }, time => mockOverview(query.areaId, time), options.signal),
-    getMap: (query, options = {}) => withFallback(async () => {
-      if (mockMap) throw new Error('已設定 VITE_MOCK_MAP，感官地圖使用模擬資料。')
+    // 敏感圖層（熱力圖）一律呼叫後端，不使用本機模擬格網；失敗時把錯誤交給畫面顯示並可重試。
+    async getMap(query, options = {}) {
       const result = await get('sensory/map', query, options)
       if (!Array.isArray(result.data.cells)) throw new Error('地圖資料格式不符，缺少 cells 陣列。')
       return result
-    }, async time => ({ cells: await mockCells(query.areaId, time, centerOf(query), query.radius) }), options.signal),
+    },
     getPlaces: (query, options = {}) => withFallback(async () => {
       const result = await get('places', query, options)
       if (!Array.isArray(result.data.places) || !result.data.places.every(checkPlace)) throw new Error('場所清單格式不符，請檢查名稱與座標。')

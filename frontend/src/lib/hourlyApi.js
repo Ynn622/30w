@@ -6,7 +6,7 @@ import { isCoordinate } from './sensoryDomain.js'
 export { taipeiSlot } from './sensoryDomain.js'
 
 export const HOURLY_DATASET_VERSION = 'taipei-hourly-grid-v1'
-export const HOURLY_LABEL = '模擬情境・非即時觀測'
+export const HOURLY_LABEL = '典型時段推估・非即時觀測'
 export const DAY_TYPES = Object.freeze([{ id: 'weekday', label: '平日' }, { id: 'weekend', label: '週末' }])
 export const HOURS = Object.freeze(Array.from({ length: 24 }, (_, hour) => hour))
 // 一次取完整個時段（後端上限 30,000）；仍依 nextOffset 續取，最多 30 頁以防異常回應無限循環。
@@ -43,25 +43,6 @@ export function validHourlyPoint(point) {
   return Boolean(sound) && sound.unit === 'dB(A)' && (sound.value === null || Number.isFinite(sound.value))
 }
 
-// 首頁模擬平均（GET test/mock/overview）：座標 150 公尺內網格的四維算術平均，時段由後端依請求當下的臺北時間決定。
-export const OVERVIEW_AGGREGATION_VERSION = 'hourly-radius-mean-v1'
-export const OVERVIEW_RADIUS_M = 150
-const MISSING_REASONS = [null, 'no_points_within_radius', 'no_valid_mock_values']
-const validMean = value => value === null || (Number.isFinite(value) && value >= 0 && value <= 100)
-export function validHourlyOverview(payload) {
-  const meta = payload?.meta, data = payload?.data
-  if (!meta || meta.mock !== true || meta.demo !== true || meta.mode !== 'test-only' || meta.datasetVersion !== HOURLY_DATASET_VERSION) return false
-  if (meta.timeBasis !== 'simulated_request_time' || meta.aggregationVersion !== OVERVIEW_AGGREGATION_VERSION || !validTime(meta.simulatedAt)) return false
-  if (!data || data.radiusMeters !== OVERVIEW_RADIUS_M || !isDayType(data.dayType) || !isHour(data.hour) || data.dayType !== meta.dayType || data.hour !== meta.hour) return false
-  if (!data.senses || !SENSES.every(key => validMean(data.senses[key]))) return false
-  if (!Number.isInteger(data.pointCount) || data.pointCount < 0) return false
-  if (!data.validPointCounts || !SENSES.every(key => Number.isInteger(data.validPointCounts[key]) && data.validPointCounts[key] >= 0 && data.validPointCounts[key] <= data.pointCount)) return false
-  if (!['low', 'insufficient'].includes(data.confidence) || !MISSING_REASONS.includes(data.missingReason ?? null)) return false
-  // 全部未知才算資料不足；不偽造觀測時間或回報數。
-  const allNull = SENSES.every(key => data.senses[key] === null)
-  return allNull === (data.confidence === 'insufficient') && data.observedAt == null && data.reportCount == null
-}
-
 // 後端錯誤轉成可顯示的說明；不改用內建模擬資料。
 function describe(error) {
   if (error?.code === 'CANCELLED' || error instanceof HourlyDataError) return error
@@ -77,14 +58,6 @@ function describe(error) {
 
 export function createHourlyApi({ request = apiRequest } = {}) {
   return {
-    // 首頁模擬平均：只送 lat／lng（radius、dayType、hour、limit、offset 會被後端拒絕）。
-    async getOverview({ lat, lng } = {}, { signal } = {}) {
-      if (!isCoordinate({ lat, lng })) throw new HourlyDataError('目前位置無效，無法查詢模擬平均。')
-      let payload
-      try { payload = (await request('test/mock/overview', { query: { lat, lng }, signal })).data } catch (error) { throw describe(error) }
-      if (!validHourlyOverview(payload)) throw new HourlyDataError('模擬平均格式不符（版本、時段或分數）。')
-      return { data: payload.data, meta: payload.meta }
-    },
     // 取得某時段全部網格。不帶圈選（圈選只收 300／500／1000m，探索地圖可能更大），前端再依地圖範圍裁切。
     async getGrid({ dayType, hour } = {}, { signal } = {}) {
       if (!isDayType(dayType) || !isHour(hour)) throw new HourlyDataError('未知的模擬時段。')

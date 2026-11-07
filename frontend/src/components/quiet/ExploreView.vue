@@ -10,7 +10,7 @@ import AsyncState from '../AsyncState.vue'
 import PlaceCard from './PlaceCard.vue'
 import BottomSheet from './BottomSheet.vue'
 import LocationGate from './LocationGate.vue'
-import MockBanner from './MockBanner.vue'
+import TestDataPanel from './TestDataPanel.vue'
 import { MOCK_LABEL, searchPlaces } from '../../lib/sensoryDomain.js'
 import { buildSensoryField, zoneOf } from '../../lib/sensoryField.js'
 
@@ -22,18 +22,17 @@ const SHEET_PEEK = 72 // 最小收合高度，實際依標題列高度自動調�
 // 敏感圖層：依「我的」感官敏感度加權後畫成平滑色帶與等值線，地圖上只有這一個圖層開關。
 const showLayer = ref(true)
 // 地圖與清單共用同一個平面；敏感度或資料更新時重算（city.now 每次重新整理會更新，讓過期點及時排除）。
-// 測試情境改用模擬網格，新鮮度以後端模擬時間判斷（city.fieldNow）。
+// 敏感圖層一律來自後端模擬網格，新鮮度以後端模擬時間判斷（city.fieldNow）。
 const field = computed(() => buildSensoryField(props.city.fieldCells.value, props.city.preferences.value.sensitivities, props.city.fieldNow.value))
 // 文字搜尋：在目前載入的地點中比對名稱、類別、地址與標籤（地圖標記同步篩選）。
 const searchText = ref('')
 const visiblePlaces = computed(() => searchPlaces(props.city.recommendations.value, searchText.value))
 // 敏感圖層開啟時，清單與地圖標記只列綠區內的地點；關閉圖層即顯示全部地點。
-// 測試情境（remote-hourly）：敏感圖層與綠區來自逐小時模擬網格，清單仍是正式場所。
+// 模擬環境（remote-hourly）：敏感圖層改看自選時段；清單仍是正式場所。
 const remote = computed(() => props.city.remoteMock.value)
 const fieldSource = computed(() => props.city.fieldSource.value)
 // 圖例在沒有平面時的說明：模擬網格載入中、讀取失敗，或範圍內沒有資料。
 const legendEmpty = computed(() => {
-  if (!remote.value) return ''
   const state = fieldSource.value.state.value
   return state === 'loading' ? '模擬網格載入中…' : state === 'error' ? '模擬網格讀取失敗，請見下方清單重試' : '此範圍沒有模擬網格資料'
 })
@@ -57,12 +56,12 @@ const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlac
     <h1 class="sr-only">探索・感官地圖與靜音推薦</h1>
     <LocationGate v-if="!city.serviceAvailable.value" :city="city" />
     <template v-else>
-    <div class="explore-stage" :class="{ 'with-banner': remote }">
+    <div class="explore-stage">
       <div class="map-switches">
-        <MockBanner v-if="remote" :city="city" compact />
+        <TestDataPanel :city="city" />
         <label class="layer-switch"><span>敏感圖層</span><input v-model="showLayer" class="q-switch" type="checkbox" role="switch" :aria-checked="showLayer" aria-label="顯示依感官敏感度計算的敏感圖層"/></label>
       </div>
-      <SensoryMap :places="listPlaces" :low-stimulus="city.preferences.value.lowStimulus" :field="field" :center="city.center.value" :layer-visible="showLayer" :mock="remote || Boolean(city.map.meta.value?.mock)" :mock-label="remote ? '模擬情境' : '模擬資料'" :empty-text="legendEmpty" :device-located="Boolean(city.deviceLocation.value)" @select="$emit('select', $event)" @locate="city.locate" @viewchange="city.setMapView" />
+      <SensoryMap :places="listPlaces" :low-stimulus="city.preferences.value.lowStimulus" :field="field" :center="city.center.value" :layer-visible="showLayer" mock :mock-label="remote ? '模擬環境' : '模擬資料'" :empty-text="legendEmpty" :device-located="Boolean(city.deviceLocation.value)" @select="$emit('select', $event)" @locate="city.locate" @viewchange="city.setMapView" />
       <BottomSheet v-model:snap="sheet" :peek="SHEET_PEEK" :label="listTitle">
         <template #header>
           <div class="section-heading"><h2>{{ listTitle }}</h2><span class="count-badge" :class="{ green: showLayer }" :aria-label="`共 ${city.searchAvailable.value ? listPlaces.length : 0} 處`"><b>{{ city.searchAvailable.value ? listPlaces.length : 0 }}</b>處</span></div>
@@ -100,10 +99,7 @@ const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlac
 .map-switches { position: absolute; z-index: 3; top: 12px; left: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
 .layer-switch { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 6px 0 12px; border: 1px solid #dce6ed; border-radius: 22px; background: #fffffff2; color: #34434c; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; box-shadow: 0 2px 8px #2447561a; }
 .layer-switch .q-switch { margin: 0; }
-.explore-stage :deep(.map-legend) { top: 66px; }
-/* 測試情境多一條橫幅，圖例再往下讓位。 */
-.explore-stage.with-banner :deep(.map-legend) { top: 102px; }
-.map-switches :deep(.mock-banner) { max-width: calc(100vw - 84px); border-radius: 8px; box-shadow: 0 2px 8px #2447561a; }
+.explore-stage :deep(.map-legend) { top: 118px; }
 .explore-stage :deep(.sensory-map-wrap) { position: absolute; inset: 0 0 calc(var(--sheet-peek, 124px) - 18px); height: auto; border: 0; border-radius: 0; }
 .explore-stage :deep(.maplibregl-ctrl-bottom-left),
 .explore-stage :deep(.maplibregl-ctrl-bottom-right) { margin-bottom: 18px; }

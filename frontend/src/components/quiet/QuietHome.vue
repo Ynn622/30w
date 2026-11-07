@@ -8,41 +8,20 @@ import OverviewInfoDialog from './OverviewInfoDialog.vue'
 import QuietLogo from './QuietLogo.vue'
 import CityIllustration from './CityIllustration.vue'
 import LocationGate from './LocationGate.vue'
-import MockBanner from './MockBanner.vue'
 import { MOCK_LABEL, SENSES, REPORT_KINDS, formatTime, isFresh, levelText } from '../../lib/sensoryDomain.js'
 import { estimateDb, noiseLevel, readDbOffset } from '../../lib/noiseLevel.js'
-import { slotLabel } from '../../lib/hourlyApi.js'
 
 const props = defineProps({ city: { type: Object, required: true } })
 // 「附近的安靜角落」暫時隱藏；改回 true 即可恢復，推薦清單仍可在探索頁使用。
 const SHOW_NEARBY = false
-// 測試情境：首頁改顯示後端 150 公尺模擬平均（Ynn622/30w#5），不套正式的新鮮度／樣本數／SSI 規則，也不冒充觀測。
-const testOverview = computed(() => props.city.overview.meta.value?.mode === 'test-only')
-const overviewSlot = computed(() => testOverview.value ? slotLabel(props.city.overview.data.value || {}) : '')
-// 地圖可另選時段；首頁卡片固定是當下典型時段，兩者不同時要標示清楚。
-const slotDiffers = computed(() => testOverview.value && overviewSlot.value !== slotLabel(props.city.preferences.value))
 const canDescribe = computed(() => {
   const data = props.city.overview.data.value
-  if (testOverview.value) return Boolean(data) && data.confidence !== 'insufficient'
   return data && data.confidence !== 'insufficient' && (data.reportCount > 0 || data.measurementCount > 0)
     && isFresh(data.observedAt, Date.now())
 })
 // 首頁四維與 SSI 只採有效觀測；空品 AQI 另列，不代替氣味。
-const assessment = computed(() => props.city.overview.data.value && !testOverview.value ? props.city.assess(props.city.overview.data.value, props.city.overview.meta.value) : null)
-// 模擬平均可為小數，0 為有效值，各維獨立為 null。
-const senseValue = key => {
-  if (!canDescribe.value) return null
-  return testOverview.value ? props.city.overview.data.value.senses?.[key] ?? null : assessment.value?.dimensions?.[key] ?? null
-}
-const MISSING_TEXT = { no_points_within_radius: '附近 150 公尺內沒有模擬網格。', no_valid_mock_values: '附近 150 公尺內的模擬網格皆為未知。' }
-const insufficientText = computed(() => testOverview.value
-  ? `${MISSING_TEXT[props.city.overview.data.value?.missingReason] || '附近沒有可用的模擬資料。'}未知不代表環境安靜。`
-  : '近期資料不足或已過期，歡迎分享感受。')
-const weatherDescription = computed(() => {
-  const data = props.city.overview.data.value
-  if (!testOverview.value) return data?.description
-  return `${overviewSlot.value} 典型時段・${data.pointCount} 個網格平均（網格數不是人數），非即時觀測。`
-})
+const assessment = computed(() => props.city.overview.data.value ? props.city.assess(props.city.overview.data.value, props.city.overview.meta.value) : null)
+const senseValue = key => canDescribe.value ? assessment.value?.dimensions?.[key] ?? null : null
 // 首頁只列最近三次量測，完整紀錄保留在此裝置。
 const recentNoise = computed(() => {
   const { offset } = readDbOffset()
@@ -55,8 +34,8 @@ const recentNoise = computed(() => {
 const infoKey = ref(null), overviewOpen = ref(false)
 // 最近的量測紀錄預設收起，點標題才展開。
 const historyOpen = ref(false)
-// 首頁概況、地圖或清單任一還在載入，就視為重新整理中。
-const refreshing = computed(() => [props.city.overview, props.city.map, props.city.places].some(remote => remote?.state?.value === 'loading'))
+// 首頁概況或清單還在載入，就視為重新整理中（敏感圖層的模擬網格只在換時段時重抓，不計入）。
+const refreshing = computed(() => [props.city.overview, props.city.places].some(remote => remote?.state?.value === 'loading'))
 const updatedClock = computed(() => {
   const value = props.city.overview.meta.value?.updatedAt
   if (!value || !Number.isFinite(new Date(value).getTime())) return '時間未知'
@@ -76,7 +55,6 @@ defineEmits(['report', 'measure', 'explore', 'select'])
       </div>
       <CityIllustration />
     </header>
-    <MockBanner :city="city" />
 
     <!-- 目前只依裝置定位提供服務，不開放手動選擇區域。 -->
     <LocationGate v-if="!city.serviceAvailable.value" :city="city" />
@@ -89,9 +67,8 @@ defineEmits(['report', 'measure', 'explore', 'select'])
         <small class="area-source">目前位置</small>
       </span>
       <!-- 重新整理期間資料會先清空，按鈕仍保留並顯示「更新中…」，避免整列跳動。 -->
-      <button v-if="city.overview.state.value !== 'idle'" type="button" class="q-text-button muted updated-button" :class="{ refreshing }" :disabled="refreshing" :title="refreshing ? '更新中' : testOverview ? `模擬時段 ${overviewSlot}，點選重新整理` : `資料時間 ${formatTime(city.overview.meta.value?.updatedAt)}，點選重新整理`" :aria-label="refreshing ? '資料更新中' : testOverview ? `重新整理資料（模擬時段 ${overviewSlot}）` : `重新整理資料（${city.overview.meta.value?.mock ? '模擬資料時間' : '資料更新時間'} ${formatTime(city.overview.meta.value?.updatedAt)}）`" @click="city.refresh">
+      <button v-if="city.overview.state.value !== 'idle'" type="button" class="q-text-button muted updated-button" :class="{ refreshing }" :disabled="refreshing" :title="refreshing ? '更新中' : `資料時間 ${formatTime(city.overview.meta.value?.updatedAt)}，點選重新整理`" :aria-label="refreshing ? '資料更新中' : `重新整理資料（${city.overview.meta.value?.mock ? '模擬資料時間' : '資料更新時間'} ${formatTime(city.overview.meta.value?.updatedAt)}）`" @click="city.refresh">
         <template v-if="refreshing">更新中…</template>
-        <template v-else-if="city.overview.state.value === 'ready' && testOverview">模擬：{{ overviewSlot }}</template>
         <template v-else-if="city.overview.state.value === 'ready'">{{ city.overview.meta.value?.mock ? '模擬' : '更新' }}：{{ updatedClock }}</template>
         <template v-else>重新整理</template>
         <AppIcon name="refresh" :size="14" />
@@ -107,7 +84,7 @@ defineEmits(['report', 'measure', 'explore', 'select'])
         </div>
         <div class="weather-copy">
           <h2 :class="{ 'insufficient-headline': !canDescribe }">{{ canDescribe ? city.overview.data.value.headline : '資料不足，暫無法判斷' }}</h2>
-          <p>{{ canDescribe ? weatherDescription : insufficientText }}</p>
+          <p>{{ canDescribe ? city.overview.data.value.description : '近期資料不足或已過期，歡迎分享感受。' }}</p>
         </div>
         <button class="weather-more q-icon-button" aria-label="查看感官概況說明" @click="overviewOpen = true"><AppIcon name="chevron" :size="21" /></button>
       </div>
@@ -118,7 +95,6 @@ defineEmits(['report', 'measure', 'explore', 'select'])
           <strong :class="{ 'high-stimulus': senseValue(sense.key) > 66 }">{{ levelText(senseValue(sense.key)) }}</strong>
         </button>
       </div>
-      <p v-if="slotDiffers" class="slot-note" role="note">首頁卡片為當下典型時段（{{ overviewSlot }}），探索地圖為你選的{{ slotLabel(city.preferences.value) }}。</p>
       <p class="sense-hint">點選卡片可查看說明與計算方式</p>
     </article>
     <OverviewInfoDialog v-if="overviewOpen" :city="city" :ssi="canDescribe ? assessment?.ssi ?? null : null" :described="canDescribe" @close="overviewOpen = false" />
@@ -127,13 +103,12 @@ defineEmits(['report', 'measure', 'explore', 'select'])
     <section class="quick-report-section q-reveal">
       <div class="section-heading"><h2>快速回報</h2><span>讓城市知道這裡的感受</span></div>
       <div class="report-grid">
-        <button v-for="kind in REPORT_KINDS" :key="kind.id" :class="kind.color" :aria-label="`${kind.label}：${kind.hint}`" :title="kind.hint" :disabled="!city.writesEnabled.value" @click="$emit('report', kind)">
+        <button v-for="kind in REPORT_KINDS" :key="kind.id" :class="kind.color" :aria-label="`${kind.label}：${kind.hint}`" :title="kind.hint" @click="$emit('report', kind)">
           <AppIcon :name="kind.icon" :size="26" />
           <span>{{ kind.label }}</span>
         </button>
       </div>
-      <p v-if="!city.writesEnabled.value" class="writes-off" role="note">測試情境模式不開放回報與量測；切回「我的 › 測試資料 › 正式資料」即可使用。</p>
-      <button class="measurement-cta q-reveal" :disabled="!city.writesEnabled.value" @click="$emit('measure')">
+      <button class="measurement-cta q-reveal" @click="$emit('measure')">
         <span class="measurement-icon"><AppIcon name="wave" :size="25" /></span>
         <strong>啟用環境量測（聲音）</strong>
         <AppIcon class="measurement-arrow" name="chevron" :size="21" />
@@ -183,7 +158,6 @@ defineEmits(['report', 'measure', 'explore', 'select'])
 .section-heading > span { color: #5c6870; font-size: 13px; line-height: 1.4; }
 .updated-button { flex-shrink: 0; gap: 4px; min-height: 44px; color: #68747c; font-size: 12px; font-weight: 400; white-space: nowrap; }
 .updated-button svg { color: var(--q-brand, #0391a7); }
-.slot-note { margin: 2px 0 0; padding: 6px 9px; border-radius: 8px; background: #fff4e8; color: #7a4a1f; font-size: 12px; line-height: 1.6; }
 .updated-button.refreshing svg { animation: q-relocate-spin 1s linear infinite; }
 /* 地點前的定位圖示即「重新定位」按鈕，觸控區 44px（同分享感受的地址框）。 */
 .relocate-button { flex-shrink: 0; width: 44px; min-height: 44px; margin: -6px -6px -6px -10px; padding: 0; border-radius: 50%; color: var(--q-brand, #0391a7); }
@@ -224,8 +198,6 @@ defineEmits(['report', 'measure', 'explore', 'select'])
 .measurement-cta > strong { min-width: 0; font-size: 19px; font-weight: 700; line-height: 1.4; letter-spacing: .02em; }
 .measurement-arrow { position: absolute; right: 12px; }
 .measurement-cta { position: relative; }
-.report-grid button:disabled, .measurement-cta:disabled { opacity: .45; cursor: not-allowed; }
-.writes-off { margin: 12px 0 0; padding: 7px 10px; border-radius: 8px; background: #fff4e8; color: #7a4a1f; font-size: 13px; line-height: 1.6; }
 .microcopy { align-items: flex-start; gap: 4px; margin: 8px 0 9px; color: #6b7a84; font-size: 12px; line-height: 1.5; text-align: center; }
 .microcopy > svg { flex-shrink: 0; margin-top: 2px; }
 .nearby-section { margin-top: 20px; }

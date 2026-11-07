@@ -117,30 +117,3 @@ export function mockPlaces(areaId = 'zhongzheng', now = Date.now(), center = nul
 export function mockPlace(id, now = Date.now(), centerFor = () => null) {
   return AREAS.flatMap(area => mockPlaces(area.id, now, centerFor(area.id))).find(place => place.id === id) || null
 }
-// 敏感圖層的模擬格網：資料來源是 mock-sensory-cells.json（臺北市範圍內約 2.7 萬個不規則分布的模擬回報點，一般區域約 150m、熱區約 50m 一點；由 scripts/generate-mock-cells.mjs 產生，可手動修改）。
-// 點固定在地面上，移動或縮放地圖時同一個地方永遠是同一組數值。檔案約 1MB，只在需要模擬地圖時才動態載入。
-const MOCK_RENDER_M = 2000 // 回傳查詢中心 2km 內的格點，讓縮小地圖時熱力圖仍覆蓋整個畫面
-let mockCellRows
-async function loadMockCellRows() {
-  mockCellRows ??= import('./mock-sensory-cells.json').then(module => (module.default || module).cells)
-  return mockCellRows
-}
-const cellHash = (index, salt) => { const x = Math.sin(index * 127.1 + salt * 311.7) * 43758.5453; return x - Math.floor(x) }
-export async function mockCells(areaId = 'zhongzheng', now = Date.now(), center = null, radius = 500) {
-  const area = AREAS.find(item => item.id === areaId) || AREAS[0]
-  const origin = isPoint(center) ? center : area
-  const reach = Math.max(Number.isFinite(radius) ? radius : 500, MOCK_RENDER_M)
-  const mLng = 111320 * Math.cos(origin.lat * Math.PI / 180)
-  const rows = await loadMockCellRows()
-  const cells = []
-  rows.forEach(([lat, lng, noise, light, crowd, odor], index) => {
-    if (Math.hypot((lat - origin.lat) * 111320, (lng - origin.lng) * mLng) > reach) return
-    // 觀測時間與信心在執行時補上：年齡 5–20 分鐘（皆在 30 分鐘有效窗內），約 15% 為低信心。
-    const age = 5 + Math.floor(cellHash(index, 2) * 16)
-    cells.push(withIndex({
-      id: `mock-cell-${index}`, location: { lat, lng }, senses: { noise, light, crowd, odor },
-      reportCount: 3 + Math.floor(cellHash(index, 3) * 10), updatedAt: minutesAgo(now, age), confidence: cellHash(index, 4) < 0.15 ? 'low' : 'medium',
-    }, age, now))
-  })
-  return cells
-}

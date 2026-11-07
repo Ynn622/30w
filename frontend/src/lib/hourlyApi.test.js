@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from './apiClient.js'
-import { createHourlyApi, cropGrid, slotLabel, taipeiSlot, validHourlyMeta, validHourlyOverview, validHourlyPoint } from './hourlyApi.js'
-import { hourlyMetaFor, hourlyOverviewFor, hourlyPayloadFor, hourlyPointFor, hourlyPointsFor } from './hourlyApi.fixture.js'
+import { createHourlyApi, cropGrid, slotLabel, taipeiSlot, validHourlyMeta, validHourlyPoint } from './hourlyApi.js'
+import { hourlyMetaFor, hourlyPayloadFor, hourlyPointFor, hourlyPointsFor } from './hourlyApi.fixture.js'
 
 const ok = payload => vi.fn(async () => ({ data: payload }))
 const SLOT = { dayType: 'weekday', hour: 8 }
@@ -86,46 +86,5 @@ describe('hourly helpers', () => {
     // 2026-11-07（週六）19:00Z = 臺北 11-08（週日）03:00。
     expect(taipeiSlot(Date.parse('2026-11-07T19:00:00Z'))).toEqual({ dayType: 'weekend', hour: 3 })
     expect(taipeiSlot(Date.parse('2026-11-09T01:30:00Z'))).toEqual({ dayType: 'weekday', hour: 9 })
-  })
-})
-
-describe('home mock overview adapter (issue #5 comment)', () => {
-  it('sends only lat and lng to test/mock/overview', async () => {
-    const request = ok(hourlyOverviewFor())
-    const result = await createHourlyApi({ request }).getOverview({ test: true, lat: 25.0333, lng: 121.5358, areaId: 'daan', radius: 500, dayType: 'weekday', hour: 8 })
-    expect(request).toHaveBeenCalledWith('test/mock/overview', { query: { lat: 25.0333, lng: 121.5358 }, signal: undefined })
-    expect(result.data.senses.noise).toBe(26.6)
-    expect(result.data).toMatchObject({ dayType: 'weekend', hour: 3, pointCount: 9 })
-  })
-  it('accepts decimals, zero, partial nulls and an empty circle', () => {
-    expect(validHourlyOverview(hourlyOverviewFor({ senses: { noise: 0, light: 0.5, crowd: null, odor: 100 }, validPointCounts: { noise: 3, light: 3, crowd: 0, odor: 3 } }))).toBe(true)
-    expect(validHourlyOverview(hourlyOverviewFor({ senses: { noise: null, light: null, crowd: null, odor: null }, pointCount: 0, validPointCounts: { noise: 0, light: 0, crowd: 0, odor: 0 } }))).toBe(true)
-  })
-  it('rejects payloads whose version, radius, slot, scores, counts or confidence do not match', async () => {
-    const base = hourlyOverviewFor()
-    const cases = [
-      { ...base, meta: { ...base.meta, aggregationVersion: 'v2' } },
-      { ...base, meta: { ...base.meta, mode: 'live' } },
-      { ...base, data: { ...base.data, radiusMeters: 200 } },
-      { ...base, data: { ...base.data, hour: 4 } },
-      { ...base, data: { ...base.data, senses: { ...base.data.senses, noise: 100.5 } } },
-      { ...base, data: { ...base.data, validPointCounts: { ...base.data.validPointCounts, odor: 10 } } },
-      { ...base, data: { ...base.data, confidence: 'insufficient' } },
-      { ...base, data: { ...base.data, observedAt: '2026-11-07T19:00:00Z' } },
-      { ...base, data: { ...base.data, reportCount: 3 } },
-      { ...base, data: { ...base.data, missingReason: 'other' } },
-    ]
-    for (const payload of cases) await expect(createHourlyApi({ request: ok(payload) }).getOverview({ lat: 25.0333, lng: 121.5358 })).rejects.toThrow('模擬平均格式不符')
-  })
-  it('refuses an invalid location, reports HTTP errors and passes cancellation through', async () => {
-    const request = ok(hourlyOverviewFor())
-    await expect(createHourlyApi({ request }).getOverview({ lat: null, lng: 121.5 })).rejects.toThrow('目前位置無效')
-    expect(request).not.toHaveBeenCalled()
-    for (const status of [400, 403, 429, 503]) {
-      const failing = vi.fn(async () => { throw new ApiError('HTTP', { status, code: 'HTTP_ERROR' }) })
-      await expect(createHourlyApi({ request: failing }).getOverview({ lat: 25.0333, lng: 121.5358 })).rejects.toMatchObject({ name: 'HourlyDataError', status, message: expect.stringContaining(String(status)) })
-    }
-    const cancelled = new ApiError('取消', { code: 'CANCELLED' })
-    await expect(createHourlyApi({ request: vi.fn(async () => { throw cancelled }) }).getOverview({ lat: 25.0333, lng: 121.5358 })).rejects.toBe(cancelled)
   })
 })
