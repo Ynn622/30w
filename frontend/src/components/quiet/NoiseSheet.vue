@@ -26,7 +26,7 @@ function start() {
   } catch (reason) { status.value = 'unsupported'; message.value = reason.message }
 }
 function stop() { session?.stop() }
-function background() { if (document.hidden && running.value) { stop(); message.value = '頁面進入背景，已請 App 停止麥克風。' } }
+function background() { if (document.hidden && running.value) { stop(); message.value = '頁面進入背景，已停止麥克風。' } }
 async function upload() {
   if (!consent.value || !summary.value || !observedAt || uploading.value || uploaded.value) return
   uploading.value = true; message.value = ''
@@ -45,12 +45,12 @@ onUnmounted(() => { stop(); document.removeEventListener('visibilitychange', bac
 </script>
 <template>
   <AppSheet title="聽見此刻的環境" :busy="uploading" @close="!uploading && $emit('close')">
-    <p class="noise-intro">留 15 秒，感受周圍的聲音。<br>只有你按下開始，App 才會請求麥克風權限。</p>
-    <div class="noise-meter" :class="{ running }"><div class="noise-halo"></div><span class="q-eyebrow">{{ status === 'completed' ? '本次量測完成' : running ? '正在感受周圍的聲音' : '準備開始環境音量量測' }}</span><strong>{{ summary?.averageDbfs ?? sample?.averageDbfs ?? '—' }}<small>dBFS</small></strong><p>{{ status === 'waiting' ? '等待 App 與麥克風權限…' : status === 'measuring' ? `${((sample?.elapsedMs || 0) / 1000).toFixed(1)} / 15 秒` : status === 'completed' ? `${summary.sampleCount} 個有效樣本 · 峰值 ${summary.peakDbfs} dBFS` : '裝置音量尺度・未校準' }}</p><div class="noise-wave" aria-hidden="true"><i v-for="(value, index) in samples" :key="index" :style="{ height: `${Math.max(3, (value.averageDbfs + 160) / 160 * 58)}px` }"></i><span v-if="!samples.length">量測開始後才會出現音量波形</span></div><div class="noise-progress" role="progressbar" aria-label="量測進度" :aria-valuenow="Math.round(progress)" aria-valuemin="0" aria-valuemax="100"><i :style="{ width: `${progress}%` }"></i></div></div>
+    <p class="noise-intro">留 15 秒，感受周圍的聲音。<br>只有你按下開始，才會請求麥克風權限。</p>
+    <div class="noise-meter" :class="{ running }"><div class="noise-halo"></div><span class="q-eyebrow">{{ status === 'completed' ? '本次量測完成' : running ? '正在感受周圍的聲音' : '準備開始環境音量量測' }}</span><strong>{{ summary?.averageDbfs ?? sample?.averageDbfs ?? '—' }}<small>dBFS</small></strong><p>{{ status === 'waiting' ? '等待麥克風權限…' : status === 'measuring' ? `${((sample?.elapsedMs || 0) / 1000).toFixed(1)} / 15 秒` : status === 'completed' ? `${summary.sampleCount} 個有效樣本 · 峰值 ${summary.peakDbfs} dBFS` : '裝置音量尺度・未校準' }}</p><div class="noise-wave" aria-hidden="true"><i v-for="(value, index) in samples" :key="index" :style="{ height: `${Math.max(3, (value.averageDbfs + 160) / 160 * 58)}px` }"></i><span v-if="!samples.length">量測開始後才會出現音量波形</span></div><div class="noise-progress" role="progressbar" aria-label="量測進度" :aria-valuenow="Math.round(progress)" aria-valuemin="0" aria-valuemax="100"><i :style="{ width: `${progress}%` }"></i></div></div>
     <p class="noise-explanation"><AppIcon name="shield" :size="17"/><span>這是未校準的 <b>dBFS</b>，無法代表環境分貝 dBA，也不與其他手機直接比較。不保存或上傳錄音。</span></p>
     <p v-if="message" class="q-error" role="status">{{ message }}</p>
     <button v-if="running" class="q-secondary full" @click="stop">停止量測</button><button v-else class="q-primary full" @click="start"><AppIcon name="wave" :size="19"/>{{ summary ? '重新量測 15 秒' : '開始量測 15 秒' }}</button>
     <div v-if="summary" class="noise-share"><label class="q-checkbox"><input v-model="consent" type="checkbox" :disabled="uploading || uploaded"/><span>我同意分享本次音量摘要與{{ sessionLocation?.label }}<small>只分享統計數值、樣本數、開始量測時間與開始時的位置，不含聲音。這與麥克風權限分開決定。</small></span></label><button class="q-secondary full" :disabled="!consent || uploading || uploaded" @click="upload">{{ uploaded ? '已完成分享' : uploading ? '分享中…' : '分享本次摘要' }}</button></div>
-    <p class="microcopy">請由支援環境音量量測的 App 開啟。</p>
+    <p class="microcopy">音量在手機上即時計算，只保留數值統計。城市通 App 內需允許麥克風權限。</p>
   </AppSheet>
 </template>

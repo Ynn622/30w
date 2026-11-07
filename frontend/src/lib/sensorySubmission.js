@@ -26,7 +26,7 @@ export function createReportDraft(now = () => Date.now()) {
     return body
   })
 }
-// 量測摘要只依 session 快照組成：位置在按下開始時凍結，observedAt 為 App 確認開始量測的時間。
+// 量測摘要只依 session 快照組成：位置在按下開始時凍結，observedAt 為麥克風實際開始量測的時間。
 export function measurementPayload({ sessionId, location, observedAt, summary }) {
-  return deepFreeze({ protocolVersion: 1, sessionId, source: 'native_microphone', location: { ...location }, observedAt, consent: true, ...summary })
+  return deepFreeze({ protocolVersion: 1, sessionId, source: 'web_microphone', location: { ...location }, observedAt, consent: true, ...summary })
 }

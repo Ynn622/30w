@@ -226,8 +226,8 @@ VITE_REPORT_INTENSITY=false
 ```json
 {
   "protocolVersion": 1,
-  "sessionId": "native-noise-session-id",
-  "source": "native_microphone",
+  "sessionId": "web-noise-session-id",
+  "source": "web_microphone",
   "location": { "lat": 25.0386, "lng": 121.5143, "source": "device", "areaId": "zhongzheng", "label": "目前位置（中正區）" },
   "observedAt": "2026-11-07T10:30:00+08:00",
   "consent": true,
@@ -242,12 +242,12 @@ VITE_REPORT_INTENSITY=false
 
 - 成功回 201 + `data: { "id": "measurement-001", "accepted": true }` 與共用 meta。
 - 拒絕 `consent !== true`；驗證 sessionId、durationMs、樣本數、數值及來源，sessionId 建議設唯一鍵；重試同一摘要應回原成功結果，避免重複統計。
-- `observedAt` 為 App 回覆 `noise_status: measuring`（開始量測）的時間，不含等待麥克風權限；`location` 為使用者按下開始時的位置快照。同一 session 重送沿用同一份 body；重新量測會產生新 sessionId。
-- `averageDbfs` 為每 250ms 平均功率資料再以功率平均計算，不是直接對分貝取算術平均。現版未處理不規則間隔的時間加權，原生端應按協定固定間隔回傳；這不是 IEC 等級 Leq。
+- `observedAt` 為網頁取得麥克風、實際開始量測的時間，不含等待麥克風權限；`location` 為使用者按下開始時的位置快照。同一 session 重送沿用同一份 body；重新量測會產生新 sessionId。
+- `averageDbfs` 為每 250ms 平均功率資料再以功率平均計算，不是直接對分貝取算術平均。網頁以 Web Audio 在裝置上計算 RMS dBFS，並關閉自動增益、降噪與回音消除；這不是 IEC 等級 Leq。`source` 由舊版 `native_microphone` 改為 `web_microphone`，後端若有列舉驗證需同步調整。
 - dBFS 範圍 -160 到 0，peakDbfs >= averageDbfs，durationMs <=31000，sampleCount >0。本版不傳音訊、逐筆波形、裝置名稱或使用者識別。
 - dBFS 只可表達同裝置相對音量，**不得標成 dBA，不可跨不同手機直接平均、拿來判定噪音法規或直接餵入城市聲音指數**。若後續需要校準 dBA，必須另定 protocolVersion 與校正證據欄位。
 - 測量與同意分享為不同操作，未勾選同意不會 POST。資料只留 sheet 記憶體；關閉後消失。
-- Flutter 協定見 [flutter-noise-interface.md](flutter-noise-interface.md)。
+- App 端麥克風權限設定見 [flutter-noise-interface.md](flutter-noise-interface.md)。
 
 ## 開放資料整合工作
 

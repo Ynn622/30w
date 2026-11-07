@@ -41,7 +41,7 @@ describe('measurement payload', () => {
     const location = { ...device }
     const payload = measurementPayload({ sessionId: 's1', location, observedAt: '2026-11-07T10:00:00.000Z', summary: { sampleCount: 60, averageDbfs: -40, unit: 'dBFS', calibrated: false } })
     location.lat = 0
-    expect(payload).toMatchObject({ protocolVersion: 1, sessionId: 's1', source: 'native_microphone', consent: true, observedAt: '2026-11-07T10:00:00.000Z', sampleCount: 60, location: { lat: 25.05 } })
+    expect(payload).toMatchObject({ protocolVersion: 1, sessionId: 's1', source: 'web_microphone', consent: true, observedAt: '2026-11-07T10:00:00.000Z', sampleCount: 60, location: { lat: 25.05 } })
     expect(Object.isFrozen(payload)).toBe(true)
   })
 })

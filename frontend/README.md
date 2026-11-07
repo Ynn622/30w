@@ -34,7 +34,7 @@ Vue 3 + JavaScript + Vite 的行動版城市感官服務。首頁、探索、我
 
 地圖使用 `maplibre-gl@6.16.0`（BSD-3-Clause）與 OpenFreeMap Liberty 底圖。地圖引擎與 worker 延遲載入，只有探索頁需要；底圖服務需連網，WebGL 不可用或載入錯誤時提供重試與清單。第三方授權原文隨 `public/third-party/` 交付。UI 插畫、圖示為原創 SVG，沒有下載額外字型或照片。
 
-噪音介接新增 `webview.js` 的 `startNativeNoise(sessionId, durationSeconds, host)`、`stopNativeNoise(sessionId, host)`；`noiseClient.js` 管理 session、逾時、樣本驗證及清理。自訂訊息 `noise_start`、`noise_stop`、`noise_status`、`noise_sample` 需 **Flutter 另行註冊 handler**。沒有原生支援不會產生假數字。僅支援未校準 **dBFS**，不宣稱環境 dBA。麥克風與定位分開取得權限，分享摘要還需另勾選並主動送出；不送原始音訊。
+噪音量測由 `noiseClient.js` 以 `getUserMedia`（關閉自動增益、降噪、回音消除）與 `AnalyserNode` 在裝置上計算每 250ms 的 RMS／peak dBFS，管理權限逾時、中斷、取消與資源釋放；不使用 bridge 訊息，也不建立錄音。城市通 App 需允許 WebView 麥克風（見 `docs/flutter-noise-interface.md`）。不支援、非 HTTPS 或未授權時不會產生假數字。僅支援未校準 **dBFS**，不宣稱環境 dBA。麥克風與定位分開取得權限，分享摘要還需另勾選並主動送出；不送原始音訊。
 
 Vue 頁面切換、卡片進場、sheet 與感官指示動畫支援 `prefers-reduced-motion` 與低刺激模式；按鈕或其標籤提供至少 44px 觸控區，支援 safe-area、320px 與對話框鍵盤 focus trap。
 
