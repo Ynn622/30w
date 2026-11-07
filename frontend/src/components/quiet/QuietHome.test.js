@@ -98,6 +98,11 @@ describe('location-only service', () => {
     expect(html).toContain('測試情境模式不開放回報與量測')
     expect(html.match(/<button[^>]*disabled/g).length).toBeGreaterThanOrEqual(9)
   })
+  it('shows the decorative Taipei 101 illustration hidden from assistive technology', async () => {
+    const html = await renderToString(createSSRApp(QuietHome, { city: cityFor(sampleOverview()) }))
+    expect(html).toMatch(/<svg class="city-illustration taipei-101"[^>]*aria-hidden="true"/)
+    expect(html.match(/t101-window/g)).toHaveLength(6)
+  })
   it('asks for the current location before showing anything', async () => {
     const html = await renderToString(createSSRApp(QuietHome, { city: cityFor(null, [], null, 'idle') }))
     expect(html).toContain('需要使用目前位置')

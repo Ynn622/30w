@@ -5,6 +5,7 @@ import AsyncState from '../AsyncState.vue'
 import PlaceCard from './PlaceCard.vue'
 import SenseInfoDialog from './SenseInfoDialog.vue'
 import QuietLogo from './QuietLogo.vue'
+import CityIllustration from './CityIllustration.vue'
 import LocationGate from './LocationGate.vue'
 import MockBanner from './MockBanner.vue'
 import { MOCK_LABEL, SENSES, REPORT_KINDS, formatTime, isFresh, levelText } from '../../lib/sensoryDomain.js'
@@ -50,14 +51,7 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
         <div class="home-title"><QuietLogo :size="40" /><h1>聆靜</h1></div>
         <p>在台北，找到屬於你的安靜角落。</p>
       </div>
-      <svg class="city-illustration" viewBox="0 0 150 130" fill="none" aria-hidden="true">
-        <path d="M3 119h142" stroke="#b9e0e7" stroke-width="2" />
-        <path d="M96 17V2m-7 28h14l-2 10H91Zm-1 13h14l3 16H87Zm-4 19h22l3 16H82Zm-4 19h30l-2 16H80Zm5 19h22l3 19H80Z" fill="#0391A7" />
-        <path d="M16 91h20v28H16Zm25-26h17v54H41Zm73 18h18v36h-18Z" fill="#9bd5e1" />
-        <path d="M62 82h14v37H62Zm-1-2 8-9 8 9M5 105h7v14H5Zm132-4h9v18h-9Z" fill="#c3e8ef" />
-        <path d="M21 99h10m-10 8h10m15-29h7m-7 9h7m-7 9h7m-7 9h7m66-12h8m-8 10h8M91 50h12m-14 18h16m-19 18h20m-20 22h20" stroke="#eaf9fc" stroke-width="2.5" />
-        <path d="M5 40h28a6 6 0 0 0 0-12h-2a9 9 0 0 0-17-3A8 8 0 0 0 5 40Zm111-19h18a5 5 0 0 0 0-10h-2a7 7 0 0 0-13-2 6 6 0 0 0-3 12Z" fill="#e2f4f8" />
-      </svg>
+      <CityIllustration />
     </header>
     <MockBanner :city="city" />
 
@@ -148,7 +142,7 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
 .home-title { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; }
 .home-heading h1 { margin: 0; color: var(--q-ink, #222c33); font-size: 28px; line-height: 1.3; letter-spacing: -.035em; font-weight: 750; }
 .home-heading p { max-width: 280px; margin: 0; color: #4c5961; font-size: 14px; line-height: 1.65; }
-.city-illustration { position: absolute; top: -10px; right: -8px; bottom: auto; width: 106px; height: 112px; opacity: 1; }
+.city-illustration { position: absolute; top: -4px; right: -8px; bottom: auto; width: 124px; height: 106px; opacity: 1; }
 .area-row { margin: 0 2px 8px; gap: 8px; }
 .q-area-select { color: var(--q-brand, #0391A7); }
 .area-city { color: #34434c; font-size: 14px; font-weight: 600; white-space: nowrap; }
@@ -209,7 +203,7 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
   .home-heading { min-height: 100px; padding-right: 78px; }
   .home-heading h1 { font-size: 26px; }
   .home-heading p { font-size: 13px; }
-  .city-illustration { right: -4px; width: 88px; height: 100px; }
+  .city-illustration { right: -4px; width: 100px; height: 86px; }
   .area-row { gap: 4px; }
   .area-city { font-size: 12px; }
   .home-title { gap: 8px; }
