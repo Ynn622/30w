@@ -4,6 +4,7 @@ import AppIcon from '../AppIcon.vue'
 import AppSheet from './AppSheet.vue'
 import LevelScale from './LevelScale.vue'
 import { MOCK_LABEL, OVERALL_SCALE, levelText } from '../../lib/sensoryDomain.js'
+import { HOURLY_LABEL, slotLabel } from '../../lib/hourlyApi.js'
 
 // 首頁感官概況卡片右側箭頭開啟的小視窗，樣式與四張感官卡片的說明視窗相同。
 // 不放說明文字與資料來源（開發者 2026-11-08 決定）；以敏感圖層同款色帶加小箭頭標示目前級別，只保留模擬資料標示。
@@ -15,6 +16,14 @@ const props = defineProps({
 defineEmits(['close'])
 const data = computed(() => props.city.overview.data.value)
 const mock = computed(() => Boolean(props.city.overview.meta.value?.mock))
+// 測試情境的模擬平均不計算 SSI，只說明時段與網格數。
+const testMode = computed(() => props.city.overview.meta.value?.mode === 'test-only')
+const summary = computed(() => {
+  if (testMode.value) return props.described
+    ? `${slotLabel(data.value)} 典型時段・附近 150 公尺 ${data.value.pointCount} 個網格平均；模擬資料不計算環境刺激指數 SSI。`
+    : '附近 150 公尺內沒有可用的模擬資料；未知不代表環境安靜。'
+  return props.ssi === null ? '近期資料不足或已過期，暫無法判斷；未知不代表環境安靜。' : `環境刺激指數 SSI ${props.ssi}／100（${levelText(props.ssi)}）`
+})
 </script>
 
 <template>
@@ -23,11 +32,11 @@ const mock = computed(() => Boolean(props.city.overview.meta.value?.mock))
       <AppIcon name="cloud" :size="30" />
       <div>
         <strong>{{ described ? data?.headline : '資料不足' }}</strong>
-        <span>{{ ssi === null ? '近期資料不足或已過期，暫無法判斷；未知不代表環境安靜。' : `環境刺激指數 SSI ${ssi}／100（${levelText(ssi)}）` }}</span>
+        <span>{{ summary }}</span>
       </div>
     </div>
     <LevelScale :value="ssi" label="整體刺激程度" :ticks="OVERALL_SCALE" />
-    <p v-if="mock" class="mock-note">{{ MOCK_LABEL }}</p>
+    <p v-if="mock" class="mock-note">{{ testMode ? HOURLY_LABEL : MOCK_LABEL }}</p>
   </AppSheet>
 </template>
 

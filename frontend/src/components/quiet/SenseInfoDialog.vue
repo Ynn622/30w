@@ -17,8 +17,15 @@ const sense = computed(() => SENSES.find(item => item.key === props.senseKey))
 const data = computed(() => props.city.overview.data.value)
 const dimension = computed(() => data.value?.sensoryIndex?.dimensionMeta?.[props.senseKey] || null)
 const REASONS = { no_data: '近 30 分鐘沒有這一項的回報。', stale: '觀測已超過 30 分鐘，不採用。', insufficient_samples: '樣本數不足，暫不判斷。', incompatible_scale: '資料尺度無法比較，暫不採用。' }
+// 測試情境的模擬平均：有效網格數不是人數或回報數。
+const testMode = computed(() => props.city.overview.meta.value?.mode === 'test-only')
+const validCount = computed(() => data.value?.validPointCounts?.[props.senseKey] ?? null)
+const valueText = computed(() => testMode.value
+  ? `模擬平均 ${props.value}／100・${validCount.value} 個有效網格（非人數）`
+  : `刺激指數 ${props.value}／100`)
 const missingText = computed(() => {
   if (props.value !== null) return ''
+  if (testMode.value) return '附近 150 公尺內這一項沒有有效模擬網格；未知不代表環境安靜。'
   if (!props.described) return '附近整體資料不足或已過期，暫不判斷。'
   if (dimension.value?.missingReason) return REASONS[dimension.value.missingReason] || '目前沒有可採用的資料。'
   return '目前沒有可採用的資料；未知不代表環境安靜。'
@@ -31,7 +38,7 @@ const missingText = computed(() => {
       <AppIcon :name="sense?.icon || 'layers'" :size="30" />
       <div>
         <strong>{{ levelText(value) }}</strong>
-        <span>{{ value === null ? missingText : `刺激指數 ${value}／100` }}</span>
+        <span>{{ value === null ? missingText : valueText }}</span>
       </div>
     </div>
     <LevelScale :value="value" :label="`${sense?.label}刺激程度`" :ticks="sense?.scale" />

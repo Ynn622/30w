@@ -24,7 +24,9 @@ function useRemote(query, fetcher) {
     try {
       const response = await fetcher(query.value, { signal: controller.signal })
       if (current !== serial) return
-      data.value = response.data; meta.value = response.meta; state.value = 'ready'; source.value = response.meta?.mock ? 'mock' : 'api'
+      data.value = response.data; meta.value = response.meta; state.value = 'ready'
+      // 後端測試資料（test-only）不是內建模擬備援，標成 test，不觸發「已改用模擬資料」通知。
+      source.value = response.meta?.mode === 'test-only' ? 'test' : response.meta?.mock ? 'mock' : 'api'
     } catch (reason) {
       if (current !== serial) return
       error.value = reason.message; state.value = 'error'
@@ -139,7 +141,9 @@ export function useQuietCity(notify) {
   const mapQuery = computed(() => remoteMock.value ? null : searchQuery.value)
   // 地點查詢只帶區域、座標與半徑（已移除使用者感官篩選）；各接口的 radius 規則不同，分開建立。
   const placeQuery = computed(() => searchQuery.value && { ...searchQuery.value, radius: placesSearchRadius.value, max: PLACES_MAX })
-  const overview = useRemote(query, sensoryApi.getOverview)
+  // 首頁概況：測試情境改讀後端 150 公尺模擬平均（只送目前位置座標，時段由後端依當下臺北時間決定），正式模式不變。
+  const overviewQuery = computed(() => query.value && (remoteMock.value ? { test: true, lat: query.value.lat, lng: query.value.lng } : query.value))
+  const overview = useRemote(overviewQuery, (value, options) => value.test ? hourlyApi.getOverview(value, options) : sensoryApi.getOverview(value, options))
   const map = useRemote(mapQuery, sensoryApi.getMap)
   const places = useRemote(placeQuery, sensoryApi.getPlaces)
   // 模擬網格：每個時段一次取回全臺北 30,000 點（gzip 約 0.5 MB，避開每分鐘 100 次限流），再依地圖範圍在前端裁切。

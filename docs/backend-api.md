@@ -509,6 +509,7 @@ dimensionCoverage = 有效維度數 / 4
 |---|---|
 | `GET test/mock/hourly?dayType=&hour=&limit=30000&offset=0` | 每個時段一次取全市 30,000 點（gzip 約 0.5 MB、約 2–3 秒），依 `nextOffset` 續取；不帶圈選（圈選只收 300／500／1000m，探索地圖範圍可能更大），前端依地圖範圍裁切 |
 | `GET test/mock/hourly/{tg00001}?dayType=&hour=` | 前端目前未使用（網格沒有詳情頁） |
+| `GET test/mock/overview?lat=&lng=` | 首頁感官概況：只送目前位置座標（帶 `radius`／`dayType`／`hour`／`limit`／`offset` 會 400），後端固定 150 公尺、自動取當下臺北時段；驗證 `aggregationVersion: hourly-radius-mean-v1`、`radiusMeters: 150`、時段一致、四維 0–100（可小數）或 null、`validPointCounts ≤ pointCount`、`confidence` 與全 null 一致、`observedAt`／`reportCount` 為 null |
 
 前端驗證：`meta.mock === true`、`demo === true`、`mode === "test-only"`、`datasetVersion === "taipei-hourly-grid-v1"`、`meta.dayType`／`hour` 與查詢相同、`timeBasis === "simulated_request_time"`、`simulatedAt` 為有效時間；每點 `id` 符合 `tg\d{5}`、座標有效、`coordinateKind === "synthetic_grid_center"`、`quality ∈ estimated|insufficient`、四維為 0–100 整數或 null、`sound.unit === "dB(A)"`；回傳筆數須等於 `total`。不符即顯示「模擬網格格式不符」，不改用內建模擬資料。400／404／429／503 各自顯示說明並可重試。
 

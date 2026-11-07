@@ -12,9 +12,9 @@ const fakeLocationMock = vi.hoisted(() => ({ enabled: false, lat: 25.1144737, ln
 vi.mock('../config/locationConfig.js', () => ({ fakeLocation: fakeLocationMock }))
 vi.mock('../lib/sensoryApi.js', () => ({ MOCK_NOTICE: 'MOCK_NOTICE', sensoryApi: { supportsReportIntensity: false, supportsFreeRadius: false, getOverview: vi.fn(), getMap: vi.fn(), getPlaces: vi.fn() } }))
 // 測試情境 hourly 模擬網格：保留真實的裁切與標示工具，只替換網路呼叫。
-vi.mock('../lib/hourlyApi.js', async importOriginal => ({ ...(await importOriginal()), hourlyApi: { getGrid: vi.fn() } }))
+vi.mock('../lib/hourlyApi.js', async importOriginal => ({ ...(await importOriginal()), hourlyApi: { getGrid: vi.fn(), getOverview: vi.fn() } }))
 import { hourlyApi } from '../lib/hourlyApi.js'
-import { SIMULATED_AT, hourlyPayloadFor } from '../lib/hourlyApi.fixture.js'
+import { SIMULATED_AT, hourlyOverviewFor, hourlyPayloadFor } from '../lib/hourlyApi.fixture.js'
 import { buildSensoryField } from '../lib/sensoryField.js'
 afterEach(() => { fakeLocationMock.enabled = false; vi.unstubAllGlobals(); vi.clearAllMocks(); vi.useRealTimers() })
 // 服務只依目前定位提供：測試直接設定裝置位置。
@@ -432,6 +432,59 @@ describe('remote-hourly test grid (issue #5)', () => {
     await flush()
     expect(city.fieldCells.value).toEqual([])
     expect(city.fieldNow.value).toBe(city.now.value)
+    scope.stop()
+  })
+  it('reads the home overview from the 150 m mock average with only the device coordinates', async () => {
+    hourlyApi.getGrid.mockResolvedValue(hourlyPayloadFor())
+    hourlyApi.getOverview.mockResolvedValue(hourlyOverviewFor())
+    const notify = vi.fn()
+    vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
+    for (const fn of [sensoryApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
+    const { scope, city } = located(notify, at(25.0333, 121.5358))
+    await flush()
+    sensoryApi.getOverview.mockClear()
+    remote(city)
+    await flush()
+    expect(sensoryApi.getOverview).not.toHaveBeenCalled()
+    expect(hourlyApi.getOverview).toHaveBeenCalledTimes(1)
+    const sent = hourlyApi.getOverview.mock.calls[0][0]
+    expect(sent).toMatchObject({ lat: 25.0333, lng: 121.5358 })
+    expect(Object.keys(sent).sort()).toEqual(['lat', 'lng', 'test'])
+    expect(city.overview.data.value.senses.noise).toBe(26.6)
+    // 後端測試資料不是內建模擬備援，不跳「已改用模擬資料」通知。
+    expect(city.overview.source.value).toBe('test')
+    expect(notify).not.toHaveBeenCalledWith(expect.stringContaining('模擬資料'))
+    scope.stop()
+  })
+  it('cancels the old overview when the device moves so an old location cannot overwrite the new one', async () => {
+    hourlyApi.getGrid.mockResolvedValue(hourlyPayloadFor())
+    const pending = []
+    hourlyApi.getOverview.mockImplementation((query, { signal }) => new Promise(resolve => pending.push({ query, signal, resolve })))
+    const { scope, city } = setup()
+    remote(city)
+    await nextTick()
+    city.deviceLocation.value = at(25.0267, 121.5354)
+    await nextTick()
+    expect(pending.at(-1).query).toMatchObject({ lat: 25.0267, lng: 121.5354 })
+    expect(pending.at(-2).signal.aborted).toBe(true)
+    pending.at(-1).resolve(hourlyOverviewFor({ hour: 4 }))
+    await Promise.resolve()
+    pending.at(-2).resolve(hourlyOverviewFor({ hour: 3 }))
+    await Promise.resolve()
+    expect(city.overview.data.value.hour).toBe(4)
+    scope.stop()
+  })
+  it('returns the home overview to the live endpoint after switching back', async () => {
+    hourlyApi.getGrid.mockResolvedValue(hourlyPayloadFor())
+    hourlyApi.getOverview.mockResolvedValue(hourlyOverviewFor())
+    const { scope, city } = setup()
+    remote(city)
+    await flush()
+    sensoryApi.getOverview.mockClear()
+    city.preferences.value.dataMode = 'live'
+    await flush()
+    expect(sensoryApi.getOverview).toHaveBeenCalledTimes(1)
+    expect(city.overview.meta.value?.mode).not.toBe('test-only')
     scope.stop()
   })
   it('ignores the retired remote-mock preference and reads saved day type and hour', () => {

@@ -8,6 +8,7 @@ import { assessSensory } from '../../lib/sensoryIndex.js'
 import { DEFAULT_PREFERENCES } from '../../lib/sensoryDomain.js'
 import SenseInfoDialog from './SenseInfoDialog.vue'
 import OverviewInfoDialog from './OverviewInfoDialog.vue'
+import { hourlyOverviewFor } from '../../lib/hourlyApi.fixture.js'
 // 首頁以目前時間判斷新鮮度，模擬資料也以目前時間產生。
 const NOW = Date.now()
 const sampleOverview = () => mockOverview('zhongzheng', NOW)
@@ -182,5 +183,56 @@ describe('sense info dialog', () => {
     // 未知時不畫箭頭，不暗示任何級別。
     expect(html).toContain('level-bar')
     expect(html).not.toContain('level-marker')
+  })
+})
+
+describe('home mock overview (remote-hourly)', () => {
+  function testCity(overview = hourlyOverviewFor(), slot = { dayType: 'weekend', hour: 3 }) {
+    const city = { ...cityFor(sampleOverview()), remoteMock: ref(true), writesEnabled: ref(false) }
+    city.preferences.value = { ...city.preferences.value, dataMode: 'remote-hourly', ...slot }
+    city.overview = { data: ref(overview.data), meta: ref(overview.meta), state: ref('ready'), error: ref(''), reload: () => {} }
+    return city
+  }
+  const home = city => renderToString(createSSRApp(QuietHome, { city }))
+  async function dialog(component, props) {
+    const context = {}
+    await renderToString(createSSRApp(component, props), context)
+    return context.teleports.body
+  }
+  it('shows the 150 m simulated average with the backend slot and keeps the mock label visible', async () => {
+    const html = await home(testCity())
+    expect(html).toContain('附近150公尺感官模擬平均')
+    expect(html).toContain('週末 03:00 典型時段・9 個網格平均（網格數不是人數），非即時觀測。')
+    expect(html).toContain('模擬：週末 03:00')
+    expect(html).toContain('模擬情境・非即時觀測')
+    expect(html).not.toContain('資料不足，暫無法判斷')
+    expect(html).not.toContain('首頁卡片為當下典型時段')
+  })
+  it('treats decimals and zero as values and partial nulls as unknown', async () => {
+    const html = await home(testCity(hourlyOverviewFor({ senses: { noise: 0, light: 33.4, crowd: null, odor: 66.1 }, validPointCounts: { noise: 2, light: 2, crowd: 0, odor: 2 } })))
+    const levels = [...html.matchAll(/<strong[^>]*>([^<]+)<\/strong>/g)].map(match => match[1]).filter(text => ['低', '中等', '偏高', '未知'].includes(text))
+    expect(levels).toEqual(['低', '中等', '未知', '偏高'])
+  })
+  it('shows insufficient data for an empty circle instead of zero', async () => {
+    const empty = hourlyOverviewFor({ senses: { noise: null, light: null, crowd: null, odor: null }, pointCount: 0, validPointCounts: { noise: 0, light: 0, crowd: 0, odor: 0 } })
+    const html = await home(testCity(empty))
+    expect(html).toContain('資料不足，暫無法判斷')
+    expect(html).toContain('附近 150 公尺內沒有模擬網格。未知不代表環境安靜。')
+    expect(html.match(/>未知</g)).toHaveLength(4)
+  })
+  it('labels the home slot when the map uses a different simulated slot', async () => {
+    const html = await home(testCity(hourlyOverviewFor(), { dayType: 'weekday', hour: 8 }))
+    expect(html).toContain('首頁卡片為當下典型時段（週末 03:00），探索地圖為你選的平日 08:00。')
+  })
+  it('explains mock values in the dialogs without SSI, sample counts as people or observation time', async () => {
+    const city = testCity()
+    const sense = await dialog(SenseInfoDialog, { city, senseKey: 'noise', value: 26.6, described: true })
+    expect(sense).toContain('模擬平均 26.6／100・8 個有效網格（非人數）')
+    const unknown = await dialog(SenseInfoDialog, { city, senseKey: 'crowd', value: null, described: true })
+    expect(unknown).toContain('附近 150 公尺內這一項沒有有效模擬網格')
+    const overview = await dialog(OverviewInfoDialog, { city, ssi: null, described: true })
+    expect(overview).toContain('週末 03:00 典型時段・附近 150 公尺 9 個網格平均；模擬資料不計算環境刺激指數 SSI。')
+    expect(overview).toContain('模擬情境・非即時觀測')
+    expect(overview).not.toMatch(/SSI \d/)
   })
 })
