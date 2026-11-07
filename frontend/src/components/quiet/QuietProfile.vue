@@ -16,7 +16,7 @@ const levelWords = ['', '不太在意', '稍微在意', '普通', '在意', '非
         <input :id="`sensitivity-${item.key}`" v-model.number="city.preferences.value.sensitivities[item.key]" class="q-range" type="range" min="1" max="5" step="1" :aria-valuetext="`${city.preferences.value.sensitivities[item.key]}，${levelWords[city.preferences.value.sensitivities[item.key]]}`"/>
       </div>
     </section>
-    <section class="q-settings-card"><div class="section-heading"><h2>介面</h2></div><label class="q-setting-row"><span class="setting-icon"><AppIcon name="layers" :size="22"/></span><span><strong>低刺激模式</strong><small>米白底與單色圖示、灰階地圖、停止動畫、精簡首頁並加大按鈕；首頁標題旁也可直接切換。</small></span><input v-model="city.preferences.value.lowStimulus" class="q-switch" type="checkbox" role="switch"/></label><p v-if="prefersReducedMotion && !city.preferences.value.lowStimulus" class="q-helper motion-hint">你的裝置已開啟「減少動態」，可一併開啟低刺激模式。</p></section>
+    <section class="q-settings-card"><div class="section-heading"><h2>介面</h2></div><label class="q-setting-row"><span class="setting-icon"><AppIcon name="layers" :size="22"/></span><span><strong>低刺激模式</strong><small>減少顏色、動畫與畫面內容。</small></span><input v-model="city.preferences.value.lowStimulus" class="q-switch" type="checkbox" role="switch"/></label><p v-if="prefersReducedMotion && !city.preferences.value.lowStimulus" class="q-helper motion-hint">你的裝置已開啟「減少動態」，可一併開啟低刺激模式。</p></section>
     <footer class="quiet-footer"><AppIcon name="wave" :size="18"/><span>聆靜・讓每一種感受，都有地方。</span></footer>
   </section>
 </template>

@@ -57,7 +57,7 @@ const recentNoise = computed(() => {
 const infoKey = ref(null), overviewOpen = ref(false)
 // 最近的量測紀錄預設收起，點標題才展開。
 const historyOpen = ref(false)
-// 低刺激模式：標題旁的切換鈕可直接開關（不必到「我的」），快速回報的 8 個類型預設收起以降低畫面密度。
+// 低刺激模式：開啟時標題旁顯示「低刺激」標記，點一下即可關閉（未開啟時不顯示，開啟請到「我的」）；快速回報的 8 個類型預設收起以降低畫面密度。
 const lowStimulus = computed(() => Boolean(props.city.preferences.value.lowStimulus))
 const reportOpen = ref(false)
 function toggleLowStimulus() { props.city.preferences.value.lowStimulus = !lowStimulus.value }
@@ -79,8 +79,8 @@ defineEmits(['report', 'measure', 'explore', 'select'])
       <div class="home-heading-copy">
         <div class="home-title">
           <QuietLogo :size="40" /><h1>聆靜</h1>
-          <button type="button" class="low-stimulus-toggle" :class="{ on: lowStimulus }" :aria-pressed="lowStimulus" :aria-label="`低刺激模式，目前${lowStimulus ? '已開啟' : '已關閉'}`" @click="toggleLowStimulus">
-            <span><AppIcon v-if="lowStimulus" name="check" :size="14" :stroke-width="2.4" />低刺激</span>
+          <button v-if="lowStimulus" type="button" class="low-stimulus-toggle on" aria-pressed="true" aria-label="低刺激模式已開啟，點選關閉" @click="toggleLowStimulus">
+            <span><AppIcon name="check" :size="14" :stroke-width="2.4" />低刺激</span>
           </button>
         </div>
         <p>在台北，找到屬於你的安靜角落。</p>
@@ -180,7 +180,7 @@ defineEmits(['report', 'measure', 'explore', 'select'])
 .home-heading { position: relative; display: flex; align-items: flex-start; min-height: 98px; padding: 0 96px 8px 4px; }
 .home-heading-copy { position: relative; z-index: 1; }
 .home-title { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; }
-/* 低刺激切換鈕：外框 44px 觸控區，內部為 30px 高的膠囊；開啟時顯示勾選並換底色。 */
+/* 低刺激標記（只在開啟時顯示）：外框 44px 觸控區，內部為 30px 高的膠囊，點選即關閉。 */
 .low-stimulus-toggle { display: inline-flex; align-items: center; min-height: 44px; margin-left: 2px; padding: 0; border: 0; background: transparent; font: inherit; cursor: pointer; }
 .low-stimulus-toggle > span { display: inline-flex; align-items: center; gap: 3px; height: 30px; padding: 0 11px; border: 1px solid #cfdfe5; border-radius: 15px; background: #fff; color: #4d6a75; font-size: 13px; font-weight: 600; white-space: nowrap; }
 .low-stimulus-toggle.on > span { border-color: var(--q-line); background: var(--q-mint); color: var(--q-deep); }

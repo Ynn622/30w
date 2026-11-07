@@ -237,11 +237,11 @@ describe('home overview from the 150 m average (test/overview)', () => {
 })
 describe('low-stimulus home', () => {
   const withLowStimulus = on => { const city = cityFor(sampleOverview()); city.preferences.value = { ...city.preferences.value, lowStimulus: on }; return city }
-  it('offers a quick low-stimulus toggle beside the title that reflects the current state', async () => {
+  it('shows the low-stimulus badge beside the title only while the mode is on', async () => {
     const off = await renderToString(createSSRApp(QuietHome, { city: withLowStimulus(false) }))
-    expect(off).toMatch(/class="home-title"[\s\S]*<button[^>]*class="low-stimulus-toggle"[^>]*aria-pressed="false"[^>]*aria-label="低刺激模式，目前已關閉"/)
+    expect(off).not.toContain('low-stimulus-toggle')
     const on = await renderToString(createSSRApp(QuietHome, { city: withLowStimulus(true) }))
-    expect(on).toMatch(/class="(?:on low-stimulus-toggle|low-stimulus-toggle on)"[^>]*aria-pressed="true"[^>]*aria-label="低刺激模式，目前已開啟"/)
+    expect(on).toMatch(/class="(?:on low-stimulus-toggle|low-stimulus-toggle on)"[^>]*aria-pressed="true"[^>]*aria-label="低刺激模式已開啟，點選關閉"/)
   })
   it('collapses the eight quick-report kinds behind one disclosure button only in low-stimulus mode', async () => {
     const off = await renderToString(createSSRApp(QuietHome, { city: withLowStimulus(false) }))
