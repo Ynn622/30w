@@ -2,10 +2,10 @@
 import { computed } from 'vue'
 import AppIcon from '../AppIcon.vue'
 import AppSheet from './AppSheet.vue'
+import LevelScale from './LevelScale.vue'
 import { SENSES, levelText } from '../../lib/sensoryDomain.js'
-import { SSI_WEIGHTS } from '../../lib/sensoryIndex.js'
 
-// 首頁感官卡片的小視窗：說明此維度的數值與計算方式。
+// 首頁感官卡片的小視窗：顯示此維度的數值，並以敏感圖層同款色帶加小箭頭標示目前級別（與概況說明視窗相同，不放說明文字）。
 const props = defineProps({
   city: { type: Object, required: true },
   senseKey: { type: String, required: true },
@@ -16,12 +16,6 @@ defineEmits(['close'])
 const sense = computed(() => SENSES.find(item => item.key === props.senseKey))
 const data = computed(() => props.city.overview.data.value)
 const dimension = computed(() => data.value?.sensoryIndex?.dimensionMeta?.[props.senseKey] || null)
-const NOTES = {
-  noise: '不是分貝；手機量測的 dBFS 只作同裝置相對音量，不直接計入。',
-  light: '不是照度；天氣、日照或 UV 不能代替現場刺眼程度。',
-  crowd: '不是人數；捷運歷史進出量不會當成現在的人潮。',
-  odor: '空氣品質 AQI 不能代替氣味，兩者分開計算。',
-}
 const REASONS = { no_data: '近 30 分鐘沒有這一項的回報。', stale: '觀測已超過 30 分鐘，不採用。', insufficient_samples: '樣本數不足，暫不判斷。', incompatible_scale: '資料尺度無法比較，暫不採用。' }
 const missingText = computed(() => {
   if (props.value !== null) return ''
@@ -40,9 +34,7 @@ const missingText = computed(() => {
         <span>{{ value === null ? missingText : `刺激指數 ${value}／100` }}</span>
       </div>
     </div>
-    <h3>怎麼計算</h3>
-    <p>彙整附近 30 分鐘內的主觀回報，換算成 0–100 相對刺激尺度（越高越刺激）：0–33 低、34–66 中等、67–100 偏高。{{ NOTES[senseKey] }}</p>
-    <p>在環境刺激指數 SSI 中占 {{ Math.round((SSI_WEIGHTS[senseKey] || 0) * 100) }}%；你設定的敏感度為 {{ city.preferences.value.sensitivities?.[senseKey] ?? '—' }}／5，只用於個人適配排序。</p>
+    <LevelScale :value="value" :label="`${sense?.label}刺激程度`" :ticks="sense?.scale" />
   </AppSheet>
 </template>
 
@@ -51,6 +43,4 @@ const missingText = computed(() => {
 .sense-info-value.teal { color: var(--q-brand, #0391a7); }.sense-info-value.amber { color: #c9961f; }.sense-info-value.blue { color: #3387a4; }.sense-info-value.green { color: #2f7f39; }
 .sense-info-value strong { display: block; color: var(--q-ink, #222c33); font-size: 22px; line-height: 1.3; }
 .sense-info-value span { display: block; color: #4f5f69; font-size: 13px; line-height: 1.6; }
-h3 { margin: 14px 0 6px; color: var(--q-ink, #222c33); font-size: 15px; }
-p { margin: 0 0 8px; color: #4f5f69; font-size: 13px; line-height: 1.7; }
 </style>

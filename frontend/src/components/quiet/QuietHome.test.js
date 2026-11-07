@@ -23,6 +23,8 @@ function cityFor(data, places = [], meta = mockMeta(NOW), status = 'ready') {
     places: { data: ref({ places }), meta: ref(meta), state: ref('ready'), error: ref(''), reload: () => {} },
   }
 }
+// 色帶刻度的文字（去掉標籤與 SSR 的片段註解）。
+const ticksOf = html => html.match(/class="level-ticks"[^>]*>([\s\S]*?)<\/span><\/div>/)[1].replace(/<[^>]+>/g, '')
 describe('home sensory presentation', () => {
   it('shows the village once resolved and falls back to the district before that', async () => {
     const before = await renderToString(createSSRApp(QuietHome, { city: { ...cityFor(sampleOverview()), village: ref(null) } }))
@@ -127,7 +129,7 @@ describe('sense info dialog', () => {
     await renderToString(createSSRApp(SenseInfoDialog, { city: cityFor(sampleOverview()), ...props }), context)
     return context.teleports.body
   }
-  it('explains the overview in the same dialog style without a source list', async () => {
+  it('shows the overview level on the sensitivity-layer colour bar with a marker, without explanation text or sources', async () => {
     const context = {}
     const city = cityFor(sampleOverview())
     await renderToString(createSSRApp(OverviewInfoDialog, { city, ssi: 58, described: true }), context)
@@ -135,7 +137,13 @@ describe('sense info dialog', () => {
     expect(html).toContain('感官概況說明')
     expect(html).toContain('sense-info-value')
     expect(html).toContain('環境刺激指數 SSI 58／100（中等）')
-    expect(html).toContain('聲音 40%')
+    // 色帶同敏感圖層圖例，箭頭標在 SSI 58 的位置；不再有「怎麼計算」等說明文字。
+    expect(html).toContain('level-bar')
+    expect(html).toMatch(/class="level-marker" style="left:58%;?"/)
+    // 整體概況的刻度名稱。
+    expect(ticksOf(html)).toBe('舒適普通刺激')
+    expect(html).not.toContain('怎麼計算')
+    expect(html).not.toContain('每 2 分鐘自動更新')
     expect(html).toContain('目前為模擬資料')
     expect(html).not.toContain('資料來源')
     expect(html).not.toContain('Nominatim')
@@ -143,20 +151,34 @@ describe('sense info dialog', () => {
     await renderToString(createSSRApp(OverviewInfoDialog, { city, ssi: null, described: false }), unknown)
     expect(unknown.teleports.body).toContain('資料不足')
     expect(unknown.teleports.body).toContain('未知不代表環境安靜')
+    // 資料不足時不畫箭頭，不暗示任何級別。
+    expect(unknown.teleports.body).not.toContain('level-marker')
   })
-  it('explains the value and calculation only, without the data table or source list', async () => {
+  it('shows the value on the same colour bar with a marker, without explanation text, data table or source list', async () => {
     const html = await renderDialog({ senseKey: 'noise', value: 72, described: true })
     expect(html).toContain('聲音資料說明')
     expect(html).toContain('刺激指數 72／100')
-    expect(html).toContain('0–33 低')
-    expect(html).toContain('不是分貝')
-    expect(html).toContain('40%')
+    expect(html).toContain('level-bar')
+    expect(html).toMatch(/class="level-marker" style="left:72%;?"/)
+    expect(html).toContain('aria-label="聲音刺激程度：偏高，72／100"')
+    // 刻度名稱依類別：聲音為安靜／有點吵／吵雜。
+    expect(ticksOf(html)).toBe('安靜有點吵吵雜')
+    for (const removed of ['怎麼計算', '不是分貝', '0–33 低', '40%']) expect(html).not.toContain(removed)
     for (const removed of ['觀測時間', '有效至', '採用樣本', '資料信心', '資料來源', '聆靜模擬資料']) expect(html).not.toContain(removed)
+  })
+  it('names the scale ticks after each sense', async () => {
+    const expected = { noise: '安靜有點吵吵雜', light: '柔和明亮刺眼', crowd: '空曠適中擁擠', odor: '清新有氣味刺鼻' }
+    for (const [senseKey, ticks] of Object.entries(expected)) {
+      const html = await renderDialog({ senseKey, value: 50, described: true })
+      expect(ticksOf(html)).toBe(ticks)
+    }
   })
   it('says why a dimension is unknown instead of treating it as quiet', async () => {
     const html = await renderDialog({ senseKey: 'odor', value: null, described: true })
     expect(html).toContain('未知')
     expect(html).toContain('近 30 分鐘沒有這一項的回報')
-    expect(html).toContain('AQI 不能代替氣味')
+    // 未知時不畫箭頭，不暗示任何級別。
+    expect(html).toContain('level-bar')
+    expect(html).not.toContain('level-marker')
   })
 })

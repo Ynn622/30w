@@ -35,12 +35,15 @@ export function insideTaipei({ lat, lng }) {
   }
   return inside
 }
+// scale：說明視窗色帶的刻度名稱（左＝低、中、右＝高），依各感官的實際感受命名。
 export const SENSES = [
-  { key: 'noise', label: '聲音', icon: 'sound', color: 'teal' },
-  { key: 'light', label: '光線', icon: 'sun', color: 'amber' },
-  { key: 'crowd', label: '人潮', icon: 'people', color: 'blue' },
-  { key: 'odor', label: '氣味', icon: 'wind', color: 'green' },
+  { key: 'noise', label: '聲音', icon: 'sound', color: 'teal', scale: ['安靜', '有點吵', '吵雜'] },
+  { key: 'light', label: '光線', icon: 'sun', color: 'amber', scale: ['柔和', '明亮', '刺眼'] },
+  { key: 'crowd', label: '人潮', icon: 'people', color: 'blue', scale: ['空曠', '適中', '擁擠'] },
+  { key: 'odor', label: '氣味', icon: 'wind', color: 'green', scale: ['清新', '有氣味', '刺鼻'] },
 ]
+// 整體感官概況（SSI）的色帶刻度名稱。
+export const OVERALL_SCALE = Object.freeze(['舒適', '普通', '刺激'])
 // 快速回報 8 種類型（第一層）與快速標籤（第二層）。前四種直接對應 SSI 四維；
 // 溫度、動線另外統計不納入 SSI；舒適空間收集正向訊號；其他感受需自行描述。
 const tag = (id, label) => ({ id, label })
