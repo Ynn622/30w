@@ -34,7 +34,7 @@ function reported(message) { report.value = null; emit('notify', message); refre
     <Transition name="quiet-page" mode="out-in">
       <PlaceDetail v-if="placeId" :key="`place-${placeId}`" :id="placeId" :city="city" @back="placeId = null" @notify="$emit('notify', $event)"/>
       <QuietHome v-else-if="tab === 'home'" key="home" :city="city" @report="openReport" @measure="openMeasure" @explore="navigate('explore')" @select="selected"/>
-      <ExploreView v-else-if="tab === 'explore'" key="explore" :city="city" @select="selected"/>
+      <ExploreView v-else-if="tab === 'explore'" key="explore" :city="city" @select="selected" @notify="$emit('notify', $event)"/>
       <QuietProfile v-else key="profile" :city="city" @select="selected" @explore="navigate('explore')"/>
     </Transition>
     <nav class="quiet-bottom-nav" aria-label="主要導覽"><button v-for="item in tabs" :key="item.id" :class="{ active: tab === item.id }" :aria-current="tab === item.id ? 'page' : undefined" @click="navigate(item.id)"><span><AppIcon :name="item.icon" :size="22"/></span>{{ item.label }}<i v-if="tab === item.id"></i></button></nav>
