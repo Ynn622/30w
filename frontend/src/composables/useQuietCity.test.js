@@ -250,4 +250,28 @@ describe('sensory queries', () => {
     expect(sensoryApi.getOverview.mock.calls.at(-1)[0].radius).toBe(500)
     scope.stop()
   })
+  it('sorts low-stimulus zone places first in low-stimulus mode without refetching', async () => {
+    vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
+    sensoryApi.getOverview.mockResolvedValue({ data: {}, meta: {} })
+    sensoryApi.getMap.mockResolvedValue({ data: { cells: [] }, meta: {} })
+    const near = { lat: AREAS[0].lat, lng: AREAS[0].lng }
+    const places = [
+      { id: 'not-low', name: 'A', indoor: false, location: near, zone: { noise: 'not_low' } },
+      { id: 'unknown', name: 'B', indoor: false, location: near },
+      { id: 'low', name: 'C', indoor: false, location: near, zone: { noise: 'low' } },
+    ]
+    sensoryApi.getPlaces.mockResolvedValue({ data: { places }, meta: {} })
+    const { scope, city } = located()
+    await nextTick(); await Promise.resolve(); await Promise.resolve()
+    expect(city.recommendations.value.map(place => place.zoneStatus)).toEqual(['not_low', 'unknown', 'low'])
+    const calls = sensoryApi.getPlaces.mock.calls.length
+    city.preferences.value.lowStimulus = true
+    await nextTick()
+    expect(city.recommendations.value.map(place => place.id)).toEqual(['low', 'unknown', 'not-low'])
+    expect(sensoryApi.getPlaces.mock.calls.length).toBe(calls)
+    city.preferences.value.lowStimulus = false
+    await nextTick()
+    expect(city.recommendations.value.map(place => place.id)).toEqual(['not-low', 'unknown', 'low'])
+    scope.stop()
+  })
 })

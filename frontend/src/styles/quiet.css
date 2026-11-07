@@ -423,6 +423,10 @@ body { background: #edf3f7; }
 
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .toast { z-index: 1000; font-size: 15px; }
+.toast-dismiss { border: 0; font: inherit; font-size: 15px; text-align: center; cursor: pointer; }
+.toast-action { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.toast-action button { flex-shrink: 0; min-height: 44px; padding: 0 14px; border: 1px solid #ffffff80; border-radius: 22px; background: transparent; color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
+.motion-hint { margin: 0 0 4px; padding: 8px 10px; border-radius: 8px; background: #eef6f9; color: #3f5d6b; font-size: 13px; line-height: 1.6; }
 .quiet-page-enter-active,
 .quiet-page-leave-active { transition: opacity .16s ease, transform .18s ease; }
 .quiet-page-enter-from { opacity: 0; transform: translateY(6px); }
@@ -501,3 +505,18 @@ body { background: #edf3f7; }
 /* AppSheet dialog：置中的小視窗（例如首頁感官卡片的資料說明）。 */
 .quiet-overlay.dialog { align-items: center; padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom)); }
 .quiet-sheet.dialog { width: min(100%, 360px); max-height: min(80dvh, 560px); padding: 6px 18px 18px; border-radius: 16px; box-shadow: 0 12px 40px #14344d33; }
+
+/* 低刺激模式的地圖標記：統一低彩度；周邊低刺激區以綠色與文字標籤標示，不只靠顏色。 */
+.q-map-pin-zone { display: block; margin-top: 1px; padding: 0 4px; border-radius: 4px; background: #e3f1e7; color: #2f6a45; font-size: 11px; font-weight: 600; line-height: 15px; white-space: nowrap; }
+.q-low-stimulus .q-map-pin-icon svg > path:first-of-type { fill: #8a9c94; }
+.q-low-stimulus .q-map-pin-icon svg g { stroke: #8a9c94; }
+.q-low-stimulus .q-map-pin.in-zone .q-map-pin-icon svg > path:first-of-type { fill: #5f9d78; }
+.q-low-stimulus .q-map-pin.in-zone .q-map-pin-icon svg g { stroke: #5f9d78; }
+/* 低刺激模式的首頁快速回報：圖示縮小、間距加大，降低畫面密度。 */
+.q-low-stimulus .quiet-app .report-grid { gap: 10px; }
+.q-low-stimulus .quiet-app .report-grid button svg { width: 22px; height: 22px; }
+/* 裝置要求高對比時，低刺激的柔和配色改用較深的文字色，避免可讀性不足。 */
+@media (prefers-contrast: more) {
+  .q-low-stimulus :is(.quiet-app, .quiet-overlay) { --q-ink: #111a20; --q-muted: #3d4a52; --q-deep: #1f5560; --q-brand: #2b6d79; }
+  .q-low-stimulus .quiet-app .q-helper { color: #3d4a52; }
+}

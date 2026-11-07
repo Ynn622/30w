@@ -5,22 +5,26 @@ import { distanceMeters, isCoordinate } from '../../lib/sensoryDomain.js'
 import { sensoryValues } from '../../lib/sensoryIndex.js'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
-const props = defineProps({ places: { type: Array, default: () => [] }, cells: { type: Array, default: () => [] }, center: { type: Object, required: true }, layer: { type: String, default: 'noise' }, deviceLocated: Boolean, lowStimulus: Boolean, layerVisible: { type: Boolean, default: true }, mock: Boolean })
+const props = defineProps({ places: { type: Array, default: () => [] }, cells: { type: Array, default: () => [] }, center: { type: Object, required: true }, layer: { type: String, default: 'noise' }, deviceLocated: Boolean, lowStimulus: Boolean, layerVisible: { type: Boolean, default: true }, mock: Boolean, zones: { type: Array, default: () => [] } })
 const emit = defineEmits(['select', 'locate', 'viewchange'])
 const container = ref(null), ready = ref(false), error = ref('')
 let map, maplibre, markers = [], centerMarker, observer, timer, moveTimer, disposed = false, generation = 0
 const reduced = () => props.lowStimulus || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 const layerLabels = { noise: '聲音', light: '光線', crowd: '人潮', odor: '氣味' }
+// 一般模式顯示熱區與觀測點；低刺激模式改顯示後端判定的綠區（熱區顏色本身是刺激，也不能代表哪裡安靜）。
 function applyVisibility() {
   if (!ready.value || !map) return
-  const visibility = props.layerVisible ? 'visible' : 'none'
-  for (const id of ['sensory-heat', 'sensory-observed']) map.setLayoutProperty(id, 'visibility', visibility)
+  const show = (visible, ids) => ids.forEach(id => map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none'))
+  show(props.layerVisible && !props.lowStimulus, ['sensory-heat', 'sensory-observed'])
+  show(props.layerVisible && props.lowStimulus, ['sensory-zones-fill', 'sensory-zones-line'])
 }
 function applyStimulus() {
   if (!ready.value || !map) return
-  // 低刺激模式降低熱區飽和度與不透明度，但保留有觀測的圓點與文字圖例。
-  map.setPaintProperty('sensory-heat', 'heatmap-opacity', props.lowStimulus ? .22 : .43)
-  map.setPaintProperty('sensory-observed', 'circle-opacity', props.lowStimulus ? .5 : .65)
+  applyVisibility()
+}
+function syncZones() {
+  if (!ready.value || !map) return
+  map.getSource('zones')?.setData({ type: 'FeatureCollection', features: props.zones })
 }
 // 場所標記：水滴形圖釘（依類型配色＋白底小圖示）與下方小字名稱。
 // 圖示是固定的 SVG 字串，不含 API 資料；名稱來自 API，一律用 textContent。
@@ -45,6 +49,16 @@ function pinElement(place) {
   label.setAttribute('aria-hidden', 'true')
   label.textContent = place.name
   button.append(icon, label)
+  // 低刺激模式：以文字標示周邊低刺激區，不只靠顏色區分。
+  if (props.lowStimulus && place.zoneStatus === 'low') {
+    button.classList.add('in-zone')
+    const badge = document.createElement('span')
+    badge.className = 'q-map-pin-zone'
+    badge.setAttribute('aria-hidden', 'true')
+    badge.textContent = place.indoor ? '室內低刺激' : '低刺激區'
+    button.append(badge)
+    button.setAttribute('aria-label', `查看${place.name}（${badge.textContent}）`)
+  }
   button.addEventListener('click', () => emit('select', place.id))
   return button
 }
@@ -101,7 +115,11 @@ async function initialize() {
         'circle-radius': 4.5, 'circle-opacity': .65, 'circle-stroke-width': 1.5, 'circle-stroke-color': '#ffffff',
         'circle-color': ['interpolate', ['linear'], ['get', 'intensity'], 0, '#70b393', .5, '#d8c47e', 1, '#cf887b'],
       } })
-      ready.value = true; applyStimulus(); applyVisibility(); sync()
+      // 低刺激綠區：低飽和綠色填色與細外框，只在低刺激模式顯示。
+      map.addSource('zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({ id: 'sensory-zones-fill', type: 'fill', source: 'zones', layout: { visibility: 'none' }, paint: { 'fill-color': '#8fbf9f', 'fill-opacity': .3 } })
+      map.addLayer({ id: 'sensory-zones-line', type: 'line', source: 'zones', layout: { visibility: 'none' }, paint: { 'line-color': '#5f9d78', 'line-width': 1 } })
+      ready.value = true; applyVisibility(); syncZones(); sync()
     })
     // 停止拖曳／縮放 0.5 秒後回報地圖中心，讓上層抓取該處附近的地點與熱區。
     map.on('zoom', updateLabelVisibility)
@@ -120,7 +138,8 @@ async function initialize() {
   } catch { error.value = '此裝置無法啟用地圖，請使用下方場所清單。' }
 }
 watch(() => [props.places, props.cells, props.layer, props.deviceLocated], sync, { deep: true })
-watch(() => props.lowStimulus, applyStimulus)
+watch(() => props.lowStimulus, () => { applyStimulus(); sync() })
+watch(() => props.zones, syncZones, { deep: true })
 watch(() => props.layerVisible, applyVisibility)
 watch(() => props.center, center => {
   if (map && isCoordinate(center)) map.flyTo({ center: [center.lng, center.lat], duration: reduced() ? 0 : 700 })
@@ -133,7 +152,8 @@ onUnmounted(() => { disposed = true; generation++; clearTimeout(timer); clearTim
   <div class="sensory-map-wrap">
     <div ref="container" class="sensory-map" role="region" aria-label="城市感官互動地圖，可拖曳縮放"></div>
     <div v-if="!ready || error" class="q-map-state" role="status"><AppIcon :name="error ? 'map' : 'layers'" :size="28"/><strong>{{ error || '正在展開城市地圖…' }}</strong><button v-if="error" class="q-secondary" @click="initialize">重新載入地圖</button></div>
-    <div v-if="ready && !error && layerVisible" class="map-legend"><strong>{{ layerLabels[layer] }}刺激示意</strong><em v-if="mock" class="map-legend-mock">模擬資料</em><div></div><span>較低 <span>較高</span></span></div>
+    <div v-if="ready && !error && layerVisible && lowStimulus" class="map-legend zone-legend"><strong>低刺激區域</strong><em v-if="mock" class="map-legend-mock">模擬資料</em><p v-if="zones.length"><i aria-hidden="true"></i>綠色：後端判定{{ layerLabels[layer] }}刺激 ≤ 33</p><p v-else>目前沒有已確認的低刺激區域</p></div>
+    <div v-else-if="ready && !error && layerVisible" class="map-legend"><strong>{{ layerLabels[layer] }}刺激示意</strong><em v-if="mock" class="map-legend-mock">模擬資料</em><div></div><span>較低 <span>較高</span></span></div>
     <div class="map-tools"><button class="q-icon-button" aria-label="使用目前位置並移至地圖中心" @click="$emit('locate')"><AppIcon name="locate" :size="21"/></button><button class="q-icon-button" aria-label="放大地圖" @click="map?.zoomIn({ duration: reduced() ? 0 : 200 })"><AppIcon name="plus" :size="21"/></button><button class="q-icon-button" aria-label="縮小地圖" @click="map?.zoomOut({ duration: reduced() ? 0 : 200 })"><span class="minus-icon">−</span></button></div>
   </div>
 </template>
@@ -141,6 +161,8 @@ onUnmounted(() => { disposed = true; generation++; clearTimeout(timer); clearTim
 <style scoped>
 /* MapLibre 的 CSS 會在探索頁延遲載入；此規則不可被其 position: relative 覆蓋。
    容器本身也需有尺寸，不能只依賴外層的高度或內部絕對定位的 canvas。 */
+.zone-legend p { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; color: #45555e; font-size: 12px; line-height: 1.5; }
+.zone-legend i { flex-shrink: 0; width: 14px; height: 10px; border: 1px solid #5f9d78; border-radius: 2px; background: #8fbf9f80; }
 .map-legend-mock { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px; background: #fff1e3; color: #8a4f1d; font-size: 11px; font-style: normal; vertical-align: 1px; }
 .sensory-map {
   position: absolute;

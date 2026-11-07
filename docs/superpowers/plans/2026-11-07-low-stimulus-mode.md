@@ -54,9 +54,9 @@
 - composable 新增 `lowZones`（computed，依目前圖層過濾的 features）與 `zoneOf`；`sensory/map` 的 `zones` 隨 `cells` 一起取得，不另發請求。
 - 模擬資料：`mockCells` 旁新增 `mockZones`，以模擬格網中 ≤ 33 的格子產生 100 m 方格多邊形，`meta.mock` 時才使用。
 
-- [ ] 測試：缺 `zones`、空 features、非 `low`、過期、錯誤座標格式、未知 `zoneVersion` 皆回空；33 保留、34 丟棄；室內場所不受室外 zone 影響。
-- [ ] 實作解析與 composable 介接，確認舊後端（無 `zones`）不報格式錯誤。
-- [ ] 更新 `docs/backend-api.md` 階段表：綠區「前端已讀取」。
+- [x] 測試：缺 `zones`、空 features、非 `low`、過期、錯誤座標格式、未知 `zoneVersion` 皆回空；33 保留、34 丟棄；室內場所不受室外 zone 影響。
+- [x] 實作解析與 composable 介接，確認舊後端（無 `zones`）不報格式錯誤。
+- [x] 更新 `docs/backend-api.md` 階段表：綠區「前端已讀取」。
 
 ### Task 2: 地圖——低刺激模式改畫綠區
 
@@ -64,40 +64,44 @@
 
 **Interfaces:** SensoryMap 新增 `zones` prop；`lowStimulus` 為 true 時隱藏 `sensory-heat` 與 `sensory-observed`，改顯示 `sensory-zones`（fill 低飽和綠 `#8fbf9f`、opacity 0.28，外框 1px）；false 時恢復熱圖。
 
-- [ ] 新增 GeoJSON source `zones` 與 fill／line 兩層，切換以 `setLayoutProperty(..., 'visibility')` 完成，不重建地圖。
-- [ ] 圖例改為「綠色：後端判定的低刺激區域（聲音 ≤ 33）」；無綠區時圖例顯示「目前沒有已確認的低刺激區域」，不畫任何綠色。模擬資料時附「模擬資料」標籤。
-- [ ] 場所標記在模式中降為單色（灰綠），並依 `zoneOf` 加文字標記「低刺激區」，不只靠顏色區分。
-- [ ] 「聲音圖層」開關在模式中改名「低刺激區域」，控制綠區顯示。
+- [x] 新增 GeoJSON source `zones` 與 fill／line 兩層，切換以 `setLayoutProperty(..., 'visibility')` 完成，不重建地圖。
+- [x] 圖例改為「綠色：後端判定的低刺激區域（聲音 ≤ 33）」；無綠區時圖例顯示「目前沒有已確認的低刺激區域」，不畫任何綠色。模擬資料時附「模擬資料」標籤。
+- [x] 場所標記在模式中降為單色（灰綠），並依 `zoneOf` 加文字標記「低刺激區」，不只靠顏色區分。
+- [x] 「聲音圖層」開關在模式中改名「低刺激區域」，控制綠區顯示。
 
 ### Task 3: 推薦與快速入口
 
 **Files:** 修改 `ExploreView.vue`、`QuietHome.vue`、`PlaceCard.vue`、`useQuietCity.js`。
 
-- [ ] 探索頁地圖左上新增快速開關（與圖層開關同列，44px 以上）：「低刺激模式」；與「我的」頁同一個 `preferences.lowStimulus`。
-- [ ] 模式中清單排序：`zoneOf === 'low'` 優先，其次 `unknown`，`not_low` 最後；同組內沿用 SFS／距離。**不隱藏** `unknown` 場所（決策 2 確認前先採排序，不採過濾）。
-- [ ] PlaceCard 顯示「周邊低刺激區」／「周邊資料不足」文字標籤；室內場所改顯示自身感官狀態。
-- [ ] 首頁：模式開啟時感官天氣只保留四格與文字結論，快速回報改為較少選項的版面（維持 8 種但縮小圖示、增加間距）。
+- [x] 探索頁地圖左上新增快速開關（與圖層開關同列，44px 以上）：「低刺激模式」；與「我的」頁同一個 `preferences.lowStimulus`。
+- [x] 模式中清單排序：`zoneOf === 'low'` 優先，其次 `unknown`，`not_low` 最後；同組內沿用 SFS／距離。**不隱藏** `unknown` 場所（決策 2 確認前先採排序，不採過濾）。
+- [x] PlaceCard 顯示「周邊低刺激區」／「周邊資料不足」文字標籤；室內場所改顯示自身感官狀態。
+- [x] 首頁：模式開啟時快速回報縮小圖示、增加間距（感官天氣卡已只有四格與文字結論）。
 
 ### Task 4: 介面與通知的低刺激行為
 
 **Files:** 修改 `frontend/src/App.vue`、`frontend/src/lib/versionChecker.js`、`QuietApp.vue`、`styles/quiet.css`。
 
-- [ ] 新版本偵測：模式中不自動重新整理，改為常駐提示＋「重新整理」按鈕（使用者主動觸發）。
-- [ ] Toast：模式中延長到 6 秒並可點擊關閉；不使用震動或聲音（目前本就沒有，列為守則）。
-- [ ] 系統偏好：偵測 `prefers-reduced-motion: reduce` 時，在「我的」頁開關旁提示「你的裝置已減少動態，可一併開啟低刺激模式」；不自動替使用者開啟。
-- [ ] `prefers-contrast: more` 時，模式配色改用較高對比的文字色，避免柔和配色造成可讀性不足。
-- [ ] 量測面板：模式中停用波形動畫，只顯示數字與文字分級。
+- [x] 新版本偵測：模式中不自動重新整理，改為常駐提示＋「重新整理」按鈕（使用者主動觸發）。
+- [x] Toast：模式中延長到 6 秒並可點擊關閉；不使用震動或聲音（目前本就沒有，列為守則）。
+- [x] 系統偏好：偵測 `prefers-reduced-motion: reduce` 時，在「我的」頁開關旁提示「你的裝置已減少動態，可一併開啟低刺激模式」；不自動替使用者開啟。
+- [x] `prefers-contrast: more` 時，模式配色改用較高對比的文字色，避免柔和配色造成可讀性不足。
+- [x] 量測面板：模式中波形與光暈動畫由全域「停用 animation／transition」規則一併停止。
 
 ### Task 5: 驗證與交接
 
 **Files:** 新增／修改相關 `*.test.js`、`frontend/README.md`、`docs/backend-api.md`。
 
-- [ ] 元件測試：模式開關後 SSR 輸出含綠區圖例文字、不含熱圖圖例；無綠區時顯示「目前沒有已確認的低刺激區域」。
-- [ ] composable 測試：模式切換不觸發新的 API 請求；排序符合 low → unknown → not_low。
-- [ ] 實機或 320px 瀏覽器：切換模式時地圖、清單、sheet、Toast、版本提示行為符合本計畫；關閉後完全恢復。
-- [ ] 執行 `npm test`、`npm run build`、`git diff --check`，更新 README 的低刺激模式說明。
+- [x] 元件測試：模式開關後 SSR 輸出含綠區圖例文字、不含熱圖圖例；無綠區時顯示「目前沒有已確認的低刺激區域」。
+- [x] composable 測試：模式切換不觸發新的 API 請求；排序符合 low → unknown → not_low。
+- [x] 實機或 320px 瀏覽器：切換模式時地圖、清單、sheet、Toast、版本提示行為符合本計畫；關閉後完全恢復。
+- [x] 執行 `npm test`、`npm run build`、`git diff --check`，更新 README 的低刺激模式說明。
 
-## 待開發者決策
+## 已採用的決策（2026-11-07 開發者同意採建議預設）
+
+探索頁加快速開關；清單採「低刺激優先排序」不過濾；綠區只看聲音維度；裝置減少動態時只提示；後端綠區上線前以標示「模擬資料」的模擬綠區展示。
+
+## 原待開發者決策
 
 1. **入口**：探索頁地圖上是否加「低刺激模式」快速開關（建議加），或維持只在「我的」頁？
 2. **清單**：模式中是否只列出 `zone === 'low'` 的場所（嚴格，資料少時常為空），或採本計畫的「低刺激優先排序」（建議，待資料量足夠再改嚴格）？

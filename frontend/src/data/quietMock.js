@@ -133,3 +133,40 @@ export function mockCells(areaId = 'zhongzheng', now = Date.now(), center = null
     reportCount: i + 3, updatedAt: minutesAgo(now, 6 + i * 2), confidence: i === 7 ? 'low' : 'medium',
   }, 6 + i * 2, now))
 }
+
+// 模擬綠區（docs/backend-api.md 2.1 格式）：以模擬格網中有效值 ≤ 33 的格子產生 100 公尺方格，
+// 只在後端無法使用、改用模擬資料時出現，畫面需標示模擬資料。
+export const MOCK_ZONE_RULE = Object.freeze({ zoneVersion: 'zone-v0.1', threshold: 33, unit: 'square', unitSizeM: 100, radiusM: 150 })
+const ZONE_LAYERS = ['noise', 'light', 'crowd', 'odor']
+export function mockZones(cells) {
+  const features = []
+  for (const cell of cells) {
+    const half = { lat: 50 / 111320, lng: 50 / (111320 * Math.cos(cell.location.lat * Math.PI / 180)) }
+    const { lat, lng } = cell.location
+    const ring = [[lng - half.lng, lat - half.lat], [lng + half.lng, lat - half.lat], [lng + half.lng, lat + half.lat], [lng - half.lng, lat + half.lat], [lng - half.lng, lat - half.lat]]
+      .map(([x, y]) => [Number(x.toFixed(5)), Number(y.toFixed(5))])
+    for (const layer of ZONE_LAYERS) {
+      const value = cell.sensoryIndex?.dimensions?.[layer]
+      const meta = cell.sensoryIndex?.dimensionMeta?.[layer]
+      if (!Number.isFinite(value) || value > MOCK_ZONE_RULE.threshold || !meta?.validUntil) continue
+      features.push({ type: 'Feature', id: `mock-zone-${cell.id}-${layer}`, geometry: { type: 'Polygon', coordinates: [ring] },
+        properties: { layer, level: 'low', value, sampleCount: meta.sampleCount, confidence: meta.confidence, observedAt: meta.observedAt, validUntil: meta.validUntil } })
+    }
+  }
+  return { zoneRule: { ...MOCK_ZONE_RULE }, zones: { type: 'FeatureCollection', features } }
+}
+// 模擬 Place.zone：場所 150 公尺內最近的模擬格網決定 low／not_low，沒有格網則 unknown。
+export function annotateMockZones(places, cells) {
+  const distance = (a, b) => {
+    const rad = Math.PI / 180, x = Math.sin((b.lat - a.lat) * rad / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin((b.lng - a.lng) * rad / 2) ** 2
+    return 6371000 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x))
+  }
+  return places.map(place => {
+    const near = cells.map(cell => ({ cell, d: distance(place.location, cell.location) })).filter(item => item.d <= MOCK_ZONE_RULE.radiusM).sort((a, b) => a.d - b.d)[0]?.cell
+    const zone = Object.fromEntries(ZONE_LAYERS.map(layer => {
+      const value = near?.sensoryIndex?.dimensions?.[layer]
+      return [layer, !Number.isFinite(value) ? 'unknown' : value <= MOCK_ZONE_RULE.threshold ? 'low' : 'not_low']
+    }))
+    return { ...place, zone: { ...zone, zoneVersion: MOCK_ZONE_RULE.zoneVersion } }
+  })
+}

@@ -1,10 +1,17 @@
 <script setup>
+import { computed } from 'vue'
 import AppIcon from '../AppIcon.vue'
 import PlaceArtwork from './PlaceArtwork.vue'
 import SensoryScore from './SensoryScore.vue'
 import { SENSES, levelText } from '../../lib/sensoryDomain.js'
 
-defineProps({ place: { type: Object, required: true }, mock: Boolean })
+const props = defineProps({ place: { type: Object, required: true }, mock: Boolean, lowStimulus: Boolean })
+// 低刺激模式的周邊判定文字；室內場所以自身感官為準。
+const ZONE_TEXT = {
+  outdoor: { low: '周邊低刺激區', not_low: '周邊刺激較高', unknown: '周邊資料不足' },
+  indoor: { low: '室內低刺激', not_low: '室內刺激較高', unknown: '室內資料不足' },
+}
+const zoneText = computed(() => ZONE_TEXT[props.place.indoor ? 'indoor' : 'outdoor'][props.place.zoneStatus || 'unknown'])
 defineEmits(['select'])
 </script>
 
@@ -15,6 +22,7 @@ defineEmits(['select'])
       <div class="place-card-title"><h3>{{ place.name }}</h3><span class="q-tag">{{ place.tag || '候選休息點' }}</span></div>
       <p class="place-card-meta"><span class="place-category"><AppIcon :name="place.indoor ? 'book' : 'leaf'" :size="15" />{{ place.category }}</span><span class="place-distance">{{ place.distanceM == null ? '距離待確認' : `${place.distanceM} 公尺直線` }}</span></p>
       <div class="mini-senses"><span v-for="sense in SENSES" :key="sense.key"><AppIcon :name="sense.icon" :size="17" /><span class="sr-only">{{ sense.label }}</span>{{ levelText((place.assessment?.dimensions || place.senses)?.[sense.key]) }}</span></div>
+      <p v-if="lowStimulus" class="zone-tag" :class="place.zoneStatus || 'unknown'">{{ zoneText }}</p>
       <SensoryScore v-if="place.assessment" :assessment="place.assessment" :mock="mock" compact />
     </div>
     <AppIcon class="place-chevron" name="chevron" :size="19" />
@@ -40,6 +48,8 @@ defineEmits(['select'])
 .mini-senses > span:nth-child(3) { color: #48778a; }
 .mini-senses > span:nth-child(4) svg { color: #3c9f9d; }
 .place-chevron { flex-shrink: 0; color: #58646c; }
+.zone-tag { display: inline-block; margin: 6px 0 0; padding: 2px 7px; border-radius: 5px; background: #eef1f2; color: #55646d; font-size: 12px; line-height: 1.5; }
+.zone-tag.low { background: #e3f1e7; color: #2f6a45; font-weight: 600; }
 @media (max-width: 359px) {
   .q-place-card { gap: 8px; padding: 9px; }
   .place-thumbnail { width: 62px; height: 85px; }
