@@ -7,7 +7,7 @@ import BottomSheet from './BottomSheet.vue'
 import LocationGate from './LocationGate.vue'
 import MockBanner from './MockBanner.vue'
 import { MOCK_LABEL, searchPlaces } from '../../lib/sensoryDomain.js'
-import { NO_DATA_AS_GREEN, buildSensoryField, zoneOf } from '../../lib/sensoryField.js'
+import { buildSensoryField, zoneOf } from '../../lib/sensoryField.js'
 
 const SensoryMap = defineAsyncComponent(() => import('./SensoryMap.vue'))
 const props = defineProps({ city: { type: Object, required: true } })
@@ -62,7 +62,7 @@ const listSource = computed(() => remote.value ? props.city.mock : props.city.pl
           <p v-else-if="city.preferences.value.sort === 'fit' && noQuietData" class="q-helper sort-note">目前地點尚無有效感官資料，暫依距離排列。</p>
           <p v-else-if="city.preferences.value.sort === 'fit'" class="q-helper sort-note">依你在「我的」設定的感官敏感度佔比，計算各地點的安靜程度。</p>
           <div v-if="showLayer && !remote" class="zone-note" role="status">
-            <span v-if="greenOnly">只列敏感圖層綠區內的地點{{ outsideCount ? `（另有 ${outsideCount} 處不在綠區）` : '' }}{{ NO_DATA_AS_GREEN ? '；無資料處暫視為綠區' : '' }}。</span>
+            <span v-if="greenOnly">只列敏感圖層綠區內的地點{{ outsideCount ? `（另有 ${outsideCount} 處不在綠區）` : '' }}。</span>
             <span v-else>顯示全部地點，含不在綠區的 {{ outsideCount }} 處。</span>
             <button type="button" class="zone-toggle" @click="greenOnly = !greenOnly">{{ greenOnly ? '顯示全部' : '只看綠區' }}</button>
           </div>
