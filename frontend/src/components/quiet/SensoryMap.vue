@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import AppIcon from '../AppIcon.vue'
-import { TAIPEI_MAX_BOUNDS, distanceMeters, isCoordinate } from '../../lib/sensoryDomain.js'
+import { TAIPEI_MAX_BOUNDS, isCoordinate, longSideRadius } from '../../lib/sensoryDomain.js'
 import { CONTOUR_LEVELS, FIELD_GRADIENT_CSS, NO_DATA_AS_GREEN, contourSegments, fieldColor } from '../../lib/sensoryField.js'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
@@ -142,7 +142,7 @@ async function initialize() {
       if (disposed || current !== generation || !map) return
       const { lat, lng } = map.getCenter()
       const bounds = map.getBounds()
-      const radius = Math.max(distanceMeters({ lat, lng }, { lat: bounds.getNorth(), lng }), distanceMeters({ lat, lng }, { lat, lng: bounds.getEast() }))
+      const radius = longSideRadius({ lat, lng }, { north: bounds.getNorth(), south: bounds.getSouth(), east: bounds.getEast(), west: bounds.getWest() })
       emit('viewchange', { lat, lng, radius })
     }
     map.on('moveend', () => { clearTimeout(moveTimer); moveTimer = setTimeout(emitView, 500) })

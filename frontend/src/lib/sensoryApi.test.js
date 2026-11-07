@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createSensoryApi } from './sensoryApi.js'
-import { AREAS, aqiText, filterPlaces, googleMapsDirectionsUrl, searchPlaces, isCoordinate, levelText, nearestArea, pickSearchRadius, readPreferences } from './sensoryDomain.js'
+import { AREAS, aqiText, filterPlaces, googleMapsDirectionsUrl, longSideRadius, placesRadius, placesRadiusCap, searchPlaces, isCoordinate, levelText, nearestArea, pickSearchRadius, readPreferences } from './sensoryDomain.js'
 import { mockCells, mockOverview, mockPlaces } from '../data/quietMock.js'
 import { assessSensory } from './sensoryIndex.js'
 afterEach(() => vi.useRealTimers())
@@ -252,5 +252,22 @@ describe('place text search', () => {
     expect(searchPlaces(places, '資料不足').map(p => p.id)).toEqual(['a'])
     expect(searchPlaces(places, '')).toBe(places)
     expect(searchPlaces(places, '不存在')).toEqual([])
+  })
+})
+describe('long-side places radius', () => {
+  it('uses half of the longer map side, measured from the center', () => {
+    // 寬約 2 公里、高約 1 公里的可視範圍 → 長邊一半約 1000 公尺。
+    const center = { lat: 25.04, lng: 121.52 }
+    const halfLng = 1000 / (111320 * Math.cos(25.04 * Math.PI / 180)), halfLat = 500 / 111320
+    const radius = longSideRadius(center, { west: center.lng - halfLng, east: center.lng + halfLng, south: center.lat - halfLat, north: center.lat + halfLat })
+    expect(radius).toBeGreaterThan(990)
+    expect(radius).toBeLessThan(1010)
+    expect(longSideRadius({ lat: null, lng: 121 }, { west: 0, east: 1, south: 0, north: 1 })).toBeNull()
+  })
+  it('snaps to backend steps by default and sends the exact radius only when free radius is enabled', () => {
+    expect([placesRadius(240), placesRadius(780), placesRadius(2600)]).toEqual([300, 1000, 1000])
+    expect([placesRadius(1234, { free: true }), placesRadius(40, { free: true }), placesRadius(9000, { free: true })]).toEqual([1240, 100, 5000])
+    expect(placesRadius(undefined, { free: true })).toBe(500)
+    expect([placesRadiusCap(), placesRadiusCap({ free: true })]).toEqual([1000, 5000])
   })
 })

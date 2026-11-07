@@ -1,6 +1,6 @@
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { MOCK_NOTICE, sensoryApi } from '../lib/sensoryApi.js'
-import { MAX_SEARCH_RADIUS, SEARCH_RADIUS, distanceMeters, isCoordinate, nearestArea, pickSearchRadius, readPreferences } from '../lib/sensoryDomain.js'
+import { SEARCH_RADIUS, distanceMeters, isCoordinate, nearestArea, pickSearchRadius, placesRadius, placesRadiusCap, readPreferences } from '../lib/sensoryDomain.js'
 import { getNativeChannel } from '../lib/webview.js'
 import { requestNative } from '../lib/nativeClient.js'
 import { assessSensory, rankPlaces } from '../lib/sensoryIndex.js'
@@ -92,9 +92,13 @@ export function useQuietCity(notify) {
   const mapView = ref(null)
   const mapCenter = computed(() => mapView.value ? { lat: mapView.value.lat, lng: mapView.value.lng } : null)
   const searchCenter = computed(() => serviceAvailable.value ? (mapCenter.value || center.value) : null)
+  // sensory/map 仍只接受 300／500／1000；places 依地圖長邊半徑，後端支援時送精確值。
+  const freeRadius = { free: Boolean(sensoryApi.supportsFreeRadius) }
   const searchRadius = computed(() => pickSearchRadius(mapView.value?.radius))
+  const placesSearchRadius = computed(() => placesRadius(mapView.value?.radius, freeRadius))
+  const searchCap = placesRadiusCap(freeRadius)
   // 地圖範圍超過後端上限（1 公里）時只查中心範圍，畫面需提示放大地圖。
-  const viewTruncated = computed(() => (mapView.value?.radius ?? 0) > MAX_SEARCH_RADIUS)
+  const viewTruncated = computed(() => (mapView.value?.radius ?? 0) > searchCap)
   const searchArea = computed(() => searchCenter.value ? nearestArea(searchCenter.value) : null)
   // 地圖中心離目前位置超過 100 公尺才視為在看別處（標示用）。
   const searchingElsewhere = computed(() => Boolean(mapCenter.value && center.value && distanceMeters(mapCenter.value, center.value) > 100))
@@ -105,13 +109,14 @@ export function useQuietCity(notify) {
     // 移動不到 80 公尺且半徑級距不變時不重新查詢，避免輕微拖動就打後端。
     const previous = mapView.value || { ...center.value, radius: null }
     const moved = distanceMeters(previous, view) >= 80
-    if (!moved && pickSearchRadius(radius) === pickSearchRadius(previous.radius) && (radius > MAX_SEARCH_RADIUS) === (previous.radius > MAX_SEARCH_RADIUS)) return
+    const radiusKey = value => [pickSearchRadius(value), placesRadius(value, freeRadius), value > searchCap].join('|')
+    if (!moved && radiusKey(radius) === radiusKey(previous.radius)) return
     mapView.value = { lat: moved ? view.lat : previous.lat, lng: moved ? view.lng : previous.lng, radius }
   }
   const mapQuery = computed(() => searchArea.value
     ? { areaId: searchArea.value.id, lat: searchCenter.value.lat, lng: searchCenter.value.lng, radius: searchRadius.value } : null)
-  // 已移除使用者感官篩選，地點查詢只帶區域、座標與固定範圍。
-  const placeQuery = mapQuery
+  // 地點查詢只帶區域、座標與半徑（已移除使用者感官篩選）。
+  const placeQuery = computed(() => mapQuery.value && { ...mapQuery.value, radius: placesSearchRadius.value })
   const overview = useRemote(query, sensoryApi.getOverview)
   const map = useRemote(mapQuery, sensoryApi.getMap)
   const places = useRemote(placeQuery, sensoryApi.getPlaces)
@@ -191,5 +196,5 @@ export function useQuietCity(notify) {
   onScopeDispose(() => { disposed = true; locationController?.abort(); addressController?.abort(); clearInterval(refreshTimer); window.removeEventListener?.('focus', resume) })
   // 模擬模式下強度選項可完整操作；後端模式需後端宣告支援。
   const reportIntensityEnabled = computed(() => sensoryApi.supportsReportIntensity || usingMock.value)
-  return { noiseHistory, recordNoise, mapCenter, mapView, searchRadius, viewTruncated, searchArea, searchAvailable, searchingElsewhere, setMapView, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, map, places, locating, locate, reportLocation }
+  return { noiseHistory, recordNoise, mapCenter, mapView, searchRadius, placesSearchRadius, searchCap, viewTruncated, searchArea, searchAvailable, searchingElsewhere, setMapView, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, map, places, locating, locate, reportLocation }
 }

@@ -45,7 +45,7 @@ const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlac
       <SensoryMap :places="listPlaces" :low-stimulus="city.preferences.value.lowStimulus" :field="field" :center="city.center.value" :layer-visible="showLayer" :mock="Boolean(city.map.meta.value?.mock)" :device-located="Boolean(city.deviceLocation.value)" @select="$emit('select', $event)" @locate="city.locate" @viewchange="city.setMapView" />
       <BottomSheet v-model:snap="sheet" :peek="SHEET_PEEK" label="附近靜音推薦">
         <template #header>
-          <div class="section-heading"><h2>{{ mode === 'quiet' ? '符合你的靜音推薦' : '附近靜音推薦' }}<small>（{{ city.viewTruncated.value ? '地圖中心 1 公里內' : '地圖範圍內' }}）</small></h2><span class="count-badge">{{ city.searchAvailable.value ? listPlaces.length : 0 }} 處</span></div>
+          <div class="section-heading"><h2>{{ mode === 'quiet' ? '符合你的靜音推薦' : '附近靜音推薦' }}<small>（{{ city.viewTruncated.value ? `地圖中心 ${city.searchCap / 1000} 公里內` : '地圖範圍內' }}）</small></h2><span class="count-badge">{{ city.searchAvailable.value ? listPlaces.length : 0 }} 處</span></div>
         </template>
         <div class="list-tools">
           <label class="place-search"><AppIcon name="search" :size="18"/><span class="sr-only">搜尋地點</span><input v-model="searchText" type="search" enterkeyhint="search" placeholder="搜尋地點名稱、類別或地址" autocomplete="off"/></label>
@@ -62,7 +62,7 @@ const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlac
         </div>
         <AsyncState v-if="city.map.state.value === 'error'" state="error" :message="city.map.error.value" retry @retry="city.map.reload" />
         <p v-if="city.places.meta.value?.mock" class="mock-inline">{{ MOCK_LABEL }}</p>
-        <p v-if="city.searchAvailable.value && city.viewTruncated.value" class="truncated-search" role="status">地圖範圍較大，只列出地圖中心 1 公里內的地點；放大地圖可查看完整範圍。</p>
+        <p v-if="city.searchAvailable.value && city.viewTruncated.value" class="truncated-search" role="status">地圖範圍較大，只列出地圖中心 {{ city.searchCap / 1000 }} 公里內的地點；放大地圖可查看完整範圍。</p>
         <p v-if="!city.searchAvailable.value" class="outside-search" role="status">地圖中心不在臺北市內，無法提供此區域的地點；請把地圖移回臺北市。</p>
         <AsyncState v-else-if="city.places.state.value !== 'ready'" :state="city.places.state.value" :message="city.places.error.value" retry @retry="city.places.reload" />
         <AsyncState v-else-if="!city.recommendations.value.length" title="還沒有符合條件的場所" message="試著移動或放大地圖；資料不足不代表環境安靜。" />

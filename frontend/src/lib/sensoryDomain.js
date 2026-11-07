@@ -154,6 +154,23 @@ export function pickSearchRadius(needed) {
   if (!Number.isFinite(needed) || needed <= 0) return SEARCH_RADIUS
   return RADIUS_STEPS.find(step => step >= needed) ?? MAX_SEARCH_RADIUS
 }
+// 地圖可視範圍長邊的一半：從中心點到長邊兩端（東西或南北邊緣中點）的距離，作為場所查詢的需求半徑。
+export function longSideRadius(center, bounds) {
+  if (!isCoordinate(center) || !bounds) return null
+  const width = distanceMeters({ lat: center.lat, lng: bounds.west }, { lat: center.lat, lng: bounds.east })
+  const height = distanceMeters({ lat: bounds.south, lng: center.lng }, { lat: bounds.north, lng: center.lng })
+  if (width === null || height === null) return null
+  return Math.max(width, height) / 2
+}
+// 後端 places 若改為接受任意整數半徑（VITE_PLACES_FREE_RADIUS=true），直接送需求半徑（取整到 10 公尺、限制 100–5000）；
+// 否則沿用後端目前只接受的 300／500／1000，取能涵蓋需求的最小值。
+export const FREE_RADIUS_RANGE = Object.freeze({ min: 100, max: 5000 })
+export function placesRadius(needed, { free = false } = {}) {
+  if (!free) return pickSearchRadius(needed)
+  if (!Number.isFinite(needed) || needed <= 0) return SEARCH_RADIUS
+  return Math.min(FREE_RADIUS_RANGE.max, Math.max(FREE_RADIUS_RANGE.min, Math.ceil(needed / 10) * 10))
+}
+export const placesRadiusCap = ({ free = false } = {}) => free ? FREE_RADIUS_RANGE.max : MAX_SEARCH_RADIUS
 // 本機偏好只剩介面與排序；舊版存下的 noise／light／crowd／odor／indoor／radius 讀取時會被略過。
 export const DEFAULT_PREFERENCES = Object.freeze({ lowStimulus: false, sort: 'fit' })
 export function readPreferences(storage) {

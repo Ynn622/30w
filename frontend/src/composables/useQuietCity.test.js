@@ -10,7 +10,7 @@ vi.mock('../lib/reverseGeocode.js', () => ({ reverseGeocoder: { lookup: vi.fn(as
 import { reverseGeocoder } from '../lib/reverseGeocode.js'
 const fakeLocationMock = vi.hoisted(() => ({ enabled: false, lat: 25.1144737, lng: 121.5351923, name: '天母體育館' }))
 vi.mock('../config/locationConfig.js', () => ({ fakeLocation: fakeLocationMock }))
-vi.mock('../lib/sensoryApi.js', () => ({ MOCK_NOTICE: 'MOCK_NOTICE', sensoryApi: { supportsReportIntensity: false, getOverview: vi.fn(), getMap: vi.fn(), getPlaces: vi.fn() } }))
+vi.mock('../lib/sensoryApi.js', () => ({ MOCK_NOTICE: 'MOCK_NOTICE', sensoryApi: { supportsReportIntensity: false, supportsFreeRadius: false, getOverview: vi.fn(), getMap: vi.fn(), getPlaces: vi.fn() } }))
 afterEach(() => { fakeLocationMock.enabled = false; vi.unstubAllGlobals(); vi.clearAllMocks(); vi.useRealTimers() })
 // 服務只依目前定位提供：測試直接設定裝置位置。
 const at = (lat, lng) => ({ lat, lng, source: 'device', label: '目前位置' })
@@ -288,5 +288,25 @@ describe('sensory queries', () => {
     expect([sensoryApi.getMap, sensoryApi.getPlaces].map(fn => fn.mock.calls.length)).toEqual(calls)
     expect(city).not.toHaveProperty('lowZones')
     scope.stop()
+  })
+  it('sends the exact long-side radius to places when the backend supports it, while the map keeps backend steps', async () => {
+    vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
+    for (const fn of [sensoryApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
+    sensoryApi.supportsFreeRadius = true
+    try {
+      const { scope, city } = located()
+      await nextTick()
+      city.setMapView({ lat: ZHONGZHENG.lat, lng: ZHONGZHENG.lng, radius: 1234 })
+      await nextTick()
+      expect(sensoryApi.getPlaces.mock.calls.at(-1)[0].radius).toBe(1240)
+      expect(sensoryApi.getMap.mock.calls.at(-1)[0].radius).toBe(1000)
+      expect(city.viewTruncated.value).toBe(false)
+      city.setMapView({ lat: ZHONGZHENG.lat, lng: ZHONGZHENG.lng, radius: 6200 })
+      await nextTick()
+      expect(sensoryApi.getPlaces.mock.calls.at(-1)[0].radius).toBe(5000)
+      expect(city.viewTruncated.value).toBe(true)
+      expect(city.searchCap).toBe(5000)
+      scope.stop()
+    } finally { sensoryApi.supportsFreeRadius = false }
   })
 })

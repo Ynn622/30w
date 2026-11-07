@@ -11,6 +11,8 @@ export function createSensoryApi({
   reportIntensity = import.meta.env.VITE_REPORT_INTENSITY === 'true',
   // 展示用：VITE_MOCK_MAP=true 時感官地圖一律用模擬格網（不呼叫 sensory/map），仍以 meta.mock 標示並跳通知。
   mockMap = import.meta.env.VITE_MOCK_MAP === 'true',
+  // 後端 places 接受任意整數半徑後才開啟；目前後端只接受 300／500／1000。
+  freeRadius = import.meta.env.VITE_PLACES_FREE_RADIUS === 'true',
 } = {}) {
   // 後端確認支援 intensity 後再以環境變數開啟，否則維持舊 body。
   const supportsReportIntensity = reportIntensity === true
@@ -65,6 +67,7 @@ export function createSensoryApi({
   }
   return {
     supportsReportIntensity,
+    supportsFreeRadius: freeRadius === true,
     getOverview: (query, options = {}) => withFallback(async () => {
       const result = await get('sensory/overview', query, options)
       if (!result.data.senses || typeof result.data.senses !== 'object') throw new Error('感官概況格式不符，缺少 senses。')
