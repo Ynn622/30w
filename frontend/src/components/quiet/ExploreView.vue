@@ -29,12 +29,12 @@ const searchText = ref('')
 const visiblePlaces = computed(() => searchPlaces(props.city.recommendations.value, searchText.value))
 // 敏感圖層開啟時，清單與地圖標記只列綠區內的地點；關閉圖層即顯示全部地點。
 // 模擬環境（remote-hourly）：敏感圖層改看自選時段；清單仍是正式場所。
-const remote = computed(() => props.city.remoteMock.value)
+const remote = computed(() => props.city.remoteTest.value)
 const fieldSource = computed(() => props.city.fieldSource.value)
 // 圖例在沒有平面時的說明：模擬網格載入中、讀取失敗，或範圍內沒有資料。
 const legendEmpty = computed(() => {
   const state = fieldSource.value.state.value
-  return state === 'loading' ? '模擬網格載入中…' : state === 'error' ? '模擬網格讀取失敗，請見下方清單重試' : '此範圍沒有模擬網格資料'
+  return state === 'loading' ? '測試網格載入中…' : state === 'error' ? '測試網格讀取失敗，請見下方清單重試' : '此範圍沒有測試網格資料'
 })
 const greenPlaces = computed(() => visiblePlaces.value.filter(place => zoneOf(field.value, place.location).green))
 const listPlaces = computed(() => showLayer.value ? greenPlaces.value : visiblePlaces.value)

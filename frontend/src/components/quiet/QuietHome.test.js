@@ -176,7 +176,7 @@ describe('sense info dialog', () => {
   })
 })
 
-describe('home overview from the 150 m average (test/mock/overview)', () => {
+describe('home overview from the 150 m average (test/overview)', () => {
   function gridCity(overview = hourlyOverviewFor()) {
     const city = cityFor(sampleOverview())
     city.overview = { data: ref(overview.data), meta: ref(overview.meta), state: ref('ready'), error: ref(''), reload: () => {} }

@@ -29,14 +29,14 @@ describe('API first with mock fallback', () => {
     await expect(api.getMap({ areaId: 'xinyi' })).rejects.toBe(routeMissing)
   })
   it('falls back when a successful overview is malformed or marked as test data', async () => {
-    for (const data of [{}, { data: { senses: {} }, meta: { mock: true, sources: [] } }]) {
+    for (const data of [{}, { data: { senses: {} }, meta: { mock: true, sources: [] } }, { data: { senses: {} }, meta: { test: true, sources: [] } }, { data: { senses: {} }, meta: { mode: 'test-only', sources: [] } }]) {
       const result = await createSensoryApi({ request: vi.fn().mockResolvedValue({ data }), now }).getOverview({ areaId: 'zhongzheng' })
       expect(result.meta.mock).toBe(true)
       expect(result.meta.fallbackReason).toContain('格式不符')
     }
   })
   it('always calls sensory/map and reports malformed or test-marked map data instead of using local mock cells', async () => {
-    for (const data of [{}, { data: { cells: [] }, meta: { mock: true, sources: [] } }, { data: { cells: 'x' }, meta: { sources: [] } }]) {
+    for (const data of [{}, { data: { cells: [] }, meta: { mock: true, sources: [] } }, { data: { cells: [] }, meta: { test: true, sources: [] } }, { data: { cells: [] }, meta: { mode: 'test-only', sources: [] } }, { data: { cells: 'x' }, meta: { sources: [] } }]) {
       const request = vi.fn().mockResolvedValue({ data })
       await expect(createSensoryApi({ request, now }).getMap({ areaId: 'zhongzheng', lat: 25.04, lng: 121.51, radius: 500 })).rejects.toThrow('格式不符')
       expect(request).toHaveBeenCalledWith('sensory/map', expect.objectContaining({ query: expect.objectContaining({ areaId: 'zhongzheng' }) }))

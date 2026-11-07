@@ -15,7 +15,7 @@ const props = defineProps({
 })
 defineEmits(['close'])
 const data = computed(() => props.city.overview.data.value)
-// 150 公尺平均（test/mock/overview）當正式資料呈現：不計算 SSI，也不標成內建模擬資料。
+// 150 公尺平均（test/overview）當正式資料呈現：不計算 SSI，也不標成內建模擬資料。
 const gridOverview = computed(() => Boolean(props.city.overview.meta.value?.aggregationVersion))
 const mock = computed(() => Boolean(props.city.overview.meta.value?.mock) && !gridOverview.value)
 const summary = computed(() => {

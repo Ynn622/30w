@@ -30,7 +30,7 @@ VITE_REPORT_INTENSITY=false
 
 | 方法與路徑 | 用途 | 前端使用處 |
 | --- | --- | --- |
-| `GET sensory/overview` | 區域感官概況、天氣、空品、回報與量測計數 | 首頁（2026-11-08 起前端改讀 `test/mock/overview`，暫不呼叫） |
+| `GET sensory/overview` | 區域感官概況、天氣、空品、回報與量測計數 | 首頁（2026-11-08 起前端改讀 `test/overview`，暫不呼叫） |
 | `GET sensory/map` | 近期匿名彙整感官熱區 | 探索地圖（2026-11-08 起前端改用 hourly 模擬網格，暫不呼叫） |
 | `GET places` | 查詢中心指定半徑內、符合資料條件的場所 | 探索地圖與清單 |
 | `GET places/{id}` | 場所詳情、可進入性、感官與來源 | 詳情三分頁 |
@@ -60,7 +60,7 @@ VITE_REPORT_INTENSITY=false
 }
 ```
 
-- 不需要 `meta.demo` 欄位；`meta.demo` 或 `meta.mock` 為 `true` 時前端視為測試資料而拒收並改用模擬資料，後端只有測試資料時請勿上線。
+- 不需要 `meta.demo` 欄位；`meta.demo`、`meta.test`（舊版 `meta.mock`）為 `true` 或 `meta.mode` 為 `test-only` 時前端視為測試資料而拒收並改用模擬資料，後端只有測試資料時請勿上線。
 - `updatedAt` 是實際資料整理時間；各來源的 `observedAt` 是觀測／發布時間，兩者不得混用。各感官資料另有 freshness 限制，後端不可只更新 meta 來掩蓋舊資料。
 - `sources` 逐筆提供名稱、原始網址、授權與時間。沒有資料可以是空陣列，UI 會顯示尚未取得來源；正式成果應補齊真實來源。
 - 未知數值使用 `null`，不要用 `0`、空字串或猜測值代替。
@@ -79,7 +79,7 @@ VITE_REPORT_INTENSITY=false
 
 ## 1 區域感官概況
 
-> 2026-11-08 起前端首頁改讀 `test/mock/overview`（附近 150 公尺網格平均，目前當正式資料對待），暫不呼叫本接口；以下契約保留供日後改回。
+> 2026-11-08 起前端首頁改讀 `test/overview`（附近 150 公尺網格平均，目前當正式資料對待），暫不呼叫本接口；以下契約保留供日後改回。
 
 `GET sensory/overview?areaId=zhongzheng&lat=25.0386&lng=121.5143&radius=500`
 
@@ -278,7 +278,7 @@ VITE_REPORT_INTENSITY=false
 
 - 清單與詳情內嵌 `image`（`kind: reviewed|linked|nearby|illustration`）；前端只用 `image.url`（同場所 `/api/v1/places/{id}/image?v=…`，以 API origin 解析）與 `image.photo` 署名，不逐卡查 `image-info`、不自行換 `v`。illustration 或失敗時改用前端原創插畫，不重試。
 - 清單已排重；舊 UUID 詳情 `data.id` 為請求 id、另附 `canonicalId`，前端保留 id 相等檢查。
-- 天母 `test/mock/tianmu/places` 與 `/{id}` 走獨立介接（不經正式 `sensoryApi`），目前是探索頁推薦清單與詳情的唯一來源（先當正式資料使用，之後改回正式 `places`）；清單只送 `areaId`／`lat`／`lng`／`radius`／`max`，詳情不帶 query。
+- 天母 `test/tianmu/places` 與 `/{id}` 走獨立介接（不經正式 `sensoryApi`），目前是探索頁推薦清單與詳情的唯一來源（先當正式資料使用，之後改回正式 `places`）；清單只送 `areaId`／`lat`／`lng`／`radius`／`max`，詳情不帶 query。
 
 ## 4 場所詳情
 
@@ -513,15 +513,15 @@ dimensionCoverage = 有效維度數 / 4
 
 ## hourly 模擬網格（Ynn622/30w#5，前端敏感圖層唯一來源）
 
-後端標示 `meta.mode: "test-only"`。前端探索地圖的敏感圖層一律使用它：平常取臺北當下時段，開啟「模擬環境」時用自選時段；`sensory/map` 已不再呼叫，與正式接口互不備援。舊的 60 點 `test/mock/places`（含 `/{id}`、`/photo`）已退役回 404，前端不再呼叫。
+後端標示 `meta.mode: "test-only"`。前端探索地圖的敏感圖層一律使用它：平常取臺北當下時段，開啟「模擬環境」時用自選時段；`sensory/map` 已不再呼叫，與正式接口互不備援。舊的 60 點 `test/mock/places`（含 `/{id}`、`/photo`）已退役回 404，前端不再呼叫。2026-11-08 起（Ynn622/30w#8）測試接口由 `test/mock/*` 直接改名為 `test/*`，舊路徑一律 404、無 alias；前端只呼叫新路徑，不重試舊路徑，並以 `meta.test=true` 判斷測試資料。
 
 | 接口 | 前端用法 |
 |---|---|
-| `GET test/mock/hourly?dayType=&hour=&limit=30000&offset=0` | 每個時段一次取全市 30,000 點（gzip 約 0.5 MB、約 2–3 秒），依 `nextOffset` 續取；不帶圈選（圈選只收 300／500／1000m，探索地圖範圍可能更大），前端依地圖範圍裁切 |
-| `GET test/mock/hourly/{tg00001}?dayType=&hour=` | 前端目前未使用（網格沒有詳情頁） |
-| `GET test/mock/overview?lat=&lng=` | 首頁感官概況（目前當正式資料對待）：只送目前位置座標，後端固定 150 公尺、自動取當下臺北時段；驗證 `aggregationVersion: hourly-radius-mean-v1`、`radiusMeters: 150`、時段一致、四維 0–100（可小數）或 null、`validPointCounts ≤ pointCount`、`confidence` 與全 null 一致、`observedAt`／`reportCount` 為 null。失敗顯示錯誤並可重試，不改用內建模擬資料 |
+| `GET test/hourly?dayType=&hour=&limit=30000&offset=0` | 每個時段一次取全市 30,000 點（gzip 約 0.5 MB、約 2–3 秒），依 `nextOffset` 續取；不帶圈選（圈選只收 300／500／1000m，探索地圖範圍可能更大），前端依地圖範圍裁切 |
+| `GET test/hourly/{tg00001}?dayType=&hour=` | 前端目前未使用（網格沒有詳情頁） |
+| `GET test/overview?lat=&lng=` | 首頁感官概況（目前當正式資料對待）：只送目前位置座標，後端固定 150 公尺、自動取當下臺北時段；驗證 `aggregationVersion: hourly-radius-mean-v1`、`radiusMeters: 150`、時段一致、四維 0–100（可小數）或 null、`validPointCounts ≤ pointCount`、`confidence` 與全 null 一致、`observedAt`／`reportCount` 為 null。失敗顯示錯誤並可重試，不改用內建模擬資料 |
 
-前端驗證：`meta.mock === true`、`demo === true`、`mode === "test-only"`、`datasetVersion === "taipei-hourly-grid-v1"`、`meta.dayType`／`hour` 與查詢相同、`timeBasis === "simulated_request_time"`、`simulatedAt` 為有效時間；每點 `id` 符合 `tg\d{5}`、座標有效、`coordinateKind === "synthetic_grid_center"`、`quality ∈ estimated|insufficient`、四維為 0–100 整數或 null、`sound.unit === "dB(A)"`；回傳筆數須等於 `total`。不符即顯示「模擬網格格式不符」，不改用內建模擬資料。400／404／429／503 各自顯示說明並可重試。
+前端驗證（Ynn622/30w#8 起）：`meta.test === true`、`demo === true`、`mode === "test-only"`、`datasetVersion === "taipei-hourly-grid-v2"`、`modelVersion === "taipei-hourly-grid-v1"`、`noiseMapping.version === "test-noise-demo-v1"`、`meta.dayType`／`hour` 與查詢相同、`timeBasis === "simulated_request_time"`、`simulatedAt` 為有效時間；每點 `id` 符合 `tg\d{5}`、座標有效、`coordinateKind === "synthetic_grid_center"`、`quality ∈ estimated|insufficient`、四維為 0–100 整數或 null、`sound.unit === "dB(A)"`；回傳筆數須等於 `total`。不符即顯示「測試網格格式不符」，不改用內建模擬資料。400／404／429／503 各自顯示說明並可重試。
 
 顯示規則：只影響探索地圖——以上方「模擬環境」按鈕為準（圖例不另加標籤），開啟模擬環境時長駐「模擬環境：時段・典型時段推估・非即時觀測」，網格只畫敏感圖層與綠區；推薦、詳情、首頁概況、回報與量測仍為正式資料；時段滑桿放開才查詢；新鮮度以 `meta.simulatedAt` 判斷；null 不補 0、不當作安靜；不計入正式 SSI。
 

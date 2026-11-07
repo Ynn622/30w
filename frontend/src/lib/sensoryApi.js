@@ -30,7 +30,8 @@ export function createSensoryApi({
     const response = await request(path, { query, signal })
     const payload = response.data
     if (!payload || typeof payload !== 'object' || !payload.data || typeof payload.data !== 'object' || !payload.meta
-      || payload.meta.demo === true || payload.meta.mock === true || !validSources(payload.meta.sources)) {
+      // 正式介接拒收任何測試資料標記（#8 起為 meta.test；舊 meta.mock 仍防禦性拒收，不代表提供舊路由相容）。
+      || payload.meta.demo === true || payload.meta.test === true || payload.meta.mode === 'test-only' || payload.meta.mock === true || !validSources(payload.meta.sources)) {
       throw new Error('後端回應格式不符：需要 data、meta 與 meta.sources。')
     }
     return payload

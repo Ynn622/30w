@@ -11,7 +11,7 @@ const render = (component, props) => renderToString(createSSRApp(component, prop
 function cityFor({ remote = true, dayType = 'weekday', hour = 8, meta = hourlyMetaFor(), state = 'ready', error = '' } = {}) {
   const preferences = ref({ ...DEFAULT_PREFERENCES, sensitivities: { noise: 3, light: 3, crowd: 3, odor: 3 }, dataMode: remote ? 'remote-hourly' : 'live', dayType, hour })
   // 2026-11-09T01:30Z = 臺北週一 09:30（平日 09:00）。
-  return { preferences, now: ref(Date.parse('2026-11-09T01:30:00Z')), remoteMock: computed(() => preferences.value.dataMode === 'remote-hourly'), hourly: { meta: ref(meta), state: ref(state), error: ref(error), reload: () => {} } }
+  return { preferences, now: ref(Date.parse('2026-11-09T01:30:00Z')), remoteTest: computed(() => preferences.value.dataMode === 'remote-hourly'), hourly: { meta: ref(meta), state: ref(state), error: ref(error), reload: () => {} } }
 }
 
 describe('explore 模擬環境 panel', () => {
@@ -42,8 +42,8 @@ describe('explore 模擬環境 panel', () => {
     expect(html).toContain('20:00–21:00')
   })
   it('shows loading and errors with a retry', async () => {
-    expect(await render(TestDataPanel, { city: cityFor({ state: 'loading' }) })).toContain('模擬網格載入中…')
-    const failed = await render(TestDataPanel, { city: cityFor({ state: 'error', error: '模擬網格資料暫時無法使用（503），請稍後再試。' }) })
+    expect(await render(TestDataPanel, { city: cityFor({ state: 'loading' }) })).toContain('測試網格載入中…')
+    const failed = await render(TestDataPanel, { city: cityFor({ state: 'error', error: '測試網格資料暫時無法使用（503），請稍後再試。' }) })
     expect(failed).toContain('（503）')
     expect(failed).toContain('重試')
   })

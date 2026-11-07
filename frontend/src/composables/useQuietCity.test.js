@@ -357,7 +357,7 @@ describe('hourly grid layer and simulated environment (issue #5)', () => {
     const current = taipeiSlot(city.now.value)
     expect(hourlyApi.getGrid.mock.calls[0][0]).toEqual(current)
     expect(sensoryApi.getMap).not.toHaveBeenCalled()
-    expect(city.remoteMock.value).toBe(false)
+    expect(city.remoteTest.value).toBe(false)
     const chosen = { dayType: current.dayType === 'weekday' ? 'weekend' : 'weekday', hour: (current.hour + 5) % 24 }
     remote(city, chosen)
     await flush()
@@ -423,7 +423,7 @@ describe('hourly grid layer and simulated environment (issue #5)', () => {
     expect(pending[2].signal.aborted).toBe(true)
   })
   it('shows a grid error without falling back to built-in mock data or sensory/map', async () => {
-    hourlyApi.getGrid.mockRejectedValue(Object.assign(new Error('模擬網格資料暫時無法使用（503），請稍後再試。'), { status: 503 }))
+    hourlyApi.getGrid.mockRejectedValue(Object.assign(new Error('測試網格資料暫時無法使用（503），請稍後再試。'), { status: 503 }))
     const { scope, city } = setup()
     remote(city)
     await flush()
@@ -490,7 +490,7 @@ describe('hourly grid layer and simulated environment (issue #5)', () => {
 describe('places come from the Tianmu endpoint for now (issue #7)', () => {
   it('lists and opens places through the Tianmu adapter as live data, without touching sensoryApi places', async () => {
     vi.stubGlobal('window', { localStorage: { getItem: () => JSON.stringify({ placeSource: 'live' }), setItem: vi.fn() } })
-    const meta = { mock: true, demo: true, mode: 'test-only', datasetVersion: 'tianmu-places-mock-v1', dataBasis: 'reviewed_public_place_snapshot' }
+    const meta = { test: true, demo: true, mode: 'test-only', datasetVersion: 'tianmu-places-test-v1', dataBasis: 'reviewed_public_place_snapshot' }
     tianmuApi.getPlaces.mockResolvedValue({ data: { places: [{ id: 'tm-1', name: '天福綠地', location: { lat: 25.1185, lng: 121.5329 } }] }, meta })
     tianmuApi.getPlace.mockResolvedValue({ data: { id: 'tm-1' }, meta })
     const notify = vi.fn()

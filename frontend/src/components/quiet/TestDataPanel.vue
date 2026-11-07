@@ -10,7 +10,7 @@ import { DAY_TYPES, HOURLY_LABEL, hourLabel, slotLabel } from '../../lib/hourlyA
 const props = defineProps({ city: { type: Object, required: true } })
 const open = ref(false)
 const preferences = computed(() => props.city.preferences.value)
-const remote = computed(() => props.city.remoteMock.value)
+const remote = computed(() => props.city.remoteTest.value)
 const draftHour = ref(preferences.value.hour)
 watch(() => preferences.value.hour, hour => { draftHour.value = hour })
 const draftSlot = computed(() => `${hourLabel(draftHour.value)}–${hourLabel((draftHour.value + 1) % 24)}`)
@@ -44,7 +44,7 @@ function commitHour(event) {
           <span class="hour-ticks" aria-hidden="true"><span>0</span><span>6</span><span>12</span><span>18</span><span>23</span></span>
         </div>
       </template>
-      <p v-if="hourly?.state?.value === 'loading'" class="test-data-status" role="status">模擬網格載入中…</p>
+      <p v-if="hourly?.state?.value === 'loading'" class="test-data-status" role="status">測試網格載入中…</p>
       <p v-else-if="hourly?.state?.value === 'error'" class="test-data-status error" role="alert">{{ hourly.error.value }}<button type="button" class="q-text-button" @click="hourly.reload">重試</button></p>
     </section>
   </div>

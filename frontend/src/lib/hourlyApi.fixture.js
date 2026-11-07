@@ -1,11 +1,12 @@
-// 測試用 hourly 模擬網格回應樣本：欄位形狀取自後端 test/mock/hourly（2026-11-08 查核），內容精簡。
+// 測試用 hourly 網格回應樣本：欄位形狀取自後端 test/hourly（2026-11-08 #8 切換後查核），內容精簡。
 export const SIMULATED_AT = '2026-11-07T19:00:26.660Z'
 
 export function hourlyMetaFor({ dayType = 'weekday', hour = 8, simulatedAt = SIMULATED_AT } = {}) {
   return {
-    mock: true, demo: true, mode: 'test-only', datasetVersion: 'taipei-hourly-grid-v1', storage: 'precomputed',
+    test: true, demo: true, mode: 'test-only', datasetVersion: 'taipei-hourly-grid-v2', modelVersion: 'taipei-hourly-grid-v1', storage: 'precomputed',
     dayType, hour, timezone: 'Asia/Taipei', recordsPerHour: 30000, observedAt: null, updatedAt: null, confidence: 'low',
     simulatedAt, validUntil: new Date(Date.parse(simulatedAt) + 30 * 60_000).toISOString(), timeBasis: 'simulated_request_time',
+    noiseMapping: { version: 'test-noise-demo-v1', thresholds: [50, 60, 70], unit: 'dB(A)' },
     notice: '人工逐小時網格情境；非即時、非實測。',
     sources: [
       { id: 'boundary', name: '臺北市區界圖 20220915', url: 'https://data.taipei/', attribution: '臺北市政府民政局', licenseUrl: 'https://data.gov.tw/license' },
@@ -43,7 +44,7 @@ export function hourlyPayloadFor(slot = {}, points = hourlyPointsFor(), page = {
   }
 }
 
-// 首頁 150 公尺模擬平均（GET test/mock/overview）。
+// 首頁 150 公尺測試平均（GET test/overview）。
 export function hourlyOverviewFor({ dayType = 'weekend', hour = 3, senses = { noise: 26.6, light: 23.7, crowd: 11.4, odor: 12.4 }, pointCount = 9, validPointCounts = { noise: 8, light: 7, crowd: 7, odor: 8 }, missingReason = null } = {}) {
   const allNull = Object.values(senses).every(value => value === null)
   const meta = { ...hourlyMetaFor({ dayType, hour }), aggregationVersion: 'hourly-radius-mean-v1', aggregation: { method: 'arithmetic_mean', radiusMeters: 150 } }

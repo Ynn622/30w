@@ -26,8 +26,8 @@ function useRemote(query, fetcher) {
       const response = await fetcher(query.value, { signal: controller.signal })
       if (current !== serial) return
       data.value = response.data; meta.value = response.meta; state.value = 'ready'
-      // 後端 test/mock 接口（mode: test-only）目前當正式資料對待，不是內建模擬備援，不觸發「已改用模擬資料」通知。
-      source.value = response.meta?.mode === 'test-only' || !response.meta?.mock ? 'api' : 'mock'
+      // 後端 test/* 接口（mode: test-only）目前當正式資料對待，不是內建模擬備援，不觸發「已改用模擬資料」通知。
+      source.value = response.meta?.test === true || response.meta?.mode === 'test-only' || !response.meta?.mock ? 'api' : 'mock'
     } catch (reason) {
       if (current !== serial) return
       error.value = reason.message; state.value = 'error'
@@ -114,7 +114,7 @@ export function useQuietCity(notify) {
   const mapCenter = computed(() => mapView.value ? { lat: mapView.value.lat, lng: mapView.value.lng } : null)
   const searchCenter = computed(() => serviceAvailable.value ? (mapCenter.value || center.value) : null)
   // places 依地圖長邊半徑，後端支援時送精確值（searchRadius 為舊的 300／500／1000 級距，僅用來判斷是否需重查）。
-  // 場所清單與詳情的資料來源：目前先以天母場所接口（test/mock/tianmu/places）當正式資料使用（開發者 2026-11-08 決定）。
+  // 場所清單與詳情的資料來源：目前先以天母場所接口（test/tianmu/places）當正式資料使用（開發者 2026-11-08 決定）。
   // 之後改接正式 places 時，只要把 placesApi 換成 sensoryApi（getPlaces／getPlace／supportsFreeRadius 介面相同）即可。
   const placesApi = tianmuApi
   const freeRadius = { free: Boolean(placesApi.supportsFreeRadius) }
@@ -137,18 +137,18 @@ export function useQuietCity(notify) {
     if (!moved && radiusKey(radius) === radiusKey(previous.radius)) return
     mapView.value = { lat: moved ? view.lat : previous.lat, lng: moved ? view.lng : previous.lng, radius }
   }
-  // 敏感圖層（熱力圖）一律使用後端逐小時模擬網格 test/mock/hourly（Ynn622/30w#5），不再呼叫 sensory/map：
+  // 敏感圖層（熱力圖）一律使用後端逐小時模擬網格 test/hourly（Ynn622/30w#5），不再呼叫 sensory/map：
   // 平常自動取臺北當下的平日／週末與小時；開啟「模擬環境」時改用使用者在探索頁選的時段。
   // 只影響地圖的敏感圖層；具名推薦從 placesApi 取得（網格沒有名稱與照片），首頁概況、回報與量測照常。
-  const remoteMock = computed(() => preferences.value.dataMode === 'remote-hourly')
+  const remoteTest = computed(() => preferences.value.dataMode === 'remote-hourly')
   const getPlace = (id, options) => placesApi.getPlace(id, options)
   const currentSlot = computed(() => taipeiSlot(now.value))
-  const fieldSlot = computed(() => remoteMock.value ? { dayType: preferences.value.dayType, hour: preferences.value.hour } : currentSlot.value)
+  const fieldSlot = computed(() => remoteTest.value ? { dayType: preferences.value.dayType, hour: preferences.value.hour } : currentSlot.value)
   const searchQuery = computed(() => searchArea.value
     ? { areaId: searchArea.value.id, lat: searchCenter.value.lat, lng: searchCenter.value.lng, radius: searchRadius.value } : null)
   // 地點查詢只帶區域、座標與半徑（已移除使用者感官篩選）；各接口的 radius 規則不同，分開建立。
   const placeQuery = computed(() => searchQuery.value && { ...searchQuery.value, radius: placesSearchRadius.value, max: PLACES_MAX })
-  // 首頁概況：後端 test/mock/overview（目前位置 150 公尺內網格平均，時段由後端依當下臺北時間決定），目前當正式資料對待；
+  // 首頁概況：後端 test/overview（目前位置 150 公尺內網格平均，時段由後端依當下臺北時間決定），目前當正式資料對待；
   // 只送 lat／lng，失敗時顯示錯誤並可重試，不改用內建模擬資料。
   const overviewQuery = computed(() => query.value && { lat: query.value.lat, lng: query.value.lng })
   const overview = useRemote(overviewQuery, hourlyApi.getOverview)
@@ -243,5 +243,5 @@ export function useQuietCity(notify) {
   onScopeDispose(() => { disposed = true; locationController?.abort(); addressController?.abort(); clearInterval(refreshTimer); window.removeEventListener?.('focus', resume) })
   // 模擬模式下強度選項可完整操作；後端模式需後端宣告支援。
   const reportIntensityEnabled = computed(() => sensoryApi.supportsReportIntensity || usingMock.value)
-  return { village, remoteMock, getPlace, hourly, fieldCells, fieldNow, fieldSource, noiseHistory, recordNoise, mapCenter, mapView, searchRadius, placesSearchRadius, searchCap, viewTruncated, searchArea, searchAvailable, searchingElsewhere, setMapView, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, places, locating, locate, reportLocation }
+  return { village, remoteTest, getPlace, hourly, fieldCells, fieldNow, fieldSource, noiseHistory, recordNoise, mapCenter, mapView, searchRadius, placesSearchRadius, searchCap, viewTruncated, searchArea, searchAvailable, searchingElsewhere, setMapView, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, places, locating, locate, reportLocation }
 }

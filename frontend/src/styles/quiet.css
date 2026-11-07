@@ -460,6 +460,7 @@ body.q-low-stimulus, html:has(body.q-low-stimulus) { background: #ebe8e3; }
 .q-low-stimulus .quiet-app .sense-grid .sense-tile,
 .q-low-stimulus .quiet-app .quick-report-section .report-grid button,
 .q-low-stimulus .quiet-app :is(.setting-icon, .info-icon) { color: var(--q-icon); }
+.q-low-stimulus .quiet-app .place-detail-view :is(.sense-bars > div, .sensory-summary > svg) { color: var(--q-icon); }
 .q-low-stimulus .quiet-app :is(.q-tag, .score-chip, .detail-tags) { filter: saturate(.55); }
 .q-low-stimulus .quiet-app .q-user-dot { background: #3f6f82; }
 .q-low-stimulus .quiet-app :is(.city-illustration, .weather-symbol, .weather-waves, .quiet-footer, .place-thumbnail, .detail-art) { display: none; }

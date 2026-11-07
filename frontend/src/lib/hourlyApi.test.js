@@ -6,13 +6,13 @@ import { hourlyMetaFor, hourlyOverviewFor, hourlyPayloadFor, hourlyPointFor, hou
 const ok = payload => vi.fn(async () => ({ data: payload }))
 const SLOT = { dayType: 'weekday', hour: 8 }
 
-describe('hourly mock grid adapter (issue #5)', () => {
-  it('requests the whole slot from test/mock/hourly, never the retired places route', async () => {
+describe('hourly test grid adapter (issues #5, #8)', () => {
+  it('requests the whole slot from test/hourly, never the retired test/mock routes', async () => {
     const request = ok(hourlyPayloadFor())
     const result = await createHourlyApi({ request }).getGrid({ ...SLOT, radius: 1500, scenario: 'weekday_day' })
     expect(request).toHaveBeenCalledTimes(1)
-    expect(request).toHaveBeenCalledWith('test/mock/hourly', { query: { dayType: 'weekday', hour: 8, limit: 30000, offset: 0 }, signal: undefined })
-    expect(request.mock.calls.flat().join(' ')).not.toContain('test/mock/places')
+    expect(request).toHaveBeenCalledWith('test/hourly', { query: { dayType: 'weekday', hour: 8, limit: 30000, offset: 0 }, signal: undefined })
+    expect(request.mock.calls.flat().join(' ')).not.toContain('test/mock')
     expect(result.data.points).toHaveLength(5)
     expect(result.data.total).toBe(5)
     expect(result.meta.simulatedAt).toBe('2026-11-07T19:00:26.660Z')
@@ -35,7 +35,7 @@ describe('hourly mock grid adapter (issue #5)', () => {
   })
   it('rejects responses whose version, slot, ids, coordinates or scores do not match', async () => {
     const cases = [
-      { ...hourlyPayloadFor(), meta: { ...hourlyMetaFor(), datasetVersion: 'taipei-hourly-grid-v2' } },
+      { ...hourlyPayloadFor(), meta: { ...hourlyMetaFor(), datasetVersion: 'taipei-hourly-grid-v3' } },
       { ...hourlyPayloadFor(), meta: { ...hourlyMetaFor(), demo: false } },
       { ...hourlyPayloadFor(), meta: hourlyMetaFor({ hour: 9 }) },
       { ...hourlyPayloadFor(), meta: hourlyMetaFor({ dayType: 'weekend' }) },
@@ -46,8 +46,13 @@ describe('hourly mock grid adapter (issue #5)', () => {
       hourlyPayloadFor(SLOT, [hourlyPointFor({ coordinateKind: 'facility_reference_point' })]),
       hourlyPayloadFor(SLOT, [hourlyPointFor({ sound: { value: 50, unit: 'dB' } })]),
       { data: { cells: [] }, meta: hourlyMetaFor() },
+      // #8：必須是 meta.test 與 v2 資料集，模型與噪音對照版本也要一致；舊 meta.mock／v1 不再接受。
+      { ...hourlyPayloadFor(), meta: (({ test, ...meta }) => ({ ...meta, mock: true }))(hourlyMetaFor()) },
+      { ...hourlyPayloadFor(), meta: { ...hourlyMetaFor(), datasetVersion: 'taipei-hourly-grid-v1' } },
+      { ...hourlyPayloadFor(), meta: { ...hourlyMetaFor(), modelVersion: 'taipei-hourly-grid-v2' } },
+      { ...hourlyPayloadFor(), meta: { ...hourlyMetaFor(), noiseMapping: { version: 'other' } } },
     ]
-    for (const payload of cases) await expect(createHourlyApi({ request: ok(payload) }).getGrid(SLOT)).rejects.toThrow('模擬網格格式不符')
+    for (const payload of cases) await expect(createHourlyApi({ request: ok(payload) }).getGrid(SLOT)).rejects.toThrow('測試網格格式不符')
   })
   it('keeps null as unknown instead of turning it into zero', () => {
     const point = hourlyPointsFor()[3]
@@ -58,7 +63,7 @@ describe('hourly mock grid adapter (issue #5)', () => {
   it('refuses unknown slots before calling the backend', async () => {
     const request = ok(hourlyPayloadFor())
     for (const slot of [{ dayType: 'holiday', hour: 8 }, { dayType: 'weekday', hour: 24 }, { dayType: 'weekday', hour: '8' }]) {
-      await expect(createHourlyApi({ request }).getGrid(slot)).rejects.toThrow('未知的模擬時段')
+      await expect(createHourlyApi({ request }).getGrid(slot)).rejects.toThrow('未知的測試時段')
     }
     expect(request).not.toHaveBeenCalled()
   })
@@ -89,11 +94,11 @@ describe('hourly helpers', () => {
   })
 })
 
-describe('home mock overview adapter (issue #5 comment)', () => {
-  it('sends only lat and lng to test/mock/overview', async () => {
+describe('home test overview adapter (issues #6, #8)', () => {
+  it('sends only lat and lng to test/overview', async () => {
     const request = ok(hourlyOverviewFor())
     const result = await createHourlyApi({ request }).getOverview({ test: true, lat: 25.0333, lng: 121.5358, areaId: 'daan', radius: 500, dayType: 'weekday', hour: 8 })
-    expect(request).toHaveBeenCalledWith('test/mock/overview', { query: { lat: 25.0333, lng: 121.5358 }, signal: undefined })
+    expect(request).toHaveBeenCalledWith('test/overview', { query: { lat: 25.0333, lng: 121.5358 }, signal: undefined })
     expect(result.data.senses.noise).toBe(26.6)
     expect(result.data).toMatchObject({ dayType: 'weekend', hour: 3, pointCount: 9 })
   })
@@ -106,6 +111,8 @@ describe('home mock overview adapter (issue #5 comment)', () => {
     const cases = [
       { ...base, meta: { ...base.meta, aggregationVersion: 'v2' } },
       { ...base, meta: { ...base.meta, mode: 'live' } },
+      { ...base, meta: { ...base.meta, test: false } },
+      { ...base, meta: { ...base.meta, datasetVersion: 'taipei-hourly-grid-v1' } },
       { ...base, data: { ...base.data, radiusMeters: 200 } },
       { ...base, data: { ...base.data, hour: 4 } },
       { ...base, data: { ...base.data, senses: { ...base.data.senses, noise: 100.5 } } },
@@ -115,7 +122,7 @@ describe('home mock overview adapter (issue #5 comment)', () => {
       { ...base, data: { ...base.data, reportCount: 3 } },
       { ...base, data: { ...base.data, missingReason: 'other' } },
     ]
-    for (const payload of cases) await expect(createHourlyApi({ request: ok(payload) }).getOverview({ lat: 25.0333, lng: 121.5358 })).rejects.toThrow('模擬平均格式不符')
+    for (const payload of cases) await expect(createHourlyApi({ request: ok(payload) }).getOverview({ lat: 25.0333, lng: 121.5358 })).rejects.toThrow('測試平均格式不符')
   })
   it('refuses an invalid location, reports HTTP errors and passes cancellation through', async () => {
     const request = ok(hourlyOverviewFor())

@@ -1,11 +1,14 @@
-// 測試專用 hourly Mock（Ynn622/30w#5）：臺北 30,000 個固定網格 × 24 小時 × 平日／週末的人工情境推估。
+// 測試專用 hourly 網格（Ynn622/30w#5、#8）：臺北 30,000 個固定網格 × 24 小時 × 平日／週末的人工情境推估。
+// 後端 2026-11-08 起改走 GET test/hourly、test/overview（舊 test/mock/* 已 404，不重試舊路徑），以 meta.test=true 標示測試資料。
 // 獨立於正式 sensoryApi，不走內建 quietMock 備援；錯誤如實顯示。網格只有座標與四維，沒有名稱或照片，
 // 不是可進入場所，只用來畫敏感圖層（具名推薦仍從正式 places 取得）。
 import { apiRequest } from './apiClient.js'
 import { isCoordinate } from './sensoryDomain.js'
 export { taipeiSlot } from './sensoryDomain.js'
 
-export const HOURLY_DATASET_VERSION = 'taipei-hourly-grid-v1'
+export const HOURLY_DATASET_VERSION = 'taipei-hourly-grid-v2'
+export const HOURLY_MODEL_VERSION = 'taipei-hourly-grid-v1'
+export const HOURLY_NOISE_VERSION = 'test-noise-demo-v1'
 export const HOURLY_LABEL = '典型時段推估・非即時觀測'
 export const DAY_TYPES = Object.freeze([{ id: 'weekday', label: '平日' }, { id: 'weekend', label: '週末' }])
 export const HOURS = Object.freeze(Array.from({ length: 24 }, (_, hour) => hour))
@@ -30,9 +33,14 @@ export class HourlyDataError extends Error {
   constructor(message, details = {}) { super(message); this.name = 'HourlyDataError'; Object.assign(this, details) }
 }
 
+// 測試資料標記與版本：meta.test／demo／mode 三者都要在，資料集、模型與噪音對照版本一致才採用。
+export function validTestGridMeta(meta) {
+  return Boolean(meta) && meta.test === true && meta.demo === true && meta.mode === 'test-only'
+    && meta.datasetVersion === HOURLY_DATASET_VERSION && meta.modelVersion === HOURLY_MODEL_VERSION
+    && meta.noiseMapping?.version === HOURLY_NOISE_VERSION
+}
 export function validHourlyMeta(meta, { dayType, hour }) {
-  return Boolean(meta) && meta.mock === true && meta.demo === true && meta.mode === 'test-only'
-    && meta.datasetVersion === HOURLY_DATASET_VERSION && meta.dayType === dayType && meta.hour === hour
+  return validTestGridMeta(meta) && meta.dayType === dayType && meta.hour === hour
     && meta.timeBasis === 'simulated_request_time' && validTime(meta.simulatedAt)
 }
 export function validHourlyPoint(point) {
@@ -43,14 +51,15 @@ export function validHourlyPoint(point) {
   return Boolean(sound) && sound.unit === 'dB(A)' && (sound.value === null || Number.isFinite(sound.value))
 }
 
-// 首頁模擬平均（GET test/mock/overview）：座標 150 公尺內網格的四維算術平均，時段由後端依請求當下的臺北時間決定。
+// 首頁測試平均（GET test/overview）：座標 150 公尺內網格的四維算術平均，時段由後端依請求當下的臺北時間決定。
 export const OVERVIEW_AGGREGATION_VERSION = 'hourly-radius-mean-v1'
 export const OVERVIEW_RADIUS_M = 150
-const MISSING_REASONS = [null, 'no_points_within_radius', 'no_valid_mock_values']
+// no_valid_test_values 為防禦性接受（若後端日後隨 #8 一併改名），語義與 no_valid_mock_values 相同。
+const MISSING_REASONS = [null, 'no_points_within_radius', 'no_valid_mock_values', 'no_valid_test_values']
 const validMean = value => value === null || (Number.isFinite(value) && value >= 0 && value <= 100)
 export function validHourlyOverview(payload) {
   const meta = payload?.meta, data = payload?.data
-  if (!meta || meta.mock !== true || meta.demo !== true || meta.mode !== 'test-only' || meta.datasetVersion !== HOURLY_DATASET_VERSION) return false
+  if (!validTestGridMeta(meta)) return false
   if (meta.timeBasis !== 'simulated_request_time' || meta.aggregationVersion !== OVERVIEW_AGGREGATION_VERSION || !validTime(meta.simulatedAt)) return false
   if (!data || data.radiusMeters !== OVERVIEW_RADIUS_M || !isDayType(data.dayType) || !isHour(data.hour) || data.dayType !== meta.dayType || data.hour !== meta.hour) return false
   if (!data.senses || !SENSES.every(key => validMean(data.senses[key]))) return false
@@ -62,54 +71,54 @@ export function validHourlyOverview(payload) {
   return allNull === (data.confidence === 'insufficient') && data.observedAt == null && data.reportCount == null
 }
 
-// 後端錯誤轉成可顯示的說明；不改用內建模擬資料。
+// 後端錯誤轉成可顯示的說明；不改用內建模擬資料，也不退回舊 test/mock 路徑。
 function describe(error) {
   if (error?.code === 'CANCELLED' || error instanceof HourlyDataError) return error
   const status = error?.status
-  const message = status === 404 ? '模擬網格資料未啟用（404）。'
-    : status === 503 ? '模擬網格資料暫時無法使用（503），請稍後再試。'
+  const message = status === 404 ? '測試網格資料未啟用（404）。'
+    : status === 503 ? '測試網格資料暫時無法使用（503），請稍後再試。'
       : status === 429 ? '查詢太頻繁，請稍後再試（429）。'
-        : status === 400 ? '模擬網格查詢參數不正確（400）。'
-          : status === 403 ? '此網址不允許讀取模擬網格資料（403）。'
-            : error?.message || '模擬網格資料讀取失敗。'
+        : status === 400 ? '測試網格查詢參數不正確（400）。'
+          : status === 403 ? '此網址不允許讀取測試網格資料（403）。'
+            : error?.message || '測試網格資料讀取失敗。'
   return new HourlyDataError(message, { status, code: error?.code })
 }
 
 export function createHourlyApi({ request = apiRequest } = {}) {
   return {
-    // 首頁模擬平均：只送 lat／lng（radius、dayType、hour、limit、offset 會被後端拒絕）。
+    // 首頁測試平均：只送 lat／lng（radius、dayType、hour、limit、offset 會被後端拒絕）。
     async getOverview({ lat, lng } = {}, { signal } = {}) {
-      if (!isCoordinate({ lat, lng })) throw new HourlyDataError('目前位置無效，無法查詢模擬平均。')
+      if (!isCoordinate({ lat, lng })) throw new HourlyDataError('目前位置無效，無法查詢測試平均。')
       let payload
-      try { payload = (await request('test/mock/overview', { query: { lat, lng }, signal })).data } catch (error) { throw describe(error) }
-      if (!validHourlyOverview(payload)) throw new HourlyDataError('模擬平均格式不符（版本、時段或分數）。')
+      try { payload = (await request('test/overview', { query: { lat, lng }, signal })).data } catch (error) { throw describe(error) }
+      if (!validHourlyOverview(payload)) throw new HourlyDataError('測試平均格式不符（版本、時段或分數）。')
       return { data: payload.data, meta: payload.meta }
     },
     // 取得某時段全部網格。不帶圈選（圈選只收 300／500／1000m，探索地圖可能更大），前端再依地圖範圍裁切。
     async getGrid({ dayType, hour } = {}, { signal } = {}) {
-      if (!isDayType(dayType) || !isHour(hour)) throw new HourlyDataError('未知的模擬時段。')
+      if (!isDayType(dayType) || !isHour(hour)) throw new HourlyDataError('未知的測試時段。')
       const points = []
       let meta = null, offset = 0, total = null
       try {
         for (let page = 0; page < MAX_PAGES; page++) {
-          const payload = (await request('test/mock/hourly', { query: { dayType, hour, limit: HOURLY_PAGE_LIMIT, offset }, signal })).data
+          const payload = (await request('test/hourly', { query: { dayType, hour, limit: HOURLY_PAGE_LIMIT, offset }, signal })).data
           const data = payload?.data
           if (!validHourlyMeta(payload?.meta, { dayType, hour }) || !Array.isArray(data?.points) || !Number.isInteger(data.total)) {
-            throw new HourlyDataError('模擬網格格式不符（版本或時段不一致）。')
+            throw new HourlyDataError('測試網格格式不符（版本或時段不一致）。')
           }
           // 各頁總數必須一致，否則重新整理。
-          if (total !== null && data.total !== total) throw new HourlyDataError('模擬網格分頁不一致，請重新整理。')
-          if (!data.points.every(validHourlyPoint)) throw new HourlyDataError('模擬網格格式不符（網格編號、座標或分數）。')
+          if (total !== null && data.total !== total) throw new HourlyDataError('測試網格分頁不一致，請重新整理。')
+          if (!data.points.every(validHourlyPoint)) throw new HourlyDataError('測試網格格式不符（網格編號、座標或分數）。')
           // 每頁各有自己的模擬時間；取最晚的一頁，讓所有點相對它都在 30 分鐘有效期內。
           if (!meta || Date.parse(payload.meta.simulatedAt) > Date.parse(meta.simulatedAt)) meta = payload.meta
           total ??= data.total
           points.push(...data.points)
           if (data.nextOffset == null) break
-          if (!Number.isInteger(data.nextOffset) || data.nextOffset <= offset) throw new HourlyDataError('模擬網格分頁不一致，請重新整理。')
+          if (!Number.isInteger(data.nextOffset) || data.nextOffset <= offset) throw new HourlyDataError('測試網格分頁不一致，請重新整理。')
           offset = data.nextOffset
         }
       } catch (error) { throw describe(error) }
-      if (points.length !== total) throw new HourlyDataError('模擬網格筆數不完整，請重新整理。')
+      if (points.length !== total) throw new HourlyDataError('測試網格筆數不完整，請重新整理。')
       return { data: { points, total }, meta }
     },
   }

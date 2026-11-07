@@ -18,7 +18,7 @@ const props = defineProps({ city: { type: Object, required: true } })
 const SHOW_NEARBY = false
 // 感官卡片下方的「點選卡片可查看說明」提示暫時隱藏；改回 true 即可恢復。
 const SHOW_SENSE_HINT = false
-// 首頁概況目前讀後端 test/mock/overview（目前位置 150 公尺內網格平均），先當正式資料呈現：
+// 首頁概況目前讀後端 test/overview（目前位置 150 公尺內網格平均），先當正式資料呈現：
 // 直接採用後端平均值（可為小數、0 為有效、各維獨立為 null），沒有觀測時間與樣本數，不套正式回報的新鮮度與 SSI 規則。
 const gridOverview = computed(() => props.city.overview.meta.value?.aggregationVersion === OVERVIEW_AGGREGATION_VERSION)
 const canDescribe = computed(() => {
@@ -38,7 +38,7 @@ const personal = computed(() => gridOverview.value && canDescribe.value
   ? summarizeOverview(props.city.overview.data.value.senses, props.city.preferences.value.sensitivities) : null)
 const weatherHeadline = computed(() => gridOverview.value ? personal.value?.headline : props.city.overview.data.value?.headline)
 const weatherDescription = computed(() => gridOverview.value ? personal.value?.description : props.city.overview.data.value?.description)
-const MISSING_TEXT = { no_points_within_radius: '附近 150 公尺內沒有資料。', no_valid_mock_values: '附近 150 公尺內的資料皆為未知。' }
+const MISSING_TEXT = { no_points_within_radius: '附近 150 公尺內沒有資料。', no_valid_mock_values: '附近 150 公尺內的資料皆為未知。', no_valid_test_values: '附近 150 公尺內的資料皆為未知。' }
 const insufficientText = computed(() => gridOverview.value
   ? `${MISSING_TEXT[props.city.overview.data.value?.missingReason] || '附近沒有可用的資料。'}未知不代表環境安靜。`
   : '近期資料不足或已過期，歡迎分享感受。')
