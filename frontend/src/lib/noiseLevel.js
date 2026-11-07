@@ -2,9 +2,10 @@
 // 估算方式：dB ≈ dBFS + 校準值。校準值依手機麥克風靈敏度與系統增益而不同，未用標準音量計校準時誤差可能達 ±10 dB 以上，
 // 結果只供參考，不是 dBA（未做 A 加權）也不能用於法規噪音判定。
 export const NOISE_OFFSET_KEY = 'quiet-city-noise-offset'
-export const DEFAULT_DB_OFFSET = 100
+// 預設值 120：一般手機 MEMS 麥克風規格約為 94 dB SPL 對應 -26 dBFS（約 +120）；2026-11-07 實機比對時 +100 約低估 20 dB。
+export const DEFAULT_DB_OFFSET = 120
 export const MIN_DB_OFFSET = 60
-export const MAX_DB_OFFSET = 140
+export const MAX_DB_OFFSET = 150
 // 參考一般環境：圖書館約 40 dB、正常交談約 60 dB、繁忙道路約 70～80 dB。
 export const NOISE_LEVELS = Object.freeze([
   { id: 'quiet', label: '安靜', below: 50, hint: '約圖書館、安靜住宅區' },
