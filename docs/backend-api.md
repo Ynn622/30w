@@ -1,6 +1,14 @@
-# 城市靜音鍵後端 API 交接
+# 鈴靜（城市靜音鍵）後端 API 交接
 
 前端已完成呼叫層與示範體驗。請依這份契約建立後端，不必沿用示範資料；真實運作需接上合法開放資料、匿名回報及場所資料。所有 JSON 欄位使用 camelCase，時間使用含時區的 ISO 8601，座標為 WGS84。
+
+本次依新增需求補充 SSI（環境感官刺激指數）、SFS（個人感官適配分數）與資料可用性，文件調整日期為 2026-11-07。**六個既有接口是目前前端契約；下文「第二階段」是待實作擴充，不能因文件列出就宣稱已完成串接。** 本文 JSON 均為契約示例，不是當日實際觀測。
+
+| 階段 | 交付範圍 | 目前狀態 |
+| --- | --- | --- |
+| 第一階段 | 六個接口、四維缺值處理、來源／時間／信心揭露 | 前端已有呼叫層，後端與真實來源待整合 |
+| 第二階段 | 強度回報、逐維資料品質、SSI 與覆蓋率 | 本文新增規格，前後端需配合實作 |
+| 第三階段 | 1–5 敏感度、端側 SFS 排序、低刺激介面模式 | 待前端實作；不增加會員或偏好上傳接口 |
 
 ## 啟用與範圍
 
@@ -54,6 +62,7 @@ VITE_SENSORY_MODE=api
 - `sources` 逐筆提供名稱、原始網址、授權與時間。沒有資料可以是空陣列，UI 會顯示尚未取得來源；正式成果應補齊真實來源。
 - `referenceTime` 僅供前端固定 demo 情境，不應出現在正式 API。
 - 未知數值使用 `null`，不要用 `0`、空字串或猜測值代替。
+- 匿名回報不是政府開放資料，須以使用者同意、去識別與合法再利用政策處理；不得在來源欄位冒稱官方監測。若無可公開的來源 URL，可為 `null`，但仍須提供來源名稱與適用的使用條件。
 
 錯誤格式（配合既有 apiClient）：
 
@@ -83,7 +92,7 @@ VITE_SENSORY_MODE=api
   "area": "中正區",
   "headline": "聲音刺激偏高",
   "description": "近期回報顯示周邊聲音刺激較高，可探索室內休息空間。",
-  "senses": { "noise": 72, "light": null, "crowd": 42, "air": 22 },
+  "senses": { "noise": 72, "light": null, "crowd": 42, "odor": null, "air": null },
   "observedAt": "2026-11-07T10:20:00+08:00",
   "reportCount": 28,
   "measurementCount": 12,
@@ -95,12 +104,15 @@ VITE_SENSORY_MODE=api
 ```
 
 - `senses` 為 0–100 相對刺激尺度（越高越刺激）；**不是分貝、照度、人數或 AQI 原值**。空品 AQI 原值放在 `air.aqi`。請後端記錄轉換公式與版本；沒有合理資料就回 null。
+- SSI 的四維固定為 `noise`（聲音）、`light`（光線）、`crowd`（人潮感受）、`odor`（氣味）。沿用現有 `noise`，不另引入需求示意中的 `sound`；版本欄位使用 `scoreVersion`，不使用 `score_version`。
+- **`odor` 與 `air` 不可互換。** 目前首頁第四張卡顯示 `senses.air` 空品相對尺度，場所詳情第四維才是 `senses.odor`；首頁尚未改為 SSI 四維。可新增 `odor` 而保留 `air` 相容欄位；AQI 不能推算氣味，也不納入 SSI。未訂定空品映射規則前 `senses.air=null`，仍可回傳 `air.aqi` 原值。
 - 前端顯示分段：0–33「低」、34–66「中等」、67–100「偏高」；空品相對尺度為「良好／普通／不佳」。目前沒有從 dBFS 推導刺激指數的演算法，後端不可混合不同手機 dBFS 做城市噪音比較。
 - `observedAt` 是此次感官判斷使用的有效觀測時間（多來源以最舊的仍採用時間為準），不得填 API 呼叫或整理時間。超過 30 分鐘或未知時前端顯示資料不足。過期的單項值須直接回 null；空品另依其來源更新週期揭露。
 - `reportCount` 只計主觀感受，`measurementCount` 只計有效裝置摘要；不得重複灌入同一計數。
 - `confidence`：`high | medium | low | insufficient`。後端應依有效樣本數、觀測年齡、來源涵蓋度與離散程度訂定版本化規則；尚未具備規則時用 `insufficient`，不要捏造高信心。
-- 資料不足時仍回 200，計數 0、各 senses=null、confidence=insufficient、headline="資料不足，暫無法判斷"。上游錯誤回 503，或保留可用來源並明示不足，不能使用示範值補空。
+- 資料不足時仍回 200，各感官維度為 null、confidence=insufficient、headline="資料不足，暫無法判斷"；計數保留實際已接受的有效事件／摘要筆數，只有確實沒有資料才填 0。有分類回報或 dBFS 摘要不代表已有可採用的刺激分數。上游錯誤回 503，或保留可用來源並明示不足，不能使用示範值補空。
 - `weather` 和 `air` 可為 null；預報與測站時間應放來源，不宣稱全部是現在所在地即時觀測。
+- `weather.temperatureC` 僅在上游提供所選預報時段的對應溫度時填入；若只有最低／最高溫，不取中點冒充氣溫。預報應另保留 `issuedAt`、`validFrom`、`validTo`，空品應保留測站座標、距離與發布時間（可擴充原物件）；這些擴充欄位目前前端尚未呈現。
 
 ## 2 感官地圖
 
@@ -112,7 +124,7 @@ VITE_SENSORY_MODE=api
     {
       "id": "grid-001",
       "location": { "lat": 25.039, "lng": 121.515 },
-      "senses": { "noise": 70, "light": null, "crowd": 30 },
+      "senses": { "noise": 70, "light": null, "crowd": 30, "odor": null },
       "reportCount": 8,
       "confidence": "medium",
       "updatedAt": "2026-11-07T10:20:00+08:00"
@@ -198,6 +210,7 @@ VITE_SENSORY_MODE=api
 ```
 
 - kind：`noisy | bright | crowded | odor | comfortable | other`。
+- **現有 body 沒有強度、逐維評分或 `placeId`。** `noisy` 只表示聲音刺激事件，不能自行當作 65 分或精準分貝；`comfortable` 不能讓四維一律變低，未回報的維度也不是零。第一階段可提供事件計數與文字提示，沒有可解釋的數值來源時 `senses` 保持 null。需要數值回報與場所關聯時，依第二階段擴充，不從自由文字猜測或把行政區中心回報掛到最近場所。
 - note 選填，最長 140 字；前後端都要驗證，後端需限制 payload 大小及儲存期限。
 - location.source：`manual`（區域中心）或 `device`（另行取得授權的裝置位置）。手動回報不能變成該格網的精確觀測；可只計區域統計，不加入街道熱點。
 - 不傳疾病、診斷、會員個資。實際 body 只包含上列資料，使用者按「確認送出」才送。
@@ -250,8 +263,95 @@ VITE_SENSORY_MODE=api
 | [MOENV NOS_P_10](https://data.moenv.gov.tw/dataset/detail/NOS_P_10) | 陳情數分類分析，不是即時噪音熱點 |
 | [MOENV NOS_P_07](https://data.moenv.gov.tw/dataset/detail/NOS_P_07) | 申訴管道資料，可做後續官方聯絡資訊 |
 | [TDX](https://tdx.transportdata.tw/api-service/swagger/basic/) | 若之後加入公車／交通才需要，本版沒有假裝提供真實步行路由 |
+| [臺北捷運各站分時進出量統計](https://data.taipei/dataset/detail?id=63f31c7e-7fc3-418b-bd82-b95158755b4d) | 歷史 OD 資料；可計算車站歷史繁忙程度，不能當場所現在的人數或人潮密度 |
 
-上述為需求單提供的候選來源與用途，並未匯入到本次前端；上線前須由整合者重新核對實際資料集 schema、更新頻率、授權、服務費與競賽適用性。真實場所、開放時間、進入條件及無障礙資料的公開來源也仍需後端選定，不能把本地虛構場所當正式資料。
+2026-11-07 已核對上述環境部資料集說明、[CWA API 文件](https://opendata.cwa.gov.tw/dist/opendata-swagger.html)與捷運資料集頁面的用途；這是來源文件查核，**不是已帶金鑰完成 API 串接或驗證即時資料**。TDX 頁面僅確認為官方文件入口，具體端點與適用方案仍待確認。環境部資料集頁面附有[政府資料開放授權說明](https://data.gov.tw/license)，CWA 的使用條件見[氣象資料開放平臺使用規範](https://opendata.cwa.gov.tw/about/rules)；整合者須保存各資料集實際適用授權、版本與標示方式，不把來源網站頁尾或本專案 AGPL 當成資料本身的授權。
+
+實作優先接一組臺北市天氣預報與 AQX_P_432，供戶外環境背景使用；三種天氣資料不必全部串接。噪音位置／統計、歷史空品、陳情與 TDX 屬後續背景資訊，不能拿來補齊四維即時分數。施工案件與場所評論尚無本次確認的具體來源，不列為已可用資料。
+
+上述資料尚未匯入本次前端；上線前須重新核對實際 schema、更新頻率、授權、服務費與競賽適用性。真實場所、開放時間、進入條件及無障礙資料的公開來源也仍需後端選定，不能把本地虛構場所當正式資料。新增服務若涉及專有 API、費用或授權疑義，依 AGENTS.md 先詢問開發者。
+
+## 第二階段：四維資料與 SSI（待實作）
+
+### 可用輸入與不能推論的內容
+
+| 維度 | 可接受的輸入方向 | 缺值與限制 |
+| --- | --- | --- |
+| `noise` | 具強度的近期主觀回報；另有校正證據的音量量測 | 現行未校準 dBFS 只作同裝置相對音量展示，不直接計 SSI；噪音測站座標不能產生分數 |
+| `light` | 市民對刺眼程度的主動回報 | 天氣、日照、UV 不能代替場所照度或室內刺眼程度 |
+| `crowd` | 市民近期擁擠感受回報 | 捷運歷史 OD 僅作另列的歷史繁忙參考，不寫入即時 `senses.crowd` 或街道熱區 |
+| `odor` | 市民近期氣味刺激回報 | AQI 不能代替氣味；歷史評論不能代替當下觀測 |
+
+各來源先保留原始量綱、時間、空間範圍與品質，再使用版本化規則轉換。尚未建立共同尺度的主觀回報、手機音量與歷史評論不可直接加權混算。網路評論僅在確認合法開放授權或取得授權後另訂整合規格；本版不爬取商用評論。
+
+### 回報擴充
+
+現有 `POST reports` 保持可接受原 body。第二階段可新增選填 `intensity` 與 `placeId`，前後端部署相容後才啟用；目前前端不會送出這兩欄。
+
+- `intensity`：`none | mild | noticeable | strong`，僅適用 `noisy | bright | crowded | odor` 所對應的單一維度。暫定映射為 10／35／65／90，屬產品假設，不是醫學或法規閾值。畫面須讓使用者明確選擇「沒有明顯刺激」，不能替使用者預填。
+- 缺少 `intensity` 的舊回報只列事件計數，不納入此強度平均；`comfortable | other` 不接受 `intensity`，不從備註自動生成評分。
+- `placeId` 若存在，後端驗證場所、位置來源與可接受範圍；手動行政區中心仍只計區域事件，不據此建立場所評分。未提供時，不以最近場所猜測歸屬。
+- 每一維只彙整同一空間範圍、30 分鐘內且通過去重／品質規則的有效回報。採算術平均或時間衰減平均均須固定公式、參數與版本；未訂規則或樣本不足時回 null。
+
+若未來取得經校正的 dB(A)，可研究 `clip((dBA - 35) / 45 × 100, 0, 100)` 作為聲音產品映射；35／80 只是示範端點，不代表安全或不適閾值。此公式**不適用現有 protocolVersion=1 的 dBFS**，不得直接開啟。
+
+捷運歷史參考可採 `100 × clip((N - P10) / (P90 - P10), 0, 1)`，需記錄車站、歷史期間、平假日／時段分組、N 的定義與百分位計算方式；`P90 <= P10` 或樣本不足時回 null。結果標為「歷史繁忙程度」，另外揭露資料期間，不回填本版即時四維。
+
+### SSI、覆蓋率與信心
+
+SSI 描述環境刺激，0–100 越高越刺激；SFS 描述個人適配，0–100 越高越符合偏好。兩者都是產品推薦指標，未經臨床驗證，不得作為醫療或安全保證。
+
+SSI 暫定權重為 `noise: 0.4, light: 0.2, crowd: 0.3, odor: 0.1`。令 A 為有效、有值且信心非 `insufficient` 的維度：
+
+```text
+ssi = round(sum(score[k] × weight[k], k in A) / sum(weight[k], k in A))
+coverage = sum(weight[k], k in A) / sum(weight[k], 全四維)
+dimensionCoverage = 有效維度數 / 4
+```
+
+沒有有效維度或有效權重總和為 0 時 `ssi=null`；覆蓋率為 0。缺值不算 0 分，0 分本身則是有效觀測。權重必須有限、非負且總和大於 0；分數必須為有限的 0–100 數值，先排除無效、過期及品質不足資料再計算。僅最終指數四捨五入，不先四捨五入各項乘積。分段沿用目前 UI：0–33 低、34–66 中等、67–100 偏高，不套用需求示意的另一套分段。
+
+`coverage` 是權重覆蓋率，`dimensionCoverage` 是維度覆蓋率，均不代表信心或正確機率。部分維度仍可產生指數，但必須同時顯示「部分資料」及缺少的維度；不能以高覆蓋率直接判為 `high`。比較不同場所時也須呈現各自覆蓋範圍，不能把缺失敏感維度的場所標成最適合。
+
+信心使用 `high | medium | low | insufficient`，後端先訂出樣本門檻、年齡、離散程度、來源品質與空間涵蓋規則，記錄 `confidenceVersion`。尚無規則時回 `insufficient`、SSI 回 null；不能只因有一筆回報就回 `medium`。逐維信心與整體信心分開計算；資料不足不是低刺激。
+
+### 相容擴充物件
+
+第二階段可在 overview、Place 與地圖 cell 新增 `sensoryIndex`；目前前端會忽略它，舊 `senses`、`confidence`、時間欄位仍須提供。以下僅為假設已有有效數值與品質規則的計算示例，並非本專案已取得的資料：
+
+```json
+{
+  "sensoryIndex": {
+    "ssi": 52,
+    "level": "中等",
+    "dimensions": { "noise": 70, "light": 20, "crowd": 50, "odor": null },
+    "weights": { "noise": 0.4, "light": 0.2, "crowd": 0.3, "odor": 0.1 },
+    "coverage": 0.9,
+    "dimensionCoverage": 0.75,
+    "confidence": "medium",
+    "scoreVersion": "ssi-v0.1",
+    "confidenceVersion": "confidence-v0.1",
+    "dimensionMeta": {
+      "noise": { "observedAt": "2026-11-07T10:20:00+08:00", "validUntil": "2026-11-07T10:50:00+08:00", "sampleCount": 8, "confidence": "medium", "sourceType": "subjective_report", "missingReason": null },
+      "light": { "observedAt": "2026-11-07T10:20:00+08:00", "validUntil": "2026-11-07T10:50:00+08:00", "sampleCount": 8, "confidence": "medium", "sourceType": "subjective_report", "missingReason": null },
+      "crowd": { "observedAt": "2026-11-07T10:20:00+08:00", "validUntil": "2026-11-07T10:50:00+08:00", "sampleCount": 8, "confidence": "medium", "sourceType": "subjective_report", "missingReason": null },
+      "odor": { "observedAt": null, "validUntil": null, "sampleCount": 0, "confidence": "insufficient", "sourceType": null, "missingReason": "no_data" }
+    }
+  }
+}
+```
+
+本例 `(70×0.4 + 20×0.2 + 50×0.3) / 0.9 = 52.22…`，SSI 為 52，覆蓋 3/4 維、90% 預設權重；不能沿用需求示意中的 58。`level` 在 SSI 為 null 時固定「資料不足」。`missingReason` 使用 `no_data | stale | insufficient_samples | incompatible_scale`，有效時為 null；`sampleCount` 只計該維實際採用樣本，無法確認時為 null，不把跨維計數相加冒充獨立回報人數。`sourceType` 本階段為 `subjective_report` 或 null；新增可比較來源時須擴充規格及來源引用。
+
+`dimensionMeta` 各維須能追溯至 envelope 或 Place 的來源；內部保留計算規則與採用記錄，對外不回傳個別回報 ID 或精確位置。`dimensions` 與 `senses` 對應四維必須一致；舊 `observedAt`／`updatedAt` 仍以有效四維中最舊的觀測時間填入，不能改成計算時間讓前端 freshness 檢查失效。全維無值時觀測時間為 null。過期後重算 SSI 與覆蓋率，歷史資料、天氣與 AQI 不更新這個時間。
+
+## 第三階段：個人化 SFS 與低刺激模式（待實作）
+
+- 使用者於裝置端設定四維敏感度 1–5；以各敏感度除以總和得到個人權重。SSI 的預設環境權重不因個人偏好改變。
+- `sfs = round(100 - 個人加權刺激負擔)`，負擔沿用前節有效維度的重新正規化公式，以未四捨五入值計算；無有效維度則為 null。另算個人權重的 `fitCoverage`，不能直接沿用 SSI 的 `coverage`。
+- 完整四維為 70／20／50／10，敏感度 5／1／2／2（權重 50%／10%／20%／20%）時 SFS=51；2／5／1／2（20%／50%／10%／20%）時 SFS=69。這兩組可由 1–5 設定直接產生；需求示意中的 60%／10% 權重比為 6:1，超出此控制範圍，不能當成滑桿可產生的設定。缺值時顯示部分適配，不能用未知代替低刺激，也不能放寬使用者選定的必要篩選。
+- 優先在前端本機計算與排序，偏好不需送後端。**目前只有聲音／光線／人潮的布林篩選與距離排序，尚無 1–5 滑桿、氣味篩選或 SFS。** 後端不能擅自改成 SFS 排序並宣稱已生效，因為現有前端會重新依直線距離排序。
+- 低刺激模式由前端管理柔和配色、減少動畫、較大操作區與隱藏非必要資訊；警示保留文字，不只依賴顏色或聲音。現有 reduced-motion 支援不等於已完成此模式；不需新增後端接口。
 
 ## HTTP 與部署
 
@@ -270,3 +370,5 @@ VITE_SENSORY_MODE=api
 4. reports 與 measurements 分開統計；未校準 dBFS 不當環境 dBA。
 5. 完成匿名資料最小化、寫入驗證、rate limit、去重、保存與刪除策略，正式提供前另訂隱私政策。
 6. 在實際 GitHub Pages 與城市通 WebView 測試 CORS、HTTPS、取消、逾時、錯誤及實際資料來源展示。
+
+第二階段驗收另加：強度缺漏不轉分、四維與空品分離、逐維來源與有效期可追溯；覆蓋率分母固定四維權重，驗證全缺值、有效 0 分、過期、零權重與部分覆蓋的計算結果。第三階段須驗證同一場所依不同偏好產生不同 SFS，且偏好留在裝置端；低刺激模式可實際切換。未完成前不得列入第一階段已串接項目。
