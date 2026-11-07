@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import AppIcon from '../AppIcon.vue'
-import { distanceMeters, isCoordinate } from '../../lib/sensoryDomain.js'
+import { TAIPEI_MAX_BOUNDS, distanceMeters, isCoordinate } from '../../lib/sensoryDomain.js'
 import { CONTOUR_LEVELS, FIELD_GRADIENT_CSS, NO_DATA_AS_GREEN, contourSegments, fieldColor } from '../../lib/sensoryField.js'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
@@ -110,8 +110,10 @@ async function initialize() {
     maplibre = module.default || module
     maplibre.setWorkerUrl(workerUrl)
     maplibre.setWorkerCount(1)
-    map = new maplibre.Map({ container: container.value, style: 'https://tiles.openfreemap.org/styles/liberty', center: [props.center.lng, props.center.lat], zoom: 15, attributionControl: false, pitchWithRotate: false, dragRotate: false })
+    map = new maplibre.Map({ container: container.value, style: 'https://tiles.openfreemap.org/styles/liberty', center: [props.center.lng, props.center.lat], zoom: 15, attributionControl: false, pitchWithRotate: false, dragRotate: false, maxBounds: TAIPEI_MAX_BOUNDS })
     map.addControl(new maplibre.AttributionControl({ compact: false }), 'bottom-left')
+    // 公制比例尺，讓使用者判斷直線距離。
+    map.addControl(new maplibre.ScaleControl({ maxWidth: 96, unit: 'metric' }), 'bottom-right')
     timer = setTimeout(() => { if (!ready.value) error.value = '底圖載入逾時，請確認網路連線。' }, 20_000)
     map.on('load', () => {
       if (disposed || current !== generation) return
@@ -121,6 +123,11 @@ async function initialize() {
           map.setLayoutProperty(layer.id, 'text-field', ['coalesce', ['get', 'name:zh-Hant'], ['get', 'name:zh'], ['get', 'name']])
         }
       }
+      // 臺北市界：使用底圖 OpenMapTiles 既有的 OpenStreetMap 行政界線（admin_level 4 為直轄市），不新增資料來源。
+      map.addLayer({ id: 'taipei-boundary', type: 'line', source: 'openmaptiles', 'source-layer': 'boundary',
+        filter: ['all', ['==', ['get', 'admin_level'], 4], ['!=', ['get', 'maritime'], 1]],
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#0391A7', 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2, 16, 4], 'line-opacity': .8 } }, beforeLabels())
       // 色帶與等值線畫在底圖文字之下，街名與地標仍清楚可讀；遠離資料處透明，不代表安靜。
       map.addSource('sensory-contours', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({ id: 'sensory-contours', type: 'line', source: 'sensory-contours', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: {

@@ -87,7 +87,8 @@ const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlac
 .layer-switch .q-switch { margin: 0; }
 .explore-stage :deep(.map-legend) { top: 66px; }
 .explore-stage :deep(.sensory-map-wrap) { position: absolute; inset: 0 0 calc(var(--sheet-peek, 124px) - 18px); height: auto; border: 0; border-radius: 0; }
-.explore-stage :deep(.maplibregl-ctrl-bottom-left) { margin-bottom: 18px; }
+.explore-stage :deep(.maplibregl-ctrl-bottom-left),
+.explore-stage :deep(.maplibregl-ctrl-bottom-right) { margin-bottom: 18px; }
 .list-tools { display: grid; gap: 8px; margin: 2px 0 10px; }
 .place-search { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 1px solid #d6e2e8; border-radius: 22px; background: #f7fafb; color: #6a7a83; }
 .place-search input { flex: 1; min-width: 0; min-height: 42px; border: 0; background: transparent; color: var(--q-ink, #27323a); font: inherit; font-size: 15px; outline: none; }

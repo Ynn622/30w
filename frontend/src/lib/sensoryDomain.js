@@ -17,6 +17,8 @@ export const AREAS = [
   { id: 'nangang', name: '南港區', lat: 25.0548, lng: 121.6068 },
   { id: 'wenshan', name: '文山區', lat: 24.9898, lng: 121.5701 },
 ]
+// 探索地圖可移動的範圍：臺北市外框再外擴約 2 公里的矩形（MapLibre maxBounds 只支援矩形，角落仍會看到少量新北）。
+export const TAIPEI_MAX_BOUNDS = Object.freeze([[121.43, 24.94], [121.69, 25.23]])
 // 臺北市概略外框（手繪簡化多邊形 [lng, lat]，沿淡水河／新店溪／景美溪與山區概略描點）。
 // 僅用來排除明顯不在臺北市的位置，邊界附近仍可能誤判。
 const TAIPEI_OUTLINE = [
