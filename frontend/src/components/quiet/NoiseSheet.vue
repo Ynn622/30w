@@ -33,7 +33,7 @@ const stateText = computed(() => status.value === 'measuring'
   : STATE_TEXT[status.value] || '無法量測')
 const detailText = computed(() => status.value === 'completed' && summary.value
   ? `原始 ${summary.value.averageDbfs}／峰值 ${summary.value.peakDbfs} dBFS`
-  : `估計值${calibration.value.calibrated ? '（已校準）' : '（未校準）'}`)
+  : `估計值${calibration.value.calibrated ? '（已校準）' : ''}`)
 // dB 為 dBFS 加校準值的估計；安靜／普通／吵雜由估計 dB 自動判定。校準值可在測試工作台（#debug）調整。
 const calibration = ref(readDbOffset())
 const currentDbfs = computed(() => summary.value?.averageDbfs ?? sample.value?.averageDbfs ?? null)
