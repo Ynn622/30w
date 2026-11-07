@@ -35,6 +35,8 @@ function useRemote(query, fetcher) {
   onScopeDispose(() => { serial++; controller?.abort() })
   return { data, meta, state, error, source, reload }
 }
+// 首頁、地圖與清單資料的自動重取間隔（頁面在背景時跳過；切回視窗時另外立即重取）。
+export const REFRESH_INTERVAL_MS = 3 * 60_000
 export function useQuietCity(notify) {
   // 目前只開放使用裝置定位，不提供手動選區。
   const deviceLocation = ref(null), locating = ref(false), locationError = ref('')
@@ -174,11 +176,11 @@ export function useQuietCity(notify) {
     else notify('已連上後端，改為顯示後端資料。')
     announced = key
   })
-  // 正式資料每分鐘重取，防止頁面長時間開啟後仍把過期觀測當成現在。
+  // 正式資料每 3 分鐘重取（後端每 5 分鐘整理一次回報，更頻繁也不會更即時），防止頁面長時間開啟後仍把過期觀測當成現在。
   const refresh = () => { now.value = Date.now(); overview.reload(); map.reload(); places.reload() }
   const resume = () => { if (typeof document === 'undefined' || document.visibilityState !== 'hidden') refresh() }
   // 使用模擬資料時也持續重試後端，後端上線後自動切回。
-  const refreshTimer = setInterval(resume, 60_000)
+  const refreshTimer = setInterval(resume, REFRESH_INTERVAL_MS)
   window.addEventListener?.('focus', resume)
   let locationController, disposed = false
   async function locate() {

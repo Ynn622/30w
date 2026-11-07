@@ -1,7 +1,7 @@
 import { effectScope, nextTick } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { sensoryApi } from '../lib/sensoryApi.js'
-import { useQuietCity } from './useQuietCity.js'
+import { REFRESH_INTERVAL_MS, useQuietCity } from './useQuietCity.js'
 import { mockPlaces } from '../data/quietMock.js'
 const NOW = '2026-11-07T10:30:00+08:00'
 import { AREAS, filterPlaces } from '../lib/sensoryDomain.js'
@@ -70,10 +70,13 @@ describe('sensory queries', () => {
     sensoryApi.getMap.mockResolvedValue({ data: { cells: [] }, meta: {} })
     sensoryApi.getPlaces.mockResolvedValue({ data: { places: [] }, meta: {} })
     const { scope } = located()
-    await vi.advanceTimersByTimeAsync(60_000)
+    // 3 分鐘前不重取，滿 3 分鐘才重取一次。
+    await vi.advanceTimersByTimeAsync(REFRESH_INTERVAL_MS - 1000)
+    expect(sensoryApi.getOverview).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1000)
     expect(sensoryApi.getOverview).toHaveBeenCalledTimes(2)
     document.visibilityState = 'hidden'
-    await vi.advanceTimersByTimeAsync(60_000)
+    await vi.advanceTimersByTimeAsync(REFRESH_INTERVAL_MS)
     expect(sensoryApi.getOverview).toHaveBeenCalledTimes(2)
     scope.stop()
     expect(vi.getTimerCount()).toBe(0)
@@ -116,11 +119,11 @@ describe('sensory queries', () => {
     expect(city.usingMock.value).toBe(true)
     expect(city.reportIntensityEnabled.value).toBe(true)
     expect(city.fallbackReason.value).toContain('404')
-    await vi.advanceTimersByTimeAsync(120_000)
+    await vi.advanceTimersByTimeAsync(2 * REFRESH_INTERVAL_MS)
     expect(sensoryApi.getOverview).toHaveBeenCalledTimes(3)
     expect(notify.mock.calls.filter(([message]) => message === 'MOCK_NOTICE')).toHaveLength(1)
     for (const fn of [sensoryApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue(live)
-    await vi.advanceTimersByTimeAsync(60_000)
+    await vi.advanceTimersByTimeAsync(REFRESH_INTERVAL_MS)
     expect(city.dataSource.value).toBe('api')
     expect(city.reportIntensityEnabled.value).toBe(false)
     expect(notify).toHaveBeenLastCalledWith('已連上後端，改為顯示後端資料。')
