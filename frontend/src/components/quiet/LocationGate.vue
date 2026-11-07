@@ -5,10 +5,10 @@ import AppIcon from '../AppIcon.vue'
 // 服務只依目前定位提供：尚未定位、定位失敗或不在臺北市時顯示此狀態，取代頁面內容。
 const props = defineProps({ city: { type: Object, required: true } })
 const view = computed(() => ({
-  locating: { icon: 'locate', title: '正在取得目前位置…', text: '城市靜音鍵依你的目前位置提供附近的感官資訊。' },
+  locating: { icon: 'locate', title: '正在取得目前位置…', text: '聆靜依你的目前位置提供附近的感官資訊。' },
   outside: { icon: 'pin', title: '此區域非台北市內，無法提供服務', text: '目前僅提供臺北市範圍的感官資訊。移動到臺北市後，請重新定位。' },
   error: { icon: 'locate', title: '無法取得目前位置', text: props.city.locationError.value || '請允許定位權限後重試。' },
-  idle: { icon: 'locate', title: '需要使用目前位置', text: '城市靜音鍵依你的目前位置提供附近的感官資訊，請允許定位。' },
+  idle: { icon: 'locate', title: '需要使用目前位置', text: '聆靜依你的目前位置提供附近的感官資訊，請允許定位。' },
 }[props.city.locationStatus.value] || null))
 </script>
 

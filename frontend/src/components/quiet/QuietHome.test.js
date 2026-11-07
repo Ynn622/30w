@@ -24,14 +24,14 @@ function cityFor(data, places = [], meta = mockMeta(NOW), status = 'ready') {
 describe('home sensory presentation', () => {
   it('renders the product and labels mock data only when the fallback is active', async () => {
     const html = await renderToString(createSSRApp(QuietHome, { city: cityFor(sampleOverview()) }))
-    expect(html).toContain('城市靜音鍵')
+    expect(html).toContain('聆靜')
     expect(html).toContain('舒適偏吵')
     expect(html).toContain('模擬：')
     expect(html).not.toContain('示範')
     const live = await renderToString(createSSRApp(QuietHome, { city: cityFor(sampleOverview(), [], { updatedAt: new Date(NOW).toISOString(), sources: [] }) }))
     expect(live).not.toContain('模擬：')
     expect(live).toContain('更新：')
-    expect(html).toContain('城市靜音鍵標誌')
+    expect(html).toContain('聆靜標誌')
     // 區域只依目前定位決定，不提供手動選單。
     expect(html).toMatch(/臺北市・中正區/)
     expect(html).toContain('目前位置')
@@ -96,7 +96,7 @@ describe('sense info dialog', () => {
     expect(html).toContain('0–33 低')
     expect(html).toContain('不是分貝')
     expect(html).toContain('40%')
-    for (const removed of ['觀測時間', '有效至', '採用樣本', '資料信心', '資料來源', '城市靜音鍵模擬資料']) expect(html).not.toContain(removed)
+    for (const removed of ['觀測時間', '有效至', '採用樣本', '資料信心', '資料來源', '聆靜模擬資料']) expect(html).not.toContain(removed)
   })
   it('says why a dimension is unknown instead of treating it as quiet', async () => {
     const html = await renderDialog({ senseKey: 'odor', value: null, described: true })

@@ -46,7 +46,7 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
   <section class="quiet-view quiet-home">
     <header class="home-heading">
       <div class="home-heading-copy">
-        <div class="home-title"><QuietLogo :size="40" /><h1>城市靜音鍵</h1></div>
+        <div class="home-title"><QuietLogo :size="40" /><h1>聆靜</h1></div>
         <p>在台北，找到屬於你的安靜角落。</p>
       </div>
       <svg class="city-illustration" viewBox="0 0 150 130" fill="none" aria-hidden="true">

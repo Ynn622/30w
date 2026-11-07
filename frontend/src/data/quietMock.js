@@ -4,7 +4,7 @@ import { assessSensory, SSI_WEIGHTS, SENSORY_KEYS } from '../lib/sensoryIndex.js
 // 後端無法連線時的完整模擬資料，結構與 docs/backend-api.md 六個接口相同。
 // 時間以「目前時間」往前推算，讓 30 分鐘有效期判斷與正式資料一致；內容為專案自製，
 // 場所與地址皆為虛構，不是官方監測或實際場所。中正、大安、信義為個別撰寫，其餘行政區由範本產生。
-export const MOCK_SOURCES = Object.freeze([{ name: '城市靜音鍵模擬資料', url: null, license: '專案原創模擬資料', observedAt: null }])
+export const MOCK_SOURCES = Object.freeze([{ name: '聆靜模擬資料', url: null, license: '專案原創模擬資料', observedAt: null }])
 const minutesAgo = (now, minutes) => new Date(new Date(now).getTime() - minutes * 60_000).toISOString()
 export function mockMeta(now = Date.now(), fallbackReason = '') {
   return { mock: true, updatedAt: minutesAgo(now, 0), fallbackReason, sources: MOCK_SOURCES.map(source => ({ ...source, observedAt: minutesAgo(now, 0) })) }

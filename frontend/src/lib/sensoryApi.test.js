@@ -22,7 +22,7 @@ describe('API first with mock fallback', () => {
     const api = createSensoryApi({ request: vi.fn().mockRejectedValue(routeMissing), now })
     const result = await api.getPlaces({ ...AREAS[0], radius: 500, noise: 'low' })
     expect(result.meta).toMatchObject({ mock: true, fallbackReason: 'HTTP 404：Route not found' })
-    expect(result.meta.sources[0].name).toBe('城市靜音鍵模擬資料')
+    expect(result.meta.sources[0].name).toBe('聆靜模擬資料')
     expect(result.data.places.map(place => place.id)).toEqual(['zhongzheng-reading', 'zhongzheng-park', 'zhongzheng-study', 'zhongzheng-hall'])
     await expect(api.getOverview({ areaId: 'daan' })).resolves.toMatchObject({ data: { area: '大安區' }, meta: { mock: true } })
     await expect(api.getMap({ areaId: 'xinyi' })).resolves.toMatchObject({ meta: { mock: true } })

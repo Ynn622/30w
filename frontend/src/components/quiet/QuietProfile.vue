@@ -15,6 +15,6 @@ const levelWords = ['', '不太在意', '稍微在意', '普通', '在意', '非
       </div>
     </section>
     <section class="q-settings-card"><div class="section-heading"><h2>介面</h2></div><label class="q-setting-row"><span class="setting-icon"><AppIcon name="layers" :size="22"/></span><span><strong>低刺激模式</strong><small>柔和配色、停止動畫、加大按鈕並隱藏裝飾；警示仍以文字顯示。</small></span><input v-model="city.preferences.value.lowStimulus" class="q-switch" type="checkbox"/></label></section>
-    <footer class="quiet-footer"><AppIcon name="wave" :size="18"/><span>城市靜音鍵・讓每一種感受，都有地方。</span></footer>
+    <footer class="quiet-footer"><AppIcon name="wave" :size="18"/><span>聆靜・讓每一種感受，都有地方。</span></footer>
   </section>
 </template>

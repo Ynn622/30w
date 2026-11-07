@@ -33,8 +33,8 @@ function navigate() {
 }
 async function share() {
   try {
-    const text = `${place.value.name}｜城市靜音鍵${meta.value?.mock ? '（模擬資料）' : ''}`
-    if (navigator.share) await navigator.share({ title: '城市靜音鍵場所', text })
+    const text = `${place.value.name}｜聆靜${meta.value?.mock ? '（模擬資料）' : ''}`
+    if (navigator.share) await navigator.share({ title: '聆靜場所', text })
     else if (navigator.clipboard) { await navigator.clipboard.writeText(text); emit('notify', '已複製場所名稱，可分享給朋友。') }
     else emit('notify', '此瀏覽器不支援分享，請手動複製場所名稱。')
   } catch (reason) { if (reason.name !== 'AbortError') emit('notify', '分享未完成，請稍後再試。') }

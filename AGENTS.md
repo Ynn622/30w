@@ -46,7 +46,7 @@ npm run build
 ## 重要路徑
 
 - `frontend/src/App.vue`：頁面切換、Toast 與 WebView 互動入口。
-- `frontend/src/components/quiet/`：城市靜音鍵首頁、探索、我的、場所詳情與 sheet。
+- `frontend/src/components/quiet/`：聆靜首頁、探索、我的、場所詳情與 sheet。
 - `frontend/src/data/quietMock.js`：後端無法連線時的完整模擬資料（需跳通知並標示模擬）。
 - `frontend/src/lib/sensoryApi.js`：感官接口，先打後端、失敗才改用模擬資料。
 - `frontend/src/lib/webview.js`：城市通雙向溝通封裝。
