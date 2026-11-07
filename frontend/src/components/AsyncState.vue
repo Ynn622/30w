@@ -19,7 +19,7 @@ defineEmits(['retry'])
 
 <style scoped>
 .async-state { display: grid; justify-items: center; gap: 10px; padding: 25px 16px; border: 1px dashed var(--line); border-radius: 16px; margin-block: 15px; text-align: center; }
-strong { font-size: 14px; } p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+strong { font-size: 16px; } p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.8; overflow-wrap: anywhere; }
 .error { border-color: #e9c7bf; color: #a43d30; }
 button { min-height: 44px; padding: 0 16px; border: 0; border-radius: 12px; background: var(--brand); color: white; cursor: pointer; }
 .async-spinner { width: 24px; height: 24px; border: 3px solid var(--line); border-top-color: var(--brand); border-radius: 50%; animation: spin 1s linear infinite; }
