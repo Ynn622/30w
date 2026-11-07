@@ -5,12 +5,17 @@ import { isCoordinate } from '../../lib/sensoryDomain.js'
 import { sensoryValues } from '../../lib/sensoryIndex.js'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
-const props = defineProps({ places: { type: Array, default: () => [] }, cells: { type: Array, default: () => [] }, center: { type: Object, required: true }, layer: { type: String, default: 'noise' }, deviceLocated: Boolean, lowStimulus: Boolean })
+const props = defineProps({ places: { type: Array, default: () => [] }, cells: { type: Array, default: () => [] }, center: { type: Object, required: true }, layer: { type: String, default: 'noise' }, deviceLocated: Boolean, lowStimulus: Boolean, layerVisible: { type: Boolean, default: true } })
 const emit = defineEmits(['select', 'locate'])
 const container = ref(null), ready = ref(false), error = ref('')
 let map, maplibre, markers = [], centerMarker, observer, timer, disposed = false, generation = 0
 const reduced = () => props.lowStimulus || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 const layerLabels = { noise: '聲音', light: '光線', crowd: '人潮', odor: '氣味' }
+function applyVisibility() {
+  if (!ready.value || !map) return
+  const visibility = props.layerVisible ? 'visible' : 'none'
+  for (const id of ['sensory-heat', 'sensory-observed']) map.setLayoutProperty(id, 'visibility', visibility)
+}
 function applyStimulus() {
   if (!ready.value || !map) return
   // 低刺激模式降低熱區飽和度與不透明度，但保留有觀測的圓點與文字圖例。
@@ -32,8 +37,12 @@ function sync() {
     const button = document.createElement('button')
     button.type = 'button'; button.className = `q-map-pin ${place.indoor ? 'indoor' : ''}`
     button.setAttribute('aria-label', `查看${place.name}`)
-    // 文字來自 API，使用 textContent，禁止插入 HTML。
-    button.textContent = place.indoor ? '▤' : '♧'
+    // 可點範圍維持 44px，畫面上的標記縮小；文字來自 API，使用 textContent，禁止插入 HTML。
+    const mark = document.createElement('span')
+    mark.className = 'q-map-pin-mark'
+    mark.setAttribute('aria-hidden', 'true')
+    mark.textContent = place.indoor ? '▤' : '♧'
+    button.append(mark)
     button.addEventListener('click', () => emit('select', place.id))
     markers.push(new maplibre.Marker({ element: button, anchor: 'bottom' }).setLngLat([place.location.lng, place.location.lat]).addTo(map))
   })
@@ -70,10 +79,10 @@ async function initialize() {
       // 刺激強度由資料值影響熱圖權重，不將樣本密度誤稱音量。
       map.setPaintProperty('sensory-heat', 'heatmap-weight', ['get', 'intensity'])
       map.addLayer({ id: 'sensory-observed', type: 'circle', source: 'sensory', paint: {
-        'circle-radius': 7, 'circle-opacity': .65, 'circle-stroke-width': 2, 'circle-stroke-color': '#ffffff',
+        'circle-radius': 4.5, 'circle-opacity': .65, 'circle-stroke-width': 1.5, 'circle-stroke-color': '#ffffff',
         'circle-color': ['interpolate', ['linear'], ['get', 'intensity'], 0, '#70b393', .5, '#d8c47e', 1, '#cf887b'],
       } })
-      ready.value = true; applyStimulus(); sync()
+      ready.value = true; applyStimulus(); applyVisibility(); sync()
     })
     map.on('error', () => { if (!ready.value) error.value = '底圖資源暫時無法取得，仍可使用下方場所清單。' })
     observer = new ResizeObserver(() => map?.resize()); observer.observe(container.value)
@@ -81,6 +90,7 @@ async function initialize() {
 }
 watch(() => [props.places, props.cells, props.layer, props.deviceLocated], sync, { deep: true })
 watch(() => props.lowStimulus, applyStimulus)
+watch(() => props.layerVisible, applyVisibility)
 watch(() => props.center, center => {
   if (map && isCoordinate(center)) map.flyTo({ center: [center.lng, center.lat], duration: reduced() ? 0 : 700 })
   sync()
@@ -92,7 +102,7 @@ onUnmounted(() => { disposed = true; generation++; clearTimeout(timer); observer
   <div class="sensory-map-wrap">
     <div ref="container" class="sensory-map" role="region" aria-label="城市感官互動地圖，可拖曳縮放"></div>
     <div v-if="!ready || error" class="q-map-state" role="status"><AppIcon :name="error ? 'map' : 'layers'" :size="28"/><strong>{{ error || '正在展開城市地圖…' }}</strong><button v-if="error" class="q-secondary" @click="initialize">重新載入地圖</button></div>
-    <div v-if="ready && !error" class="map-legend"><strong>{{ layerLabels[layer] }}刺激示意</strong><div></div><span>較低 <span>較高</span></span><small>圓點代表有觀測的格網<br>回報加權熱區，非實測等值線</small></div>
+    <div v-if="ready && !error && layerVisible" class="map-legend"><strong>{{ layerLabels[layer] }}刺激示意</strong><div></div><span>較低 <span>較高</span></span><small>圓點代表有觀測的格網<br>回報加權熱區，非實測等值線</small></div>
     <div class="map-tools"><button class="q-icon-button" aria-label="使用目前位置並移至地圖中心" @click="$emit('locate')"><AppIcon name="locate" :size="21"/></button><button class="q-icon-button" aria-label="放大地圖" @click="map?.zoomIn({ duration: reduced() ? 0 : 200 })"><AppIcon name="plus" :size="21"/></button><button class="q-icon-button" aria-label="縮小地圖" @click="map?.zoomOut({ duration: reduced() ? 0 : 200 })"><span class="minus-icon">−</span></button></div>
   </div>
 </template>
