@@ -434,28 +434,50 @@ body { background: #edf3f7; }
 .q-range { display: block; width: 100%; min-height: 44px; margin: 0; accent-color: var(--q-brand); cursor: pointer; }
 
 /* 低刺激模式：QuietApp 在 body 加上 class，Teleport 到 body 的 sheet 也一併套用。
-   只移除裝飾與動態效果；錯誤、模擬資料標示與資料不足等必要狀態仍以文字保留。 */
-.q-low-stimulus :is(.quiet-app, .quiet-overlay) { --q-brand: #3d7f8b; --q-deep: #336d77; --q-ink: #2c363d; --q-line: #e6eaec; --q-mint: #f3f6f7; }
+   米白暖灰底、無陰影與漸層、單色圖示、停止動畫並隱藏裝飾；錯誤、模擬資料標示、資料不足與級距文字等必要狀態仍以文字保留。 */
+.q-low-stimulus :is(.quiet-app, .quiet-overlay) {
+  --q-brand: #3d7f8b; --q-deep: #336d77; --q-ink: #2e3438; --q-muted: #5c6569; --q-line: #e2ded7; --q-mint: #eceeeb;
+  --q-canvas: #f4f2ee; --q-surface: #faf9f7; --q-icon: #5b6b72;
+}
+body.q-low-stimulus, html:has(body.q-low-stimulus) { background: #ebe8e3; }
+.q-low-stimulus .app-shell { background: #f4f2ee; box-shadow: none; }
 .q-low-stimulus :is(.quiet-app, .quiet-overlay),
 .q-low-stimulus :is(.quiet-app, .quiet-overlay) *,
 .q-low-stimulus :is(.quiet-app, .quiet-overlay) *::before,
-.q-low-stimulus :is(.quiet-app, .quiet-overlay) *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
-.q-low-stimulus .quiet-overlay { background: #1d2b3352; backdrop-filter: none; }
-.q-low-stimulus .quiet-sheet { box-shadow: none; }
+.q-low-stimulus :is(.quiet-app, .quiet-overlay) *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; box-shadow: none !important; }
+/* 頁面底色：所有分頁改用米白暖灰，避免大面積純白造成眩光。 */
+.q-low-stimulus .quiet-app,
+.q-low-stimulus .quiet-app :is(.quiet-view, .quiet-home, .explore-view, .profile-quiet-view, .place-detail-view, .recommendation-panel) { background: var(--q-canvas); }
+/* 卡片與面板：單一淺色底加細框線，不用漸層。 */
+.q-low-stimulus :is(.quiet-app, .quiet-overlay) :is(.sensory-weather, .quick-report-section, .q-settings-card, .q-place-card, .info-card, .bottom-sheet, .quiet-sheet, .quiet-bottom-nav, .map-legend, .layer-switch, .test-data-toggle, .test-data-panel, .noise-history li, .info-intro, .sensory-summary) {
+  background: var(--q-surface); border-color: var(--q-line);
+}
+.q-low-stimulus .quiet-app .quiet-home :is(.sense-tile, .report-grid button) { background: var(--q-canvas); border-color: var(--q-line); }
+.q-low-stimulus .quiet-app .map-tools .q-icon-button { background: var(--q-surface); border-color: var(--q-line); color: var(--q-icon); }
+.q-low-stimulus .quiet-app :is(.area-source, .count-badge, .count-badge.green, .place-search, .sort-switch, .info-icon) { background: var(--q-mint); border-color: var(--q-line); }
+.q-low-stimulus .quiet-overlay { background: #2a2f3352; backdrop-filter: none; }
+/* 圖示一律單色：感官四格與快速回報不再用橘、綠、紅區分，狀態改由文字表達。 */
+.q-low-stimulus .quiet-app .sense-grid .sense-tile,
+.q-low-stimulus .quiet-app .quick-report-section .report-grid button,
+.q-low-stimulus .quiet-app :is(.setting-icon, .info-icon) { color: var(--q-icon); }
+.q-low-stimulus .quiet-app :is(.q-tag, .score-chip, .detail-tags) { filter: saturate(.55); }
+.q-low-stimulus .quiet-app .q-user-dot { background: #3f6f82; }
 .q-low-stimulus .quiet-app :is(.city-illustration, .weather-symbol, .weather-waves, .quiet-footer, .place-thumbnail, .detail-art) { display: none; }
 .q-low-stimulus .quiet-app .home-heading { min-height: 0; padding-right: 4px; }
-.q-low-stimulus .quiet-app .sensory-weather,
-.q-low-stimulus .quiet-app .report-grid button { background: #f7f9fa; }
-.q-low-stimulus .quiet-app :is(.sense-tile, .report-grid button, .q-tag, .score-chip, .detail-tags) { filter: saturate(.55); }
+.q-low-stimulus .quiet-app .home-heading-copy { flex: 1; min-width: 0; }
+.q-low-stimulus .quiet-app .low-stimulus-toggle { margin-left: auto; }
 .q-low-stimulus :is(.quiet-app, .quiet-overlay) :is(.q-primary, .q-secondary, .q-text-button, .report-grid button, .filter-select select, .explore-tabs button, .detail-tabs button) { min-height: 52px; }
 .q-low-stimulus :is(.quiet-app, .quiet-overlay) .q-icon-button { min-width: 52px; min-height: 52px; }
+/* 行距加大、次要說明收起，降低畫面密度。 */
+.q-low-stimulus .quiet-app :is(.weather-main p, .q-helper, .microcopy) { line-height: 1.75; }
+.q-low-stimulus .quiet-app .quick-report-section .section-heading > span { display: none; }
 
 /* AppSheet dialog：置中的小視窗（例如首頁感官卡片的資料說明）。 */
 .quiet-overlay.dialog { align-items: center; padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom)); }
 .quiet-sheet.dialog { width: min(100%, 360px); max-height: min(80dvh, 560px); padding: 6px 18px 18px; border-radius: 16px; box-shadow: 0 12px 40px #14344d33; }
 
-/* 低刺激模式的首頁快速回報：圖示縮小、間距加大，降低畫面密度。 */
-.q-low-stimulus .quiet-app .report-grid { gap: 10px; }
+/* 低刺激模式的首頁快速回報：預設收起，展開後圖示縮小、間距加大。 */
+.q-low-stimulus .quiet-app .report-grid { gap: 10px; margin-top: 10px; }
 .q-low-stimulus .quiet-app .report-grid button svg { width: 22px; height: 22px; }
 /* 裝置要求高對比時，低刺激的柔和配色改用較深的文字色，避免可讀性不足。 */
 @media (prefers-contrast: more) {

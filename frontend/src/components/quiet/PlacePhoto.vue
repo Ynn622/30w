@@ -53,5 +53,6 @@ const shown = computed(() => failed.value ? null : image.value)
 .place-photo-credit a { color: var(--q-deep, #007a90); }
 @media (max-width: 359px) { .place-photo.large .place-photo-frame { height: 132px; } }
 /* 低刺激模式與原本的詳情插畫一樣隱藏（卡片縮圖由全域 .place-thumbnail 規則隱藏）。 */
-:global(.q-low-stimulus) .quiet-app .place-photo.large { display: none; }
+/* scoped 樣式裡 :global() 之後的選擇器會被丟掉（只剩 .q-low-stimulus，導致整個 body 被隱藏），整段放進 :global()。 */
+:global(.q-low-stimulus .quiet-app .place-photo.large) { display: none; }
 </style>

@@ -2,13 +2,15 @@
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import AppIcon from '../AppIcon.vue'
 import { isCoordinate } from '../../lib/sensoryDomain.js'
+import { isNoisySymbolLayer, mapStyleUrl } from '../../lib/mapStyle.js'
 
 // 回報用的小地圖：顯示目前位置，可用 +／− 按鈕、兩指或 Ctrl＋滾輪縮放（單指仍可捲動視窗）。
-// 沿用 MapLibre + OpenFreeMap Liberty，保留授權標示。
+// 沿用 MapLibre + OpenFreeMap（低刺激模式改用灰階 Positron 並隱藏 POI），保留授權標示。
 const props = defineProps({ location: { type: Object, default: null }, label: { type: String, default: '目前位置' } })
 const container = ref(null), ready = ref(false), failed = ref(false)
 let map, marker, disposed = false
-const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || document.body.classList.contains('q-low-stimulus')
+const lowStimulus = () => document.body.classList.contains('q-low-stimulus')
+const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || lowStimulus()
 const zoom = direction => map?.[direction > 0 ? 'zoomIn' : 'zoomOut']({ duration: reduced() ? 0 : 200 })
 
 async function initialize() {
@@ -23,7 +25,7 @@ async function initialize() {
     maplibre.setWorkerUrl(worker.default)
     maplibre.setWorkerCount(1)
     map = new maplibre.Map({
-      container: container.value, style: 'https://tiles.openfreemap.org/styles/liberty',
+      container: container.value, style: mapStyleUrl(lowStimulus()),
       center: [props.location.lng, props.location.lat], zoom: 16, minZoom: 12, maxZoom: 19, attributionControl: false,
       // 單指拖曳交給視窗捲動；兩指或 Ctrl／⌘＋滾輪才操作地圖，避免卡住回報視窗。
       cooperativeGestures: true, dragRotate: false, pitchWithRotate: false,
@@ -43,6 +45,7 @@ async function initialize() {
       if (disposed) return
       // 與探索頁地圖相同，標籤優先使用繁體中文名稱。
       for (const layer of map.getStyle().layers || []) {
+        if (lowStimulus() && isNoisySymbolLayer(layer)) { map.setLayoutProperty(layer.id, 'visibility', 'none'); continue }
         if (layer.type === 'symbol' && layer.layout?.['text-field']) {
           map.setLayoutProperty(layer.id, 'text-field', ['coalesce', ['get', 'name:zh-Hant'], ['get', 'name:zh'], ['get', 'name']])
         }

@@ -235,3 +235,23 @@ describe('home overview from the 150 m average (test/mock/overview)', () => {
     expect(overview).not.toContain('目前為模擬資料')
   })
 })
+describe('low-stimulus home', () => {
+  const withLowStimulus = on => { const city = cityFor(sampleOverview()); city.preferences.value = { ...city.preferences.value, lowStimulus: on }; return city }
+  it('offers a quick low-stimulus toggle beside the title that reflects the current state', async () => {
+    const off = await renderToString(createSSRApp(QuietHome, { city: withLowStimulus(false) }))
+    expect(off).toMatch(/class="home-title"[\s\S]*<button[^>]*class="low-stimulus-toggle"[^>]*aria-pressed="false"[^>]*aria-label="低刺激模式，目前已關閉"/)
+    const on = await renderToString(createSSRApp(QuietHome, { city: withLowStimulus(true) }))
+    expect(on).toMatch(/class="(?:on low-stimulus-toggle|low-stimulus-toggle on)"[^>]*aria-pressed="true"[^>]*aria-label="低刺激模式，目前已開啟"/)
+  })
+  it('collapses the eight quick-report kinds behind one disclosure button only in low-stimulus mode', async () => {
+    const off = await renderToString(createSSRApp(QuietHome, { city: withLowStimulus(false) }))
+    expect(off).toContain('class="report-grid"')
+    expect(off).not.toContain('report-disclosure')
+    const on = await renderToString(createSSRApp(QuietHome, { city: withLowStimulus(true) }))
+    expect(on).toMatch(/class="report-disclosure"[^>]*aria-expanded="false"[^>]*aria-controls="report-grid"/)
+    expect(on).toContain('選擇要回報的感受')
+    expect(on).not.toContain('class="report-grid"')
+    // 量測入口與隱私說明仍保留。
+    expect(on).toContain('啟用環境量測（聲音）')
+  })
+})

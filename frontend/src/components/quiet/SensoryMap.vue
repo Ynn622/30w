@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, ref, watch } from 'vue'
 import AppIcon from '../AppIcon.vue'
 import { TAIPEI_MAX_BOUNDS, isCoordinate, longSideRadius } from '../../lib/sensoryDomain.js'
 import { CONTOUR_LEVELS, FIELD_GRADIENT_CSS, contourSegments, fieldColor } from '../../lib/sensoryField.js'
+import { LOW_STIMULUS_PIN_COLOR, boundaryColor, isNoisySymbolLayer, mapStyleUrl } from '../../lib/mapStyle.js'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 // field 由探索頁以 buildSensoryField 建立（地圖與清單共用），這裡只負責畫。
@@ -16,7 +17,7 @@ const FIELD_LAYERS = ['sensory-field', 'sensory-contours']
 const FIELD_MAX_OPACITY = 0.6
 let map, maplibre, markers = [], centerMarker, observer, timer, moveTimer, disposed = false, generation = 0
 const reduced = () => props.lowStimulus || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-// 低刺激模式只影響介面，不改變地圖內容；lowStimulus 僅用來取消地圖移動動畫（同系統減少動態）。
+// 低刺激模式不改變敏感圖層資料與場所：只換成灰階底圖、隱藏 POI 與道路盾牌、圖釘改單色，並取消地圖移動動畫（同系統減少動態）。
 function applyVisibility() {
   if (!ready.value || !map) return
   const visibility = props.layerVisible ? 'visible' : 'none'
@@ -70,7 +71,8 @@ const PIN_KINDS = {
 }
 const PIN_HEIGHT = 36
 function pinElement(place) {
-  const kind = PIN_KINDS[place.artwork] || PIN_KINDS.hall
+  const { color: kindColor, icon: kindIcon } = PIN_KINDS[place.artwork] || PIN_KINDS.hall
+  const kind = { icon: kindIcon, color: props.lowStimulus ? LOW_STIMULUS_PIN_COLOR : kindColor }
   const button = document.createElement('button')
   button.type = 'button'
   button.className = 'q-map-pin'
@@ -112,7 +114,7 @@ async function initialize() {
     maplibre = module.default || module
     maplibre.setWorkerUrl(workerUrl)
     maplibre.setWorkerCount(1)
-    map = new maplibre.Map({ container: container.value, style: 'https://tiles.openfreemap.org/styles/liberty', center: [props.center.lng, props.center.lat], zoom: 15, attributionControl: false, pitchWithRotate: false, dragRotate: false, maxBounds: TAIPEI_MAX_BOUNDS })
+    map = new maplibre.Map({ container: container.value, style: mapStyleUrl(props.lowStimulus), center: [props.center.lng, props.center.lat], zoom: 15, attributionControl: false, pitchWithRotate: false, dragRotate: false, maxBounds: TAIPEI_MAX_BOUNDS })
     map.addControl(new maplibre.AttributionControl({ compact: false }), 'bottom-left')
     // 公制比例尺，讓使用者判斷直線距離。
     map.addControl(new maplibre.ScaleControl({ maxWidth: 96, unit: 'metric' }), 'bottom-right')
@@ -121,6 +123,7 @@ async function initialize() {
       if (disposed || current !== generation) return
       clearTimeout(timer); error.value = ''
       for (const layer of map.getStyle().layers || []) {
+        if (props.lowStimulus && isNoisySymbolLayer(layer)) { map.setLayoutProperty(layer.id, 'visibility', 'none'); continue }
         if (layer.type === 'symbol' && layer.layout?.['text-field']) {
           map.setLayoutProperty(layer.id, 'text-field', ['coalesce', ['get', 'name:zh-Hant'], ['get', 'name:zh'], ['get', 'name']])
         }
@@ -129,7 +132,7 @@ async function initialize() {
       map.addLayer({ id: 'taipei-boundary', type: 'line', source: 'openmaptiles', 'source-layer': 'boundary',
         filter: ['all', ['==', ['get', 'admin_level'], 4], ['!=', ['get', 'maritime'], 1]],
         layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#0391A7', 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2, 16, 4], 'line-opacity': .8 } }, beforeLabels())
+        paint: { 'line-color': boundaryColor(props.lowStimulus), 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2, 16, 4], 'line-opacity': .8 } }, beforeLabels())
       // 色帶與等值線畫在底圖文字之下，街名與地標仍清楚可讀；遠離資料處透明，不代表安靜。
       map.addSource('sensory-contours', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({ id: 'sensory-contours', type: 'line', source: 'sensory-contours', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: {
@@ -157,6 +160,8 @@ watch(() => [props.places, props.deviceLocated], sync, { deep: true })
 // 平面含大型陣列，只比對參考（探索頁每次重算都產生新物件），不做深度比對。
 watch(() => props.field, syncField)
 watch(() => props.layerVisible, applyVisibility)
+// 切換低刺激模式時重建地圖，換用對應底圖與圖釘配色。
+watch(() => props.lowStimulus, initialize)
 watch(() => props.center, center => {
   if (map && isCoordinate(center)) map.flyTo({ center: [center.lng, center.lat], duration: reduced() ? 0 : 700 })
   sync()

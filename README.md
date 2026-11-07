@@ -40,7 +40,7 @@ SSI（環境感官刺激指數）與 SFS（個人適配分數）在前端以 `fr
 
 ## 地圖與噪音量測
 
-地圖採 **MapLibre GL JS + OpenFreeMap Liberty** 開源底圖，支援繁中標籤、拖曳縮放、聲音／光線／人潮圖層及場所選取。來源與 attribution 保留於地圖角落；不使用商用地圖 SDK。場所圖片是原創插畫，距離為直線估算，沒有假裝提供步行分鐘數。
+地圖採 **MapLibre GL JS + OpenFreeMap Liberty** 開源底圖（低刺激模式改用同服務的 Positron 灰階底圖），支援繁中標籤、拖曳縮放、聲音／光線／人潮圖層及場所選取。來源與 attribution 保留於地圖角落；不使用商用地圖 SDK。場所圖片是原創插畫，距離為直線估算，沒有假裝提供步行分鐘數。
 
 環境音量面板由網頁以 `getUserMedia` + Web Audio 在裝置上計算，不需自訂 bridge handler；城市通 App 內需由 App 團隊加入麥克風權限宣告與 WebView 權限處理（見 [docs/flutter-noise-interface.md](docs/flutter-noise-interface.md)），**尚待實機驗證**。不支援或未授權時顯示說明，不模擬音量。未校準量測為 **dBFS，不能當 dBA**，使用者須主動開始並另行同意分享摘要，不會上傳錄音。
 

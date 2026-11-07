@@ -57,6 +57,10 @@ const recentNoise = computed(() => {
 const infoKey = ref(null), overviewOpen = ref(false)
 // 最近的量測紀錄預設收起，點標題才展開。
 const historyOpen = ref(false)
+// 低刺激模式：標題旁的切換鈕可直接開關（不必到「我的」），快速回報的 8 個類型預設收起以降低畫面密度。
+const lowStimulus = computed(() => Boolean(props.city.preferences.value.lowStimulus))
+const reportOpen = ref(false)
+function toggleLowStimulus() { props.city.preferences.value.lowStimulus = !lowStimulus.value }
 // 首頁概況或清單還在載入，就視為重新整理中（敏感圖層的模擬網格只在換時段時重抓，不計入）。
 const refreshing = computed(() => [props.city.overview, props.city.places].some(remote => remote?.state?.value === 'loading'))
 const updatedClock = computed(() => {
@@ -73,7 +77,12 @@ defineEmits(['report', 'measure', 'explore', 'select'])
   <section class="quiet-view quiet-home">
     <header class="home-heading">
       <div class="home-heading-copy">
-        <div class="home-title"><QuietLogo :size="40" /><h1>聆靜</h1></div>
+        <div class="home-title">
+          <QuietLogo :size="40" /><h1>聆靜</h1>
+          <button type="button" class="low-stimulus-toggle" :class="{ on: lowStimulus }" :aria-pressed="lowStimulus" :aria-label="`低刺激模式，目前${lowStimulus ? '已開啟' : '已關閉'}`" @click="toggleLowStimulus">
+            <span><AppIcon v-if="lowStimulus" name="check" :size="14" :stroke-width="2.4" />低刺激</span>
+          </button>
+        </div>
         <p>在台北，找到屬於你的安靜角落。</p>
       </div>
       <CityIllustration />
@@ -125,7 +134,10 @@ defineEmits(['report', 'measure', 'explore', 'select'])
 
     <section class="quick-report-section q-reveal">
       <div class="section-heading"><h2>快速回報</h2><span>讓城市知道這裡的感受</span></div>
-      <div class="report-grid">
+      <button v-if="lowStimulus" type="button" class="report-disclosure" :aria-expanded="reportOpen" aria-controls="report-grid" @click="reportOpen = !reportOpen">
+        <span>選擇要回報的感受</span><AppIcon class="report-disclosure-chevron" :class="{ open: reportOpen }" name="chevron" :size="18" />
+      </button>
+      <div v-if="!lowStimulus || reportOpen" id="report-grid" class="report-grid">
         <button v-for="kind in REPORT_KINDS" :key="kind.id" :class="kind.color" :aria-label="`${kind.label}：${kind.hint}`" :title="kind.hint" @click="$emit('report', kind)">
           <AppIcon :name="kind.icon" :size="26" />
           <span>{{ kind.label }}</span>
@@ -168,6 +180,13 @@ defineEmits(['report', 'measure', 'explore', 'select'])
 .home-heading { position: relative; display: flex; align-items: flex-start; min-height: 98px; padding: 0 96px 8px 4px; }
 .home-heading-copy { position: relative; z-index: 1; }
 .home-title { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; }
+/* 低刺激切換鈕：外框 44px 觸控區，內部為 30px 高的膠囊；開啟時顯示勾選並換底色。 */
+.low-stimulus-toggle { display: inline-flex; align-items: center; min-height: 44px; margin-left: 2px; padding: 0; border: 0; background: transparent; font: inherit; cursor: pointer; }
+.low-stimulus-toggle > span { display: inline-flex; align-items: center; gap: 3px; height: 30px; padding: 0 11px; border: 1px solid #cfdfe5; border-radius: 15px; background: #fff; color: #4d6a75; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.low-stimulus-toggle.on > span { border-color: var(--q-line); background: var(--q-mint); color: var(--q-deep); }
+.report-disclosure { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 52px; padding: 0 14px; border: 1px solid var(--q-line); border-radius: 12px; background: var(--q-canvas, #f7f9fa); color: var(--q-ink); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; }
+.report-disclosure-chevron { color: var(--q-muted); transform: rotate(90deg); }
+.report-disclosure-chevron.open { transform: rotate(-90deg); }
 .home-heading h1 { margin: 0; color: var(--q-ink, #222c33); font-size: 28px; line-height: 1.3; letter-spacing: -.035em; font-weight: 750; }
 .home-heading p { max-width: 280px; margin: 0; color: #4c5961; font-size: 14px; line-height: 1.65; }
 .city-illustration { position: absolute; top: -4px; right: -8px; bottom: auto; width: 124px; height: 106px; opacity: 1; }
