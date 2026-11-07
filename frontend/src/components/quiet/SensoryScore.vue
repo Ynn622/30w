@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { SENSES, levelText } from '../../lib/sensoryDomain.js'
-import { SENSORY_KEYS, SSI_WEIGHTS } from '../../lib/sensoryIndex.js'
+import { SENSORY_KEYS } from '../../lib/sensoryIndex.js'
 
 const props = defineProps({ assessment: { type: Object, default: null }, mock: Boolean, compact: Boolean })
 const labels = Object.fromEntries(SENSES.map(sense => [sense.key, sense.label]))
@@ -42,12 +42,6 @@ const unavailable = computed(() => props.assessment?.availableCount > 0 && !prop
       </template>
       <template v-else>沒有足夠的有效觀測可計算指數；未知或過期資料不代表環境安靜。</template>
     </p>
-    <details class="score-method">
-      <summary>計算方式與版本</summary>
-      <p>SSI 只採用 30 分鐘內、信心足夠的聲音、光線、人潮、氣味四維，以預設權重{{ SENSORY_KEYS.map(key => ` ${labels[key]} ${percent(SSI_WEIGHTS[key])}`).join('、') }}，並依可用維度重新正規化。空氣品質 AQI 另列，不納入 SSI。</p>
-      <p>SFS 依你在「我的」設定的 1–5 敏感度，在此裝置上計算與排序，偏好不會上傳。</p>
-      <p>版本：{{ assessment?.scoreVersion || '未提供（不計算指數）' }}{{ mock ? '・模擬資料計算結果' : '' }}。兩者為產品推薦指標，未經臨床驗證，不作醫療或安全保證。</p>
-    </details>
   </section>
 </template>
 
@@ -69,6 +63,4 @@ const unavailable = computed(() => props.assessment?.availableCount > 0 && !prop
 .score-stat small { color: #5d6c75; font-size: 12px; line-height: 1.5; }
 .score-coverage { margin: 10px 0 4px; color: #4f5f69; font-size: 13px; line-height: 1.65; }
 .score-coverage.warn { padding: 7px 9px; border-radius: 7px; color: #7a4a1f; background: #fff4e8; }
-.score-method summary { display: flex; align-items: center; min-height: 44px; color: var(--q-deep, #007a90); font-size: 13px; cursor: pointer; }
-.score-method p { margin: 0 0 8px; color: #5b6a74; font-size: 12px; line-height: 1.7; }
 </style>

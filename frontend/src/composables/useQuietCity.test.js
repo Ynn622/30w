@@ -185,10 +185,10 @@ describe('sensory queries', () => {
     const { scope, city } = located()
     await nextTick(); await Promise.resolve()
     const overviewCalls = sensoryApi.getOverview.mock.calls.length
-    city.setMapCenter({ lat: ZHONGZHENG.lat + 0.0003, lng: ZHONGZHENG.lng }) // 約 33 公尺：不重新查詢
+    city.setMapView({ lat: ZHONGZHENG.lat + 0.0003, lng: ZHONGZHENG.lng }) // 約 33 公尺：不重新查詢
     await nextTick()
     expect(city.mapCenter.value).toBeNull()
-    city.setMapCenter({ lat: 25.0270, lng: 121.5355 }) // 移到大安區
+    city.setMapView({ lat: 25.0270, lng: 121.5355 }) // 移到大安區
     await nextTick(); await Promise.resolve()
     expect(sensoryApi.getPlaces).toHaveBeenLastCalledWith(expect.objectContaining({ areaId: 'daan', lat: 25.0270, lng: 121.5355 }), expect.anything())
     expect(sensoryApi.getMap).toHaveBeenLastCalledWith(expect.objectContaining({ areaId: 'daan' }), expect.anything())
@@ -197,7 +197,7 @@ describe('sensory queries', () => {
     // 清單距離仍從目前位置（中正區）計算。
     await Promise.resolve()
     expect(city.recommendations.value[0].distanceM).toBeGreaterThan(1500)
-    city.setMapCenter({ lat: 25.0136, lng: 121.4628 }) // 新北市板橋
+    city.setMapView({ lat: 25.0136, lng: 121.4628 }) // 新北市板橋
     await nextTick()
     expect(city.searchAvailable.value).toBe(false)
     expect(city.places.state.value).toBe('idle')
@@ -208,7 +208,7 @@ describe('sensory queries', () => {
     vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: success => success({ coords: { latitude: AREAS[0].lat, longitude: AREAS[0].lng } }) } })
     for (const fn of [sensoryApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
     const { scope, city } = located()
-    city.setMapCenter({ lat: 25.0270, lng: 121.5355 })
+    city.setMapView({ lat: 25.0270, lng: 121.5355 })
     expect(city.mapCenter.value).not.toBeNull()
     await city.locate()
     expect(city.mapCenter.value).toBeNull()
@@ -223,6 +223,31 @@ describe('sensory queries', () => {
     expect(removeItem).toHaveBeenCalledWith('quiet-city-favorites')
     expect(city).not.toHaveProperty('favorites')
     expect(city).not.toHaveProperty('toggleFavorite')
+    scope.stop()
+  })
+  it('sizes the places query to the visible map using the backend radius steps', async () => {
+    vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
+    for (const fn of [sensoryApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
+    const { scope, city } = located()
+    await nextTick()
+    expect(sensoryApi.getPlaces).toHaveBeenLastCalledWith(expect.objectContaining({ radius: 500 }), expect.anything())
+    city.setMapView({ lat: ZHONGZHENG.lat, lng: ZHONGZHENG.lng, radius: 240 }) // 放大：只需 300 公尺
+    await nextTick()
+    expect(sensoryApi.getPlaces).toHaveBeenLastCalledWith(expect.objectContaining({ radius: 300 }), expect.anything())
+    city.setMapView({ lat: ZHONGZHENG.lat, lng: ZHONGZHENG.lng, radius: 780 })
+    await nextTick()
+    expect(sensoryApi.getPlaces).toHaveBeenLastCalledWith(expect.objectContaining({ radius: 1000 }), expect.anything())
+    expect(city.viewTruncated.value).toBe(false)
+    city.setMapView({ lat: ZHONGZHENG.lat, lng: ZHONGZHENG.lng, radius: 2600 }) // 縮小超過後端上限
+    await nextTick()
+    expect(sensoryApi.getPlaces.mock.calls.at(-1)[0].radius).toBe(1000)
+    expect(city.viewTruncated.value).toBe(true)
+    const calls = sensoryApi.getPlaces.mock.calls.length
+    city.setMapView({ lat: ZHONGZHENG.lat, lng: ZHONGZHENG.lng, radius: 2700 }) // 同級距、沒移動：不重查
+    await nextTick()
+    expect(sensoryApi.getPlaces.mock.calls.length).toBe(calls)
+    // 首頁概況仍用目前位置與固定 500 公尺。
+    expect(sensoryApi.getOverview.mock.calls.at(-1)[0].radius).toBe(500)
     scope.stop()
   })
 })

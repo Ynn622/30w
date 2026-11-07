@@ -5,13 +5,13 @@ import AsyncState from '../AsyncState.vue'
 import PlaceCard from './PlaceCard.vue'
 import BottomSheet from './BottomSheet.vue'
 import LocationGate from './LocationGate.vue'
-import { MOCK_LABEL, SEARCH_RADIUS, formatTime } from '../../lib/sensoryDomain.js'
+import { MOCK_LABEL } from '../../lib/sensoryDomain.js'
 
 const SensoryMap = defineAsyncComponent(() => import('./SensoryMap.vue'))
 defineProps({ city: { type: Object, required: true } })
 defineEmits(['select', 'sources'])
 const layer = ref('noise'), sheet = ref('peek')
-const SHEET_PEEK = 116 // 最小收合高度，實際依標題列高度自動調整
+const SHEET_PEEK = 72 // 最小收合高度，實際依標題列高度自動調整
 // 「感官地圖／靜音推薦」對應底部抽屜收合／展開，兩者是同一份推薦清單。
 const mode = computed(() => sheet.value === 'peek' ? 'map' : 'quiet')
 function setMode(value) { sheet.value = value === 'map' ? 'peek' : sheet.value === 'peek' ? 'half' : sheet.value }
@@ -35,15 +35,14 @@ const showLayer = ref(true)
     </div>
 
     <div class="explore-stage">
-      <SensoryMap :places="city.recommendations.value" :low-stimulus="city.preferences.value.lowStimulus" :cells="city.map.data.value?.cells || []" :center="city.center.value" :layer="layer" :layer-visible="showLayer" :device-located="Boolean(city.deviceLocation.value)" @select="$emit('select', $event)" @locate="city.locate" @viewchange="city.setMapCenter" />
+      <SensoryMap :places="city.recommendations.value" :low-stimulus="city.preferences.value.lowStimulus" :cells="city.map.data.value?.cells || []" :center="city.center.value" :layer="layer" :layer-visible="showLayer" :mock="Boolean(city.map.meta.value?.mock)" :device-located="Boolean(city.deviceLocation.value)" @select="$emit('select', $event)" @locate="city.locate" @viewchange="city.setMapView" />
       <BottomSheet v-model:snap="sheet" :peek="SHEET_PEEK" label="附近靜音推薦">
         <template #header>
-          <div class="section-heading"><h2>{{ mode === 'quiet' ? '符合你的靜音推薦' : '附近靜音推薦' }}<small>（{{ city.searchingElsewhere.value ? '地圖中心 ' : '' }}{{ SEARCH_RADIUS }} 公尺內）</small></h2><span class="count-badge">{{ city.searchAvailable.value ? city.recommendations.value.length : 0 }} 處</span></div>
-          <div class="map-data-note"><span>{{ city.searchingElsewhere.value ? `地圖中心・${city.searchArea.value?.name || '臺北市外'}` : '目前位置' }} · {{ city.map.meta.value?.mock ? '模擬圖層' : '近期回報' }}</span><button type="button" class="q-text-button" @click="$emit('sources')"><AppIcon name="shield" :size="14"/>{{ formatTime(city.map.meta.value?.updatedAt) }}</button></div>
+          <div class="section-heading"><h2>{{ mode === 'quiet' ? '符合你的靜音推薦' : '附近靜音推薦' }}<small>（{{ city.viewTruncated.value ? '地圖中心 1 公里內' : '地圖範圍內' }}）</small></h2><span class="count-badge">{{ city.searchAvailable.value ? city.recommendations.value.length : 0 }} 處</span></div>
         </template>
         <AsyncState v-if="city.map.state.value === 'error'" state="error" :message="city.map.error.value" retry @retry="city.map.reload" />
-        <p class="q-helper preference-help">{{ SEARCH_RADIUS }} 公尺內的地點，{{ city.preferences.value.sort === 'fit' ? '依你在「我的」設定的敏感度排序，完整資料優先。' : '依直線距離排序。' }}未知或過期資料不會被當成低刺激。</p>
         <p v-if="city.places.meta.value?.mock" class="mock-inline">{{ MOCK_LABEL }}</p>
+        <p v-if="city.searchAvailable.value && city.viewTruncated.value" class="truncated-search" role="status">地圖範圍較大，只列出地圖中心 1 公里內的地點；放大地圖可查看完整範圍。</p>
         <p v-if="!city.searchAvailable.value" class="outside-search" role="status">地圖中心不在臺北市內，無法提供此區域的地點；請把地圖移回臺北市。</p>
         <AsyncState v-else-if="city.places.state.value !== 'ready'" :state="city.places.state.value" :message="city.places.error.value" retry @retry="city.places.reload" />
         <AsyncState v-else-if="!city.recommendations.value.length" title="還沒有符合條件的場所" message="試著放寬感官條件或增加距離；資料不足不代表環境安靜。" />
@@ -71,19 +70,17 @@ const showLayer = ref(true)
 .q-area-select { color: var(--q-ink, #27323a); font-weight: 600; }
 .q-area-select svg { color: var(--q-brand, #0391a7); }
 .relocate { width: 44px; min-height: 44px; padding: 0; color: var(--q-brand, #0391a7); }
+.truncated-search { margin: 4px 0 10px; padding: 8px 11px; border-radius: 8px; background: #eef6f9; color: #3f5d6b; font-size: 13px; line-height: 1.6; }
 .outside-search { margin: 4px 0 10px; padding: 9px 11px; border-radius: 8px; background: #fff4e8; color: #7a4a1f; font-size: 13px; line-height: 1.6; }
 .layer-switch { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; color: #4f5f69; font-size: 13px; white-space: nowrap; cursor: pointer; }
 .layer-switch .q-switch { margin: 0; }
 .explore-context { margin-bottom: 6px; gap: 4px; }
 .explore-context > * { white-space: nowrap; }
 .q-area-select { flex-shrink: 0; }
-.map-data-note { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 32px; font-size: 12px; color: #6f7c86; }
-.map-data-note .q-text-button { gap: 4px; color: #63757f; font-size: 12px; }
 .section-heading { align-items: center; margin-bottom: 0; }
 .section-heading h2 { font-size: 17px; line-height: 1.5; color: #28343c; }
 .section-heading h2 small { font-size: 13px; font-weight: 400; color: #63717a; white-space: nowrap; }
 .count-badge { padding: 4px 7px; font-size: 12px; border-radius: 5px; color: #49727a; background: #edf8fb; white-space: nowrap; }
-.preference-help { margin: 0 0 10px; font-size: 14px; line-height: 1.6; color: #62737e; }
 .mock-inline { margin: 0 0 8px; padding: 6px 8px; background: #f4f7f9; color: #65747d; border-radius: 6px; font-size: 12px; line-height: 1.6; }
 .list-footnote { gap: 6px; margin: 15px 0 3px; font-size: 12px; line-height: 1.6; color: #6c7c85; }
 @media (max-width: 359px) {

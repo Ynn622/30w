@@ -1,11 +1,11 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import AppIcon from '../AppIcon.vue'
-import { isCoordinate } from '../../lib/sensoryDomain.js'
+import { distanceMeters, isCoordinate } from '../../lib/sensoryDomain.js'
 import { sensoryValues } from '../../lib/sensoryIndex.js'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
-const props = defineProps({ places: { type: Array, default: () => [] }, cells: { type: Array, default: () => [] }, center: { type: Object, required: true }, layer: { type: String, default: 'noise' }, deviceLocated: Boolean, lowStimulus: Boolean, layerVisible: { type: Boolean, default: true } })
+const props = defineProps({ places: { type: Array, default: () => [] }, cells: { type: Array, default: () => [] }, center: { type: Object, required: true }, layer: { type: String, default: 'noise' }, deviceLocated: Boolean, lowStimulus: Boolean, layerVisible: { type: Boolean, default: true }, mock: Boolean })
 const emit = defineEmits(['select', 'locate', 'viewchange'])
 const container = ref(null), ready = ref(false), error = ref('')
 let map, maplibre, markers = [], centerMarker, observer, timer, moveTimer, disposed = false, generation = 0
@@ -105,14 +105,16 @@ async function initialize() {
     })
     // 停止拖曳／縮放 0.5 秒後回報地圖中心，讓上層抓取該處附近的地點與熱區。
     map.on('zoom', updateLabelVisibility)
-    map.on('moveend', () => {
-      clearTimeout(moveTimer)
-      moveTimer = setTimeout(() => {
-        if (disposed || current !== generation || !map) return
-        const { lat, lng } = map.getCenter()
-        emit('viewchange', { lat, lng })
-      }, 500)
-    })
+    // 停止移動 0.5 秒後回報地圖中心與可視半徑（中心到上緣、右緣中點的較大距離）。
+    const emitView = () => {
+      if (disposed || current !== generation || !map) return
+      const { lat, lng } = map.getCenter()
+      const bounds = map.getBounds()
+      const radius = Math.max(distanceMeters({ lat, lng }, { lat: bounds.getNorth(), lng }), distanceMeters({ lat, lng }, { lat, lng: bounds.getEast() }))
+      emit('viewchange', { lat, lng, radius })
+    }
+    map.on('moveend', () => { clearTimeout(moveTimer); moveTimer = setTimeout(emitView, 500) })
+    map.once('idle', emitView)
     map.on('error', () => { if (!ready.value) error.value = '底圖資源暫時無法取得，仍可使用下方場所清單。' })
     observer = new ResizeObserver(() => map?.resize()); observer.observe(container.value)
   } catch { error.value = '此裝置無法啟用地圖，請使用下方場所清單。' }
@@ -131,7 +133,7 @@ onUnmounted(() => { disposed = true; generation++; clearTimeout(timer); clearTim
   <div class="sensory-map-wrap">
     <div ref="container" class="sensory-map" role="region" aria-label="城市感官互動地圖，可拖曳縮放"></div>
     <div v-if="!ready || error" class="q-map-state" role="status"><AppIcon :name="error ? 'map' : 'layers'" :size="28"/><strong>{{ error || '正在展開城市地圖…' }}</strong><button v-if="error" class="q-secondary" @click="initialize">重新載入地圖</button></div>
-    <div v-if="ready && !error && layerVisible" class="map-legend"><strong>{{ layerLabels[layer] }}刺激示意</strong><div></div><span>較低 <span>較高</span></span><small>圓點代表有觀測的格網<br>回報加權熱區，非實測等值線</small></div>
+    <div v-if="ready && !error && layerVisible" class="map-legend"><strong>{{ layerLabels[layer] }}刺激示意</strong><em v-if="mock" class="map-legend-mock">模擬資料</em><div></div><span>較低 <span>較高</span></span><small>圓點代表有觀測的格網<br>回報加權熱區，非實測等值線</small></div>
     <div class="map-tools"><button class="q-icon-button" aria-label="使用目前位置並移至地圖中心" @click="$emit('locate')"><AppIcon name="locate" :size="21"/></button><button class="q-icon-button" aria-label="放大地圖" @click="map?.zoomIn({ duration: reduced() ? 0 : 200 })"><AppIcon name="plus" :size="21"/></button><button class="q-icon-button" aria-label="縮小地圖" @click="map?.zoomOut({ duration: reduced() ? 0 : 200 })"><span class="minus-icon">−</span></button></div>
   </div>
 </template>
@@ -139,6 +141,7 @@ onUnmounted(() => { disposed = true; generation++; clearTimeout(timer); clearTim
 <style scoped>
 /* MapLibre 的 CSS 會在探索頁延遲載入；此規則不可被其 position: relative 覆蓋。
    容器本身也需有尺寸，不能只依賴外層的高度或內部絕對定位的 canvas。 */
+.map-legend-mock { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px; background: #fff1e3; color: #8a4f1d; font-size: 11px; font-style: normal; vertical-align: 1px; }
 .sensory-map {
   position: absolute;
   inset: 0;

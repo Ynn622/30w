@@ -28,8 +28,11 @@ function step(direction) {
   const index = Math.max(0, SNAPS.indexOf(props.snap))
   setSnap(SNAPS[Math.min(SNAPS.length - 1, Math.max(0, index + direction))])
 }
-function onGripClick() {
+// 點標題列任一處（含把手、Enter／空白鍵）都會切換段落，觸控區不只把手本身；標題列內的其他按鈕不受影響。
+function onHeaderClick(event) {
   if (suppressClick) { suppressClick = false; return }
+  const interactive = event.target.closest?.('button, a, input, select, textarea')
+  if (interactive && !interactive.classList.contains('bottom-sheet-grip')) return
   setSnap(props.snap === 'peek' ? 'half' : props.snap === 'half' ? 'full' : 'peek')
 }
 function onKey(event) {
@@ -88,8 +91,8 @@ onUnmounted(() => { observer?.disconnect(); stopListening() })
 
 <template>
   <section ref="root" class="bottom-sheet" :class="{ dragging: dragHeight !== null, expanded }" :style="{ height: `${height}px` }" :aria-label="label">
-    <header ref="header" class="bottom-sheet-header" @pointerdown="onPointerDown">
-      <button type="button" class="bottom-sheet-grip" :aria-expanded="expanded" :aria-label="`${label}：${expanded ? '點擊繼續展開或收合' : '點擊展開'}，可用上下方向鍵調整`" @click="onGripClick" @keydown="onKey"><span aria-hidden="true"></span></button>
+    <header ref="header" class="bottom-sheet-header" @pointerdown="onPointerDown" @click="onHeaderClick">
+      <button type="button" class="bottom-sheet-grip" :aria-expanded="expanded" :aria-label="`${label}：${expanded ? '點擊繼續展開或收合' : '點擊展開'}，可用上下方向鍵調整`" @keydown="onKey"><span aria-hidden="true"></span></button>
       <slot name="header" />
     </header>
     <div class="bottom-sheet-body" :inert="!expanded || undefined">
@@ -103,7 +106,7 @@ onUnmounted(() => { observer?.disconnect(); stopListening() })
 .bottom-sheet.dragging { transition: none; }
 .bottom-sheet-header { flex: none; padding: 0 14px 6px; touch-action: none; cursor: grab; user-select: none; }
 .bottom-sheet.dragging .bottom-sheet-header { cursor: grabbing; }
-.bottom-sheet-grip { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 44px; margin: 0; padding: 0; border: 0; background: transparent; cursor: inherit; }
+.bottom-sheet-grip { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 26px; margin: 0; padding: 0; border: 0; background: transparent; cursor: inherit; }
 .bottom-sheet-grip span { display: block; width: 40px; height: 5px; border-radius: 5px; background: #bcc7cd; }
 .bottom-sheet-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 14px 14px; }
 </style>

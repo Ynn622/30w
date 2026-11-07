@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createSensoryApi } from './sensoryApi.js'
-import { AREAS, aqiText, filterPlaces, isCoordinate, levelText, nearestArea, readPreferences } from './sensoryDomain.js'
+import { AREAS, aqiText, filterPlaces, isCoordinate, levelText, nearestArea, pickSearchRadius, readPreferences } from './sensoryDomain.js'
 import { mockCells, mockOverview, mockPlaces } from '../data/quietMock.js'
 import { assessSensory } from './sensoryIndex.js'
 afterEach(() => vi.useRealTimers())
@@ -200,5 +200,11 @@ describe('Taipei districts', () => {
     expect(nearestArea({ lat: 25.0340, lng: 121.5645 })?.id).toBe('xinyi') // 市府附近
     expect(nearestArea({ lat: 25.1365, lng: 121.5065 })?.id).toBe('beitou') // 北投站附近
     expect(nearestArea({ lat: null, lng: 121.5 })).toBeNull()
+  })
+})
+describe('search radius', () => {
+  it('picks the smallest backend radius step that covers the map view', () => {
+    expect([pickSearchRadius(120), pickSearchRadius(300), pickSearchRadius(301), pickSearchRadius(999), pickSearchRadius(4000)]).toEqual([300, 300, 500, 1000, 1000])
+    expect(pickSearchRadius(undefined)).toBe(500)
   })
 })

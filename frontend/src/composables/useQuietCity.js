@@ -1,6 +1,6 @@
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { MOCK_NOTICE, sensoryApi } from '../lib/sensoryApi.js'
-import { SEARCH_RADIUS, distanceMeters, isCoordinate, nearestArea, readPreferences } from '../lib/sensoryDomain.js'
+import { MAX_SEARCH_RADIUS, SEARCH_RADIUS, distanceMeters, isCoordinate, nearestArea, pickSearchRadius, readPreferences } from '../lib/sensoryDomain.js'
 import { getNativeChannel } from '../lib/webview.js'
 import { requestNative } from '../lib/nativeClient.js'
 import { assessSensory, rankPlaces } from '../lib/sensoryIndex.js'
@@ -27,7 +27,8 @@ function useRemote(query, fetcher) {
       error.value = reason.message; state.value = 'error'
     }
   }
-  watch(query, reload, { immediate: true })
+  // 以查詢內容比較：值沒變（例如只切換「超出範圍」提示）就不重新請求。
+  watch(() => JSON.stringify(query.value ?? null), reload, { immediate: true })
   onScopeDispose(() => { serial++; controller?.abort() })
   return { data, meta, state, error, source, reload }
 }
@@ -86,21 +87,28 @@ export function useQuietCity(notify) {
   const query = computed(() => serviceAvailable.value
     ? { areaId: areaId.value, lat: center.value.lat, lng: center.value.lng, radius: SEARCH_RADIUS } : null)
   // 探索地圖停止移動後，地點與熱區改抓地圖中心附近；首頁概況與回報位置仍用目前定位。
-  const mapCenter = ref(null)
+  // mapView：地圖停止移動後的中心與可視半徑；未操作地圖前用目前位置與預設半徑。
+  const mapView = ref(null)
+  const mapCenter = computed(() => mapView.value ? { lat: mapView.value.lat, lng: mapView.value.lng } : null)
   const searchCenter = computed(() => serviceAvailable.value ? (mapCenter.value || center.value) : null)
+  const searchRadius = computed(() => pickSearchRadius(mapView.value?.radius))
+  // 地圖範圍超過後端上限（1 公里）時只查中心範圍，畫面需提示放大地圖。
+  const viewTruncated = computed(() => (mapView.value?.radius ?? 0) > MAX_SEARCH_RADIUS)
   const searchArea = computed(() => searchCenter.value ? nearestArea(searchCenter.value) : null)
   // 地圖中心離目前位置超過 100 公尺才視為在看別處（標示用）。
   const searchingElsewhere = computed(() => Boolean(mapCenter.value && center.value && distanceMeters(mapCenter.value, center.value) > 100))
   const searchAvailable = computed(() => Boolean(searchArea.value))
-  function setMapCenter(point) {
-    if (!serviceAvailable.value || !isCoordinate(point)) return
-    // 移動不到 80 公尺不重新查詢，避免輕微拖動就打後端。
-    const previous = mapCenter.value || center.value
-    if (previous && distanceMeters(previous, point) < 80) return
-    mapCenter.value = { lat: point.lat, lng: point.lng }
+  function setMapView(view) {
+    if (!serviceAvailable.value || !isCoordinate(view)) return
+    const radius = Number.isFinite(view.radius) && view.radius > 0 ? view.radius : (mapView.value?.radius ?? null)
+    // 移動不到 80 公尺且半徑級距不變時不重新查詢，避免輕微拖動就打後端。
+    const previous = mapView.value || { ...center.value, radius: null }
+    const moved = distanceMeters(previous, view) >= 80
+    if (!moved && pickSearchRadius(radius) === pickSearchRadius(previous.radius) && (radius > MAX_SEARCH_RADIUS) === (previous.radius > MAX_SEARCH_RADIUS)) return
+    mapView.value = { lat: moved ? view.lat : previous.lat, lng: moved ? view.lng : previous.lng, radius }
   }
   const mapQuery = computed(() => searchArea.value
-    ? { areaId: searchArea.value.id, lat: searchCenter.value.lat, lng: searchCenter.value.lng, radius: SEARCH_RADIUS } : null)
+    ? { areaId: searchArea.value.id, lat: searchCenter.value.lat, lng: searchCenter.value.lng, radius: searchRadius.value } : null)
   // 已移除使用者感官篩選，地點查詢只帶區域、座標與固定範圍。
   const placeQuery = mapQuery
   const overview = useRemote(query, sensoryApi.getOverview)
@@ -160,7 +168,7 @@ export function useQuietCity(notify) {
       if (!isCoordinate(result)) throw new Error('App 未回傳有效座標，請重試。')
       const previous = area.value
       deviceLocation.value = { lat: result.lat, lng: result.lng, source: 'device', label: '目前位置' }
-      mapCenter.value = null
+      mapView.value = null
       locationError.value = ''
       if (previous && area.value && previous.id !== area.value.id) notify(`已更新目前位置，區域切換為${area.value.name}。`)
       return deviceLocation.value
@@ -178,5 +186,5 @@ export function useQuietCity(notify) {
   onScopeDispose(() => { disposed = true; locationController?.abort(); addressController?.abort(); clearInterval(refreshTimer); window.removeEventListener?.('focus', resume) })
   // 模擬模式下強度選項可完整操作；後端模式需後端宣告支援。
   const reportIntensityEnabled = computed(() => sensoryApi.supportsReportIntensity || usingMock.value)
-  return { noiseHistory, recordNoise, mapCenter, searchArea, searchAvailable, searchingElsewhere, setMapCenter, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, map, places, locating, locate, reportLocation }
+  return { noiseHistory, recordNoise, mapCenter, mapView, searchRadius, viewTruncated, searchArea, searchAvailable, searchingElsewhere, setMapView, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, map, places, locating, locate, reportLocation }
 }

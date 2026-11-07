@@ -124,8 +124,15 @@ export function filterPlaces(places, query = {}, now = Date.now()) {
     }))
     .sort((a, b) => a.distanceM - b.distanceM)
 }
-// 探索範圍固定以查詢中心 500 公尺直線距離（已移除使用者自訂的感官篩選與距離偏好）。
+// 首頁概況使用目前位置 500 公尺；探索地圖依可視範圍挑選後端允許的半徑（300／500／1000 公尺）。
 export const SEARCH_RADIUS = 500
+export const RADIUS_STEPS = Object.freeze([300, 500, 1000])
+export const MAX_SEARCH_RADIUS = RADIUS_STEPS.at(-1)
+// 回傳能涵蓋 needed 公尺的最小允許半徑；超過上限時回傳上限（呼叫端需標示只查中心範圍）。
+export function pickSearchRadius(needed) {
+  if (!Number.isFinite(needed) || needed <= 0) return SEARCH_RADIUS
+  return RADIUS_STEPS.find(step => step >= needed) ?? MAX_SEARCH_RADIUS
+}
 // 本機偏好只剩介面與排序；舊版存下的 noise／light／crowd／odor／indoor／radius 讀取時會被略過。
 export const DEFAULT_PREFERENCES = Object.freeze({ lowStimulus: false, sort: 'fit' })
 export function readPreferences(storage) {

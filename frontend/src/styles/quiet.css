@@ -268,12 +268,6 @@ body { background: #edf3f7; }
 .sense-bars strong { color: #4a5963; min-width: 32px; text-align: right; font-size: 14px; font-weight: 500; }
 .sense-track { flex: 1; height: 9px; border-radius: 10px; background: #e5ecf0; overflow: hidden; }
 .sense-track i { display: block; height: 100%; border-radius: inherit; background: #2aa4b5; animation: q-bar-in .6s ease-out both; }
-.detail-sources { display: flex; gap: 9px; padding: 13px; border-radius: 10px; background: #eff5f8; color: #8a9aa7; margin-top: 18px; }
-.detail-sources strong { font-size: 14px; color: #465762; }
-.detail-sources p { margin: 5px 0; font-size: 13px; line-height: 1.7; color: #5b6c77; }
-.detail-sources a,
-.detail-sources span { display: block; font-size: 12px; color: var(--q-deep); }
-.detail-sources a { min-height: 44px; display: inline-flex; align-items: center; }
 .detail-actions { display: flex; gap: 10px; margin-top: 20px; }
 .detail-actions .q-secondary { flex: 1; }
 .detail-actions .q-primary { flex: 1.6; padding-inline: 8px; font-size: 19px; }

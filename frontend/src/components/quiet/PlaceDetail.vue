@@ -79,7 +79,6 @@ async function share() {
           </template>
         </div>
       </Transition>
-      <section class="detail-sources"><AppIcon name="shield" :size="19"/><div><strong>資料來源與時間</strong><p>{{ place.reportCount ?? 0 }} 筆主觀回報 · {{ { high: '信心高', medium: '信心中等', low: '信心低', insufficient: '資料不足' }[place.confidence] || '信心未知' }}<br>{{ formatTime(place.updatedAt) }} {{ meta.mock ? '模擬資料' : '更新' }}</p><template v-for="(source, index) in place.sources || meta.sources" :key="index"><a v-if="source.url?.startsWith('https://')" :href="source.url" target="_blank" rel="noopener noreferrer">{{ source.name }}</a><span v-else>{{ source.name }}</span></template></div></section>
       <div class="detail-actions"><button type="button" class="q-primary" @click="navigate"><AppIcon name="route" :size="21"/>步行導航</button></div>
     </template>
   </section>
@@ -125,12 +124,6 @@ async function share() {
 .sense-track i { background: linear-gradient(90deg, #41b7c3, #269fb0); }
 .detail-content > .q-helper { margin: 9px 0 0; color: #66747d; font-size: 12px; line-height: 1.65; }
 .detail-content .q-error { color: #97572e; font-size: 13px; line-height: 1.6; }
-.detail-sources { gap: 9px; margin-top: 17px; padding: 12px; border-radius: 9px; background: #eff6f9; color: #8d9ca6; }
-.detail-sources > svg { flex-shrink: 0; margin-top: 1px; }
-.detail-sources strong { color: #50626e; font-size: 14px; font-weight: 600; line-height: 1.4; }
-.detail-sources p { margin: 5px 0; font-size: 12px; line-height: 1.65; color: #5e6d78; }
-.detail-sources span, .detail-sources a { color: #637681; font-size: 12px; line-height: 1.5; }
-.detail-sources a { color: var(--q-deep, #007a90); min-height: 44px; }
 .detail-actions { display: grid; margin-top: 19px; }
 .detail-actions .q-secondary { min-height: 49px; padding: 10px; color: var(--q-deep, #007a90); border-color: var(--q-brand, #0391a7); border-radius: 10px; background: #fff; font-size: 16px; font-weight: 600; }
 .detail-actions .q-primary { width: 100%; min-height: 49px; padding: 10px; color: #fff; background: var(--q-brand, #0391a7); border-radius: 10px; font-size: 19px; font-weight: 700; line-height: 1.35; }
