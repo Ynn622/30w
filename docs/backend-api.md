@@ -9,6 +9,7 @@
 | 第一階段 | 六個接口、四維缺值處理、來源／時間／信心揭露 | 前端已有呼叫層，後端與真實來源待整合 |
 | 第二階段 | 兩層式回報（8 類型、快速標籤、強度、持續狀態、室內外）、逐維資料品質、SSI 與覆蓋率 | 前端已可讀取 `sensoryIndex`（ssi-v0.1）並送出強度（需 `VITE_REPORT_INTENSITY=true`）；後端待實作 |
 | 第三階段 | 1–5 敏感度、端側 SFS 排序、低刺激介面模式 | 前端已完成（2026-11-07）；不增加會員或偏好上傳接口 |
+| 綠區 | `sensory/map` 回傳低刺激綠區多邊形 `zones`、Place 標註 `zone`（見 2.1） | 契約已訂（2026-11-07）；後端待實作，前端與模擬資料尚未讀取 |
 
 ## 啟用與範圍
 
@@ -139,6 +140,87 @@ VITE_REPORT_INTENSITY=false
 - 前端切聲音／光線／人潮不重建地圖；只使用對應的非 null、0–100、30 分鐘內資料。`insufficient` 及過期格網不繪製。
 - 熱圖為樣本位置與指數的加權視覺化，**不是官方噪音等值線，也不能解讀為道路即時 dBA**。低值與未觀測處以觀測格網圓點區分：0 指數仍顯示綠點，無觀測則沒有圓點。
 
+### 2.1 低刺激綠區 `zones`（待實作）
+
+**目的**：由後端判定「哪些範圍屬於低刺激」，回傳可直接繪製的多邊形，推薦場所也依同一判定結果標註。前端熱圖顏色是樣本累加後的視覺效果（稀疏高分點邊緣也會淡成綠色、密集中分點反而偏紅），不能從畫面顏色反推哪裡安靜，因此綠區一律以後端算出的資料為準。**前端與模擬資料尚未讀取此欄位，後端可先行實作；新增欄位不影響現有前端（前端只檢查 `cells` 陣列）。**
+
+`GET sensory/map` 的 `data` 新增 `zoneRule` 與 `zones`，與 `cells` 並列：
+
+```json
+{
+  "cells": [],
+  "zoneRule": {
+    "zoneVersion": "zone-v0.1",
+    "threshold": 33,
+    "unit": "square",
+    "unitSizeM": 100,
+    "radiusM": 150
+  },
+  "zones": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "id": "zone-noise-001",
+        "properties": {
+          "layer": "noise",
+          "level": "low",
+          "value": 24,
+          "sampleCount": 9,
+          "confidence": "medium",
+          "observedAt": "2026-11-07T10:20:00+08:00",
+          "validUntil": "2026-11-07T10:50:00+08:00"
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[[121.5140, 25.0380], [121.5150, 25.0380], [121.5150, 25.0389], [121.5140, 25.0389], [121.5140, 25.0380]]]
+        }
+      }
+    ]
+  }
+}
+```
+
+**判定規則**
+
+- **綠區 = 該維度有效刺激指數 ≤ `threshold`（33）**，與前端「低」分段、`GET places?noise=low` 篩選同一門檻。門檻若要調整，須同步改版 `zoneVersion` 並通知前端，不可只改後端。
+- 只採用與 `cells` 相同的有效資料：非 null、0–100、未過期、信心非 `insufficient`、通過最少樣本門檻；`recurring` 回報與未校準 dBFS 不計入（見第二階段）。
+- 後端將區域切成固定單元（`unit`：`square` 方格或 `hexagon` 六角格；若採 H3 等函式庫須為開源授權並記錄於後端文件），每個單元以中心 `radiusM` 內的有效樣本計算代表值，加權方式（算術平均或距離反比）須固定並隨 `zoneVersion` 記錄。代表值 ≤ 門檻的單元標為 `low`，相鄰的 `low` 單元可合併成同一個多邊形。
+- **沒有有效樣本的單元不輸出**，也不從鄰近單元外插補值。資料不足不是低刺激，無資料處不能出現綠區。
+- 合併後的多邊形 `value` 取所含單元代表值的**最大值**（保守呈現），`sampleCount` 為所含單元實際採用樣本數（同一樣本不重複計），`confidence` 取所含單元中最低者，`observedAt` 取最舊的採用觀測時間，`validUntil` 取最早到期者。
+- 本版只回傳 `level: "low"` 的多邊形；前端遇到其他 `level` 值一律忽略，未來若要擴充中／高刺激範圍須另訂契約。
+
+**格式要求**
+
+- `zones` 為 [RFC 7946](https://datatracker.ietf.org/doc/html/rfc7946) GeoJSON `FeatureCollection`，`geometry` 只用 `Polygon` 或 `MultiPolygon`，座標順序 `[lng, lat]`（與其他欄位的 `{ lat, lng }` 物件不同），WGS84，外環逆時針、首尾點相同，座標保留至小數第 5 位即可。
+- 一次回傳四個維度（`layer`：`noise | light | crowd | odor`）的綠區，前端切換圖層時不重新查詢。
+- 回傳與查詢圓（`lat`／`lng`／`radius`）相交的綠區，不必裁切成圓形；單次回應的 feature 數請控制在 500 以內。
+- 無綠區時回 `"zones": { "type": "FeatureCollection", "features": [] }`。尚未實作時可省略 `zones` 與 `zoneRule`，前端視為未提供，不會當成格式錯誤。
+- `validUntil` 須照實填寫且不得晚於 `observedAt` + 30 分鐘，與格網有效期一致。前端是否依 `validUntil` 隱藏過期綠區之後再定，後端不可因此延長或省略此欄位。
+
+**隱私**：綠區單元與 `cells` 適用相同的最少樣本門檻；單元尺寸不得小到可推回個別回報位置（建議 `unitSizeM` ≥ 100）。不輸出個別回報 ID 或原始座標。
+
+**場所標註 `Place.zone`**
+
+`GET places` 與 `GET places/{id}` 的 Place 新增選填 `zone`，表示場所座標**周邊區域**是否落在各維度綠區內：
+
+```json
+{
+  "zone": {
+    "noise": "low",
+    "light": "unknown",
+    "crowd": "not_low",
+    "odor": "unknown",
+    "zoneVersion": "zone-v0.1"
+  }
+}
+```
+
+- `low`：場所座標落在該維度的綠區多邊形內；`not_low`：周邊有有效資料但代表值 > 門檻；`unknown`：周邊沒有有效資料或信心不足。
+- 必須與同一次 `sensory/map` 使用的綠區判定一致（相同 `zoneVersion` 與資料時間），不可另用一套規則。
+- `zone` 描述的是場所**周邊的格網區域**，不是場所本身。室內場所以自身 `senses`（室內回報）為準，`zone` 只作為周邊環境參考，不得以室外綠區推論室內安靜，反之亦然。
+- 尚未實作時可省略 `zone`，前端視為全部 `unknown`。
+
 ## 3 靜音推薦場所
 
 `GET places?areaId=zhongzheng&lat=25.0386&lng=121.5143&radius=500&noise=low&light=any&crowd=any&indoor=false`
@@ -151,6 +233,7 @@ VITE_REPORT_INTENSITY=false
 | `light` | `low` / `any` | low 時光線指數 <=33 |
 | `crowd` | `low` / `any` | low 時人潮指數 <=33 |
 | `indoor` | 字串 `true` / `false` | true 僅室內；false 不限制，**不是僅戶外** |
+| `inZone` | `noise` / `light` / `crowd` / `odor`，可逗號分隔 | 選填；只回傳 `Place.zone` 對應維度為 `low` 的場所，多個維度為 AND。規則見 [2.1 低刺激綠區](#21-低刺激綠區-zones待實作)，前端尚未送出 |
 
 前端目前只送 `areaId`、`lat`、`lng`、`radius`（使用者感官篩選已移除）：`lat`／`lng` 為目前位置或探索地圖停止移動後的地圖中心；`radius` 依地圖可視範圍（中心到上緣／右緣中點的較大距離）選最小可涵蓋的 300／500／1000，超過 1000 公尺時仍送 1000 並提示使用者放大地圖。若要讓縮小後的地圖也能列出完整範圍，後端需另外支援更大的半徑或 `bbox` 查詢（`resources` 已有 `bbox`，`places` 尚無）多項條件為 AND。應另外排除已關閉、不可合法進入或已知環境危害的候選場所；天氣／空品不適宜戶外時，後端可排除戶外並提供說明。若進入條件未知，顯示待確認，避免保證可用。不得把 NOS_P_08 的測站位置當安靜推薦依據。
 
@@ -408,3 +491,5 @@ dimensionCoverage = 有效維度數 / 4
 6. 在實際 GitHub Pages 與城市通 WebView 測試 CORS、HTTPS、取消、逾時、錯誤及實際資料來源展示。
 
 第二階段驗收另加：8 種 `kind` 與其標籤驗證（標籤不屬於該類型、重複或 `other` 無說明時回 400，選填欄位缺漏時仍接受）、`persistence=ended` 不延長有效期且 `recurring` 不計入即時 SSI、室內外分開統計、舒適空間正向訊號不把四維歸零、強度缺漏不轉分、四維與空品分離、逐維來源與有效期可追溯；覆蓋率分母固定四維權重，驗證全缺值、有效 0 分、過期、零權重與部分覆蓋的計算結果。第三階段須驗證同一場所依不同偏好產生不同 SFS，且偏好留在裝置端；低刺激模式可實際切換。未完成前不得列入第一階段已串接項目。
+
+綠區驗收：提供 seed 驗證以下情境——代表值恰為 33 屬綠區、34 不屬綠區；無有效樣本的單元不產生綠區；過期或 `insufficient` 樣本不納入；合併多邊形的 `value`／`confidence`／`validUntil` 依 2.1 取保守值；GeoJSON 通過 RFC 7946 驗證（座標 `[lng, lat]`、外環閉合）；同一場所的 `Place.zone` 與同時間 `sensory/map` 綠區一致；`inZone` 多維度為 AND；室內場所的 `zone` 不覆寫其自身 `senses`。
