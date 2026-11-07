@@ -517,7 +517,7 @@ dimensionCoverage = 有效維度數 / 4
 
 前端驗證：`meta.mock === true`、`demo === true`、`mode === "test-only"`、`datasetVersion === "taipei-hourly-grid-v1"`、`meta.dayType`／`hour` 與查詢相同、`timeBasis === "simulated_request_time"`、`simulatedAt` 為有效時間；每點 `id` 符合 `tg\d{5}`、座標有效、`coordinateKind === "synthetic_grid_center"`、`quality ∈ estimated|insufficient`、四維為 0–100 整數或 null、`sound.unit === "dB(A)"`；回傳筆數須等於 `total`。不符即顯示「模擬網格格式不符」，不改用內建模擬資料。400／404／429／503 各自顯示說明並可重試。
 
-顯示規則：只影響探索地圖——圖例標示模擬資料，開啟模擬環境時長駐「模擬環境：時段・典型時段推估・非即時觀測」，網格只畫敏感圖層與綠區；推薦、詳情、首頁概況、回報與量測仍為正式資料；時段滑桿放開才查詢；新鮮度以 `meta.simulatedAt` 判斷；null 不補 0、不當作安靜；不計入正式 SSI。
+顯示規則：只影響探索地圖——以上方「模擬環境」按鈕為準（圖例不另加標籤），開啟模擬環境時長駐「模擬環境：時段・典型時段推估・非即時觀測」，網格只畫敏感圖層與綠區；推薦、詳情、首頁概況、回報與量測仍為正式資料；時段滑桿放開才查詢；新鮮度以 `meta.simulatedAt` 判斷；null 不補 0、不當作安靜；不計入正式 SSI。
 
 待後端確認：`meta.sources` 有些項目只有 `id`（例如 `curated-v2`），沒有名稱、網址與授權。前端畫面目前不列出模擬網格的資料來源清單（開發者 2026-11-08 決定）。
 

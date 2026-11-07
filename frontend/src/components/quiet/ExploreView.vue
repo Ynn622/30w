@@ -61,7 +61,7 @@ const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlac
         <TestDataPanel :city="city" />
         <label class="layer-switch"><span>敏感圖層</span><input v-model="showLayer" class="q-switch" type="checkbox" role="switch" :aria-checked="showLayer" aria-label="顯示依感官敏感度計算的敏感圖層"/></label>
       </div>
-      <SensoryMap :places="listPlaces" :low-stimulus="city.preferences.value.lowStimulus" :field="field" :center="city.center.value" :layer-visible="showLayer" mock :mock-label="remote ? '模擬環境' : '模擬資料'" :empty-text="legendEmpty" :device-located="Boolean(city.deviceLocation.value)" @select="$emit('select', $event)" @locate="city.locate" @viewchange="city.setMapView" />
+      <SensoryMap :places="listPlaces" :low-stimulus="city.preferences.value.lowStimulus" :field="field" :center="city.center.value" :layer-visible="showLayer" :empty-text="legendEmpty" :device-located="Boolean(city.deviceLocation.value)" @select="$emit('select', $event)" @locate="city.locate" @viewchange="city.setMapView" />
       <BottomSheet v-model:snap="sheet" :peek="SHEET_PEEK" :label="listTitle">
         <template #header>
           <div class="section-heading"><h2>{{ listTitle }}</h2><span class="count-badge" :class="{ green: showLayer }" :aria-label="`共 ${city.searchAvailable.value ? listPlaces.length : 0} 處`"><b>{{ city.searchAvailable.value ? listPlaces.length : 0 }}</b>處</span></div>
