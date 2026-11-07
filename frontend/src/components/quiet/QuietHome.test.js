@@ -15,6 +15,7 @@ function cityFor(data, places = [], meta = mockMeta(NOW), status = 'ready') {
   return { areaId: ref(status === 'ready' ? 'zhongzheng' : null), area: ref(status === 'ready' ? { id: 'zhongzheng', name: '中正區' } : null),
     locationStatus: ref(status), locationError: ref(''), serviceAvailable: ref(status === 'ready'),
     locating: ref(false), deviceLocation: ref(null), locate: () => {},
+    remoteMock: ref(false), writesEnabled: ref(true),
     preferences: ref({ ...DEFAULT_PREFERENCES }), assess: record => assessSensory(record, undefined, NOW),
     recommendations: computed(() => places.map(place => ({ ...place, assessment: assessSensory(place, undefined, NOW) }))),
     overview: { data: ref(data), meta: ref(meta), state: ref('ready'), error: ref(''), reload: () => {} },
@@ -77,6 +78,13 @@ describe('location-only service', () => {
     expect(html).toContain('重新定位')
     expect(html).not.toContain('今日感官天氣')
     expect(html).not.toContain('快速回報')
+  })
+  it('disables quick reports and measurement in remote-mock mode and shows the synthetic label', async () => {
+    const city = { ...cityFor(sampleOverview()), remoteMock: ref(true), writesEnabled: ref(false) }
+    const html = await renderToString(createSSRApp(QuietHome, { city }))
+    expect(html).toContain('人工情境推估・合成分數・非即時')
+    expect(html).toContain('測試情境模式不開放回報與量測')
+    expect(html.match(/<button[^>]*disabled/g).length).toBeGreaterThanOrEqual(9)
   })
   it('asks for the current location before showing anything', async () => {
     const html = await renderToString(createSSRApp(QuietHome, { city: cityFor(null, [], null, 'idle') }))

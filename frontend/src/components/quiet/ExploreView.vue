@@ -5,6 +5,7 @@ import AsyncState from '../AsyncState.vue'
 import PlaceCard from './PlaceCard.vue'
 import BottomSheet from './BottomSheet.vue'
 import LocationGate from './LocationGate.vue'
+import MockBanner from './MockBanner.vue'
 import { MOCK_LABEL, searchPlaces } from '../../lib/sensoryDomain.js'
 import { NO_DATA_AS_GREEN, buildSensoryField, zoneOf } from '../../lib/sensoryField.js'
 
@@ -24,13 +25,17 @@ const searchText = ref('')
 const visiblePlaces = computed(() => searchPlaces(props.city.recommendations.value, searchText.value))
 // 敏感圖層開啟時，清單與地圖標記只列綠區內的地點；可切換「顯示全部」。
 const greenOnly = ref(true)
-const zoneFiltering = computed(() => showLayer.value && greenOnly.value)
+// 測試情境（remote-mock）只有設施代表點，沒有格網與綠區：不畫敏感圖層、不做綠區篩選。
+const remote = computed(() => props.city.remoteMock.value)
+const zoneFiltering = computed(() => showLayer.value && greenOnly.value && !remote.value)
 const greenPlaces = computed(() => visiblePlaces.value.filter(place => zoneOf(field.value, place.location).green))
 const listPlaces = computed(() => zoneFiltering.value ? greenPlaces.value : visiblePlaces.value)
 const outsideCount = computed(() => visiblePlaces.value.length - greenPlaces.value.length)
 // 排序：距離優先，或依使用者敏感度佔比加權的安靜程度優先（無感官資料的地點排在後面）。
 const SORTS = [{ id: 'distance', label: '距離優先' }, { id: 'fit', label: '安靜程度優先' }]
-const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlaces.value.every(place => place.assessment?.sfs == null))
+const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlaces.value.every(place => (place.mock ? place.mockAssessment?.quiet : place.assessment?.sfs) == null))
+// 清單的載入狀態來源：測試情境讀 Mock API，正式模式讀 places（兩者互不備援）。
+const listSource = computed(() => remote.value ? props.city.mock : props.city.places)
 </script>
 
 <template>
@@ -40,9 +45,10 @@ const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlac
     <template v-else>
     <div class="explore-stage">
       <div class="map-switches">
-        <label class="layer-switch"><span>敏感圖層</span><input v-model="showLayer" class="q-switch" type="checkbox" role="switch" :aria-checked="showLayer" aria-label="顯示依感官敏感度計算的敏感圖層"/></label>
+        <MockBanner v-if="remote" :city="city" compact />
+        <label v-else class="layer-switch"><span>敏感圖層</span><input v-model="showLayer" class="q-switch" type="checkbox" role="switch" :aria-checked="showLayer" aria-label="顯示依感官敏感度計算的敏感圖層"/></label>
       </div>
-      <SensoryMap :places="listPlaces" :low-stimulus="city.preferences.value.lowStimulus" :field="field" :center="city.center.value" :layer-visible="showLayer" :mock="Boolean(city.map.meta.value?.mock)" :device-located="Boolean(city.deviceLocation.value)" @select="$emit('select', $event)" @locate="city.locate" @viewchange="city.setMapView" />
+      <SensoryMap :places="listPlaces" :low-stimulus="city.preferences.value.lowStimulus" :field="remote ? null : field" :center="city.center.value" :layer-visible="showLayer && !remote" :remote-mock="remote" :mock="!remote && Boolean(city.map.meta.value?.mock)" :device-located="Boolean(city.deviceLocation.value)" @select="$emit('select', $event)" @locate="city.locate" @viewchange="city.setMapView" />
       <BottomSheet v-model:snap="sheet" :peek="SHEET_PEEK" label="附近靜音推薦">
         <template #header>
           <div class="section-heading"><h2>{{ mode === 'quiet' ? '符合你的靜音推薦' : '附近靜音推薦' }}<small>（{{ city.viewTruncated.value ? `地圖中心 ${city.searchCap / 1000} 公里內` : '地圖範圍內' }}）</small></h2><span class="count-badge">{{ city.searchAvailable.value ? listPlaces.length : 0 }} 處</span></div>
@@ -52,23 +58,24 @@ const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlac
           <div class="sort-switch" role="group" aria-label="推薦排序">
             <button v-for="item in SORTS" :key="item.id" type="button" :class="{ selected: city.preferences.value.sort === item.id }" :aria-pressed="city.preferences.value.sort === item.id" @click="city.preferences.value.sort = item.id">{{ item.label }}</button>
           </div>
-          <p v-if="city.preferences.value.sort === 'fit' && noQuietData" class="q-helper sort-note">目前地點尚無有效感官資料，暫依距離排列。</p>
+          <p v-if="city.preferences.value.sort === 'fit' && remote" class="q-helper sort-note">依你的感官敏感度佔比加權三項合成刺激（光線、人潮、氣味）；情境中休館或狀態未知排在最後。</p>
+          <p v-else-if="city.preferences.value.sort === 'fit' && noQuietData" class="q-helper sort-note">目前地點尚無有效感官資料，暫依距離排列。</p>
           <p v-else-if="city.preferences.value.sort === 'fit'" class="q-helper sort-note">依你在「我的」設定的感官敏感度佔比，計算各地點的安靜程度。</p>
-          <div v-if="showLayer" class="zone-note" role="status">
+          <div v-if="showLayer && !remote" class="zone-note" role="status">
             <span v-if="greenOnly">只列敏感圖層綠區內的地點{{ outsideCount ? `（另有 ${outsideCount} 處不在綠區）` : '' }}{{ NO_DATA_AS_GREEN ? '；無資料處暫視為綠區' : '' }}。</span>
             <span v-else>顯示全部地點，含不在綠區的 {{ outsideCount }} 處。</span>
             <button type="button" class="zone-toggle" @click="greenOnly = !greenOnly">{{ greenOnly ? '顯示全部' : '只看綠區' }}</button>
           </div>
         </div>
-        <AsyncState v-if="city.map.state.value === 'error'" state="error" :message="city.map.error.value" retry @retry="city.map.reload" />
-        <p v-if="city.places.meta.value?.mock" class="mock-inline">{{ MOCK_LABEL }}</p>
+        <AsyncState v-if="!remote && city.map.state.value === 'error'" state="error" :message="city.map.error.value" retry @retry="city.map.reload" />
+        <p v-if="!remote && city.places.meta.value?.mock" class="mock-inline">{{ MOCK_LABEL }}</p>
         <p v-if="city.searchAvailable.value && city.viewTruncated.value" class="truncated-search" role="status">地圖範圍較大，只列出地圖中心 {{ city.searchCap / 1000 }} 公里內的地點；放大地圖可查看完整範圍。</p>
         <p v-if="!city.searchAvailable.value" class="outside-search" role="status">地圖中心不在臺北市內，無法提供此區域的地點；請把地圖移回臺北市。</p>
-        <AsyncState v-else-if="city.places.state.value !== 'ready'" :state="city.places.state.value" :message="city.places.error.value" retry @retry="city.places.reload" />
+        <AsyncState v-else-if="listSource.state.value !== 'ready'" :state="listSource.state.value" :message="listSource.error.value" retry @retry="listSource.reload" />
         <AsyncState v-else-if="!city.recommendations.value.length" title="還沒有符合條件的場所" message="試著移動或放大地圖；資料不足不代表環境安靜。" />
         <AsyncState v-else-if="!visiblePlaces.length" :title="`找不到符合「${searchText.trim()}」的地點`" message="試試其他關鍵字，或清除搜尋。" />
         <AsyncState v-else-if="!listPlaces.length" title="目前範圍內沒有位於綠區的地點" message="可點「顯示全部」查看其他地點，或移動地圖、調整「我的」感官敏感度。" />
-        <PlaceCard v-for="place in listPlaces" v-else :key="place.id" :place="place" :mock="Boolean(city.places.meta.value?.mock)" @select="$emit('select', $event)" />
+        <PlaceCard v-for="place in listPlaces" v-else :key="place.id" :place="place" :mock="!remote && Boolean(city.places.meta.value?.mock)" @select="$emit('select', $event)" />
         <p class="q-helper list-footnote"><AppIcon name="shield" :size="15"/>開放與無障礙狀況以現場為準。</p>
       </BottomSheet>
     </div>
@@ -86,6 +93,7 @@ const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlac
 .layer-switch { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 6px 0 12px; border: 1px solid #dce6ed; border-radius: 22px; background: #fffffff2; color: #34434c; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; box-shadow: 0 2px 8px #2447561a; }
 .layer-switch .q-switch { margin: 0; }
 .explore-stage :deep(.map-legend) { top: 66px; }
+.map-switches :deep(.mock-banner) { max-width: calc(100vw - 84px); border-radius: 8px; box-shadow: 0 2px 8px #2447561a; }
 .explore-stage :deep(.sensory-map-wrap) { position: absolute; inset: 0 0 calc(var(--sheet-peek, 124px) - 18px); height: auto; border: 0; border-radius: 0; }
 .explore-stage :deep(.maplibregl-ctrl-bottom-left),
 .explore-stage :deep(.maplibregl-ctrl-bottom-right) { margin-bottom: 18px; }

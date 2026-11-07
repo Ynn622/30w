@@ -266,8 +266,8 @@ describe('long-side places radius', () => {
   })
   it('snaps to backend steps by default and sends the exact radius only when free radius is enabled', () => {
     expect([placesRadius(240), placesRadius(780), placesRadius(2600)]).toEqual([300, 1000, 1000])
-    expect([placesRadius(1234, { free: true }), placesRadius(40, { free: true }), placesRadius(9000, { free: true })]).toEqual([1240, 100, 5000])
+    expect([placesRadius(1234, { free: true }), placesRadius(40, { free: true }), placesRadius(9000, { free: true }), placesRadius(30000, { free: true })]).toEqual([1240, 100, 9000, 20000])
     expect(placesRadius(undefined, { free: true })).toBe(500)
-    expect([placesRadiusCap(), placesRadiusCap({ free: true })]).toEqual([1000, 5000])
+    expect([placesRadiusCap(), placesRadiusCap({ free: true })]).toEqual([1000, 20000])
   })
 })

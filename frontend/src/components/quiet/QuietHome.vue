@@ -6,6 +6,7 @@ import PlaceCard from './PlaceCard.vue'
 import SenseInfoDialog from './SenseInfoDialog.vue'
 import QuietLogo from './QuietLogo.vue'
 import LocationGate from './LocationGate.vue'
+import MockBanner from './MockBanner.vue'
 import { MOCK_LABEL, SENSES, REPORT_KINDS, formatTime, isFresh, levelText } from '../../lib/sensoryDomain.js'
 import { estimateDb, noiseLevel, readDbOffset } from '../../lib/noiseLevel.js'
 
@@ -58,6 +59,7 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
         <path d="M5 40h28a6 6 0 0 0 0-12h-2a9 9 0 0 0-17-3A8 8 0 0 0 5 40Zm111-19h18a5 5 0 0 0 0-10h-2a7 7 0 0 0-13-2 6 6 0 0 0-3 12Z" fill="#e2f4f8" />
       </svg>
     </header>
+    <MockBanner :city="city" />
 
     <!-- 目前只依裝置定位提供服務，不開放手動選擇區域。 -->
     <LocationGate v-if="!city.serviceAvailable.value" :city="city" />
@@ -107,12 +109,13 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
     <section class="quick-report-section q-reveal">
       <div class="section-heading"><h2>快速回報</h2><span>讓城市知道這裡的感受</span></div>
       <div class="report-grid">
-        <button v-for="kind in REPORT_KINDS" :key="kind.id" :class="kind.color" :aria-label="`${kind.label}：${kind.hint}`" :title="kind.hint" @click="$emit('report', kind)">
+        <button v-for="kind in REPORT_KINDS" :key="kind.id" :class="kind.color" :aria-label="`${kind.label}：${kind.hint}`" :title="kind.hint" :disabled="!city.writesEnabled.value" @click="$emit('report', kind)">
           <AppIcon :name="kind.icon" :size="26" />
           <span>{{ kind.label }}</span>
         </button>
       </div>
-      <button class="measurement-cta q-reveal" @click="$emit('measure')">
+      <p v-if="!city.writesEnabled.value" class="writes-off" role="note">測試情境模式不開放回報與量測；切回「我的 › 測試資料 › 正式資料」即可使用。</p>
+      <button class="measurement-cta q-reveal" :disabled="!city.writesEnabled.value" @click="$emit('measure')">
         <span class="measurement-icon"><AppIcon name="wave" :size="25" /></span>
         <strong>啟用環境量測（聲音）</strong>
         <AppIcon class="measurement-arrow" name="chevron" :size="21" />
@@ -197,6 +200,8 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
 .measurement-cta > strong { min-width: 0; font-size: 19px; font-weight: 700; line-height: 1.4; letter-spacing: .02em; }
 .measurement-arrow { position: absolute; right: 12px; }
 .measurement-cta { position: relative; }
+.report-grid button:disabled, .measurement-cta:disabled { opacity: .45; cursor: not-allowed; }
+.writes-off { margin: 12px 0 0; padding: 7px 10px; border-radius: 8px; background: #fff4e8; color: #7a4a1f; font-size: 13px; line-height: 1.6; }
 .microcopy { align-items: flex-start; gap: 4px; margin: 8px 0 9px; color: #6b7a84; font-size: 12px; line-height: 1.5; text-align: center; }
 .microcopy > svg { flex-shrink: 0; margin-top: 2px; }
 .nearby-section { margin-top: 20px; }

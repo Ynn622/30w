@@ -5,6 +5,7 @@ import QuietHome from './QuietHome.vue'
 import ExploreView from './ExploreView.vue'
 import QuietProfile from './QuietProfile.vue'
 import PlaceDetail from './PlaceDetail.vue'
+import MockPlaceDetail from './MockPlaceDetail.vue'
 import ReportSheet from './ReportSheet.vue'
 import NoiseSheet from './NoiseSheet.vue'
 import AppSheet from './AppSheet.vue'
@@ -26,6 +27,11 @@ const allSources = computed(() => {
   return [city.overview, city.map, city.places].flatMap(remote => remote.meta.value?.sources || [])
     .filter(source => source?.name && !seen.has(source.name) && seen.add(source.name))
 })
+// 測試情境（remote-mock）禁止正式回報與量測，避免出現假的上傳成功。
+function openReport(kind) { if (city.writesEnabled.value) report.value = kind; else emit('notify', '測試情境模式不開放回報。') }
+function openMeasure() { if (city.writesEnabled.value) measuring.value = true; else emit('notify', '測試情境模式不開放環境量測。') }
+// 切換資料模式時關閉詳情，避免正式與 Mock 的場所編號互相殘留。
+watch(() => city.preferences.value.dataMode, () => { placeId.value = null; report.value = null; measuring.value = false })
 function navigate(id) { tab.value = id; placeId.value = null }
 function selected(id) { placeId.value = id }
 watch([tab, placeId], () => window.scrollTo({ top: 0, behavior: 'auto' }))
@@ -35,14 +41,15 @@ function reported(message) { report.value = null; emit('notify', message); refre
 <template>
   <div class="quiet-app" :data-low-stimulus="city.preferences.value.lowStimulus || undefined">
     <Transition name="quiet-page" mode="out-in">
-      <PlaceDetail v-if="placeId" :key="`place-${placeId}`" :id="placeId" :city="city" @back="placeId = null" @notify="$emit('notify', $event)"/>
-      <QuietHome v-else-if="tab === 'home'" key="home" :city="city" @report="report = $event" @measure="measuring = true" @explore="navigate('explore')" @select="selected" @sources="sources = true"/>
+      <MockPlaceDetail v-if="placeId && city.remoteMock.value" :key="`mock-${placeId}`" :id="placeId" :city="city" @back="placeId = null" @notify="$emit('notify', $event)"/>
+      <PlaceDetail v-else-if="placeId" :key="`place-${placeId}`" :id="placeId" :city="city" @back="placeId = null" @notify="$emit('notify', $event)"/>
+      <QuietHome v-else-if="tab === 'home'" key="home" :city="city" @report="openReport" @measure="openMeasure" @explore="navigate('explore')" @select="selected" @sources="sources = true"/>
       <ExploreView v-else-if="tab === 'explore'" key="explore" :city="city" @select="selected" @sources="sources = true"/>
       <QuietProfile v-else key="profile" :city="city" @select="selected" @explore="navigate('explore')" @sources="sources = true"/>
     </Transition>
     <nav class="quiet-bottom-nav" aria-label="主要導覽"><button v-for="item in tabs" :key="item.id" :class="{ active: tab === item.id }" :aria-current="tab === item.id ? 'page' : undefined" @click="navigate(item.id)"><span><AppIcon :name="item.icon" :size="22"/></span>{{ item.label }}<i v-if="tab === item.id"></i></button></nav>
-    <ReportSheet v-if="report" :kind="report" :city="city" @close="report = null" @done="reported"/>
-    <NoiseSheet v-if="measuring" :city="city" @close="measuring = false" @notify="$emit('notify', $event)" @shared="refresh"/>
+    <ReportSheet v-if="report && city.writesEnabled.value" :kind="report" :city="city" @close="report = null" @done="reported"/>
+    <NoiseSheet v-if="measuring && city.writesEnabled.value" :city="city" @close="measuring = false" @notify="$emit('notify', $event)" @shared="refresh"/>
     <AppSheet v-if="sources" title="關於這些城市感受" @close="sources = false">
       <span class="q-status-badge">{{ city.usingMock.value ? '目前使用模擬資料' : '已連線後端' }}</span>
       <p class="source-explainer">{{ city.usingMock.value ? '後端感官服務暫時無法連線，天氣、空氣品質、回報、刺激指數與場所改用專案自製的模擬資料，並非官方即時監測；場所與地址為虛構。每分鐘會重試後端，連上後自動切換。' : '資料由後端整合，請依各來源時間與信心判斷。沒有資料或過期資訊不代表環境安靜。' }}</p>

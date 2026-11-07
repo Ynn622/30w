@@ -13,6 +13,7 @@
 | Liberty 內含字型／符號 | 同 OpenFreeMap styles LICENSE；Noto Sans 為 SIL OFL 1.1、Maki 圖示 CC0 | 由底圖公開服務載入，不將外部字型套用到本作品 UI；如自架需一起移轉 glyphs/sprites |
 | 聆靜主視覺標誌（首頁 logo、favicon） | 開發者提供的設計圖（2026-11-07） | `frontend/src/assets/logo.webp`（160px）、`frontend/public/favicon.png`（64px）、`apple-touch-icon.png`（180px）由原圖縮製；非官方或第三方商標，隨專案交付 |
 | UI 圖示、天際線、場所示意插畫 | 本次以 Vue 內嵌 SVG 原創繪製 | 隨專案原始碼交付；不使用官方商標、照片或不明素材 |
+| 測試情境資料（remote-mock） | 後端 `test/mock/places`（Ynn622/30w#4），資料集 `taipei-sensory-mock-v1` | 僅在「我的 › 測試資料」切換後使用。60 個臺北設施代表點的人工情境推估與合成分數，非即時觀測；各場所引用的開放資料來源與授權由回應 `meta.sources` 提供並在詳情頁列出。照片僅大安森林公園、北投公園兩處，為 Wikimedia Commons 歷史影像（依各檔 CC 授權，畫面顯示作者、授權連結、來源與修改說明），經後端以同一路徑轉送，不代表推估子區域或目前狀況 |
 | 感官天氣／回報／場所模擬資料 | `frontend/src/data/quietMock.js`，專案自製 | 僅在後端無法連線時使用，時間依目前時間往前推算；三區各 6 個場所、敏感圖層模擬格網 `frontend/src/data/mock-sensory-cells.json`（臺北市範圍內約 2.7 萬個不規則分布的模擬回報點，一般區域約 150m、熱區約 50m 一點，數值由固定亂數種子的隨機熱點與雜訊產生；由 `npm run mock:cells` 以 `frontend/scripts/generate-mock-cells.mjs` 產生，可手動修改）與概況。場所名稱、位置與描述皆為虛構，不宣稱真實設施，不用於導航；畫面以通知與「模擬」標示 |
 | OpenStreetMap Nominatim（地址查詢） | [軟體 GPL-3.0](https://github.com/osm-search/Nominatim)；資料 [ODbL](https://www.openstreetmap.org/copyright)；公用伺服器遵守 [使用規範](https://operations.osmfoundation.org/policies/nominatim/) | `frontend/src/lib/reverseGeocode.js` 只在定位成功且位於臺北市時查一次，間隔至少 1.1 秒、約 11 公尺內記憶體快取、不定時輪詢；畫面標示 © OpenStreetMap contributors。座標會送到 OSMF 伺服器（已於資料來源頁「地址查詢」揭露）。公用伺服器可能隨時收回權限，正式交付建議改由後端轉送或自架 Nominatim，網址以 `VITE_GEOCODE_URL` 切換 |
 | UI 字型 | 作業系統字型 stack | 不下載或重新散布第三方字型檔 |

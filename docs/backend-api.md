@@ -237,9 +237,9 @@ VITE_REPORT_INTENSITY=false
 | `indoor` | 字串 `true` / `false` | true 僅室內；false 不限制，**不是僅戶外** |
 | `inZone` | `noise` / `light` / `crowd` / `odor`，可逗號分隔 | 選填；只回傳 `Place.zone` 對應維度為 `low` 的場所，多個維度為 AND。規則見 [2.1 低刺激綠區](#21-低刺激綠區-zones待實作)，前端尚未送出 |
 
-前端目前只送 `areaId`、`lat`、`lng`、`radius`（使用者感官篩選已移除）：`lat`／`lng` 為目前位置或探索地圖停止移動後的**地圖中心**；需求半徑 = **地圖可視範圍長邊的一半**（中心到長邊兩端邊緣中點的距離）。後端目前 `radius` 只接受 300／500／1000（2026-11-08 實測 750、1500、2500、5000 皆回 400），因此前端暫時送出能涵蓋需求半徑的最小允許值，超過 1000 時送 1000 並提示使用者放大地圖。
+前端目前只送 `areaId`、`lat`、`lng`、`radius`、`max`（使用者感官篩選已移除）：`lat`／`lng` 為目前位置或探索地圖停止移動後的**地圖中心**；需求半徑 = **地圖可視範圍長邊的一半**（中心到長邊兩端邊緣中點的距離）。
 
-**請後端調整 `GET places` 的 `radius`**：改為接受整數公尺 100–5000（建議驗證範圍並回 400 給超出者；最多 50 筆的上限可維持，依距離由近到遠截斷）。後端上線後，前端設定 `VITE_PLACES_FREE_RADIUS=true` 即直接送出需求半徑（取整到 10 公尺、限制 100–5000），不需改程式。`sensory/map` 與 `sensory/overview` 的 `radius` 維持 300／500／1000，前端不變。
+**已上線（Ynn622/30w#4，2026-11-08 查核）**：`places` 的 `radius` 接受任意正整數公尺，`max` 為 1–100（預設 10，101 回 400）。前端預設（`VITE_PLACES_FREE_RADIUS` 未設或為 true）送出需求半徑（取整到 10 公尺、限制 100–20000）與 `max=100`；超過 20 公里時只查中心並提示放大。`sensory/map`、`sensory/overview` 與 `test/mock/places` 的 `radius` 仍只接受 300／500／1000，前端不送 `max` 給它們。
 
 多項條件為 AND。應另外排除已關閉、不可合法進入或已知環境危害的候選場所；天氣／空品不適宜戶外時，後端可排除戶外並提供說明。若進入條件未知，顯示待確認，避免保證可用。不得把 NOS_P_08 的測站位置當安靜推薦依據。
 
@@ -500,6 +500,20 @@ dimensionCoverage = 有效維度數 / 4
 - 完整四維為 70／20／50／10，敏感度 5／1／2／2（權重 50%／10%／20%／20%）時 SFS=51；2／5／1／2（20%／50%／10%／20%）時 SFS=69。這兩組可由 1–5 設定直接產生；需求示意中的 60%／10% 權重比為 6:1，超出此控制範圍，不能當成滑桿可產生的設定。缺值時顯示部分適配，不能用未知代替低刺激，也不能放寬使用者選定的必要篩選。
 - 前端已在本機計算與排序，偏好不送後端：「我的」提供四維 1–5 敏感度；探索頁可切換「距離優先／安靜程度優先」，安靜程度依敏感度佔比加權場所四維 `senses`（見第 3 節「每個場所必須提供四維感官值」），可直接使用未版本化的 `senses`；環境指數 SSI 仍只在提供版本化 `sensoryIndex` 時計算。後端仍依直線距離回傳即可，不需也不應自行排序。
 - 低刺激模式已由前端實作：柔和配色、停止動畫與地圖飛行、降低熱區不透明度、較大操作區並隱藏裝飾插畫；警示保留文字，不只依賴顏色或聲音。不需新增後端接口。
+
+## 測試情境 Mock API（Ynn622/30w#4，前端已串接）
+
+僅供測試與展示（`meta.mode: "test-only"`），前端在「我的 › 測試資料」明確切換後才呼叫，與正式接口互不備援。
+
+| 接口 | 前端用法 |
+|---|---|
+| `GET test/mock/places?scenario=` | 只送 `scenario`（`weekday_day`／`weekday_evening`／`weekend_day`），一次取回 60 筆與 GeoJSON Point 地圖，前端依地圖圓形範圍篩選 |
+| `GET test/mock/places/{id}?scenario=` | 詳情，id 須與清單同一個 UUID，回應 id 不一致即視為格式錯誤 |
+| `GET test/mock/places/{id}/photo` | 只對 `photo.url` 完全等於此路徑的場所載入，以 API origin 解析；404 時退回示意插畫 |
+
+前端驗證：`meta.mock === true`、`mode === "test-only"`、`datasetVersion === "taipei-sensory-mock-v1"`、`mapping.version === "mock-band-normal-v1"`、`meta.scenario` 與查詢相同；每筆 UUID、座標、`openStatus ∈ open|partial|closed|unknown`、`senses.noise === null`、光線／人潮／氣味為 0–100 整數或 null、`sound.unit === "dB(A)"`；地圖 feature 皆為 Point（`[lng, lat]`）且 id 對應清單。不符即顯示「測試資料格式不符」，不改用內建模擬資料。400／404／429／503 各自顯示說明並可重試。
+
+顯示規則：長駐「人工情境推估・合成分數・非即時」；不顯示觀測時間、不計入 SSI／SFS；聲音只顯示推估 dB(A) 與人工容許帶；closed／unknown 保留但排在最後且不推薦；partial 顯示 `estimatedInterval`；回報與量測停用。
 
 ## HTTP 與部署
 

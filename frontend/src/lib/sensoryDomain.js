@@ -162,9 +162,11 @@ export function longSideRadius(center, bounds) {
   if (width === null || height === null) return null
   return Math.max(width, height) / 2
 }
-// 後端 places 若改為接受任意整數半徑（VITE_PLACES_FREE_RADIUS=true），直接送需求半徑（取整到 10 公尺、限制 100–5000）；
-// 否則沿用後端目前只接受的 300／500／1000，取能涵蓋需求的最小值。
-export const FREE_RADIUS_RANGE = Object.freeze({ min: 100, max: 5000 })
+// 後端 places 已接受任意正整數半徑（2026-11-08 上線）：直接送需求半徑（取整到 10 公尺、限制 100–20000，足以涵蓋整個臺北市）。
+// VITE_PLACES_FREE_RADIUS=false 時退回舊級距 300／500／1000，取能涵蓋需求的最小值。
+export const FREE_RADIUS_RANGE = Object.freeze({ min: 100, max: 20000 })
+// 正式 places 單次最多取回的筆數（後端 max 1–100、預設 10）；只送給正式 places，不送 Mock 或感官接口。
+export const PLACES_MAX = 100
 export function placesRadius(needed, { free = false } = {}) {
   if (!free) return pickSearchRadius(needed)
   if (!Number.isFinite(needed) || needed <= 0) return SEARCH_RADIUS
@@ -172,7 +174,10 @@ export function placesRadius(needed, { free = false } = {}) {
 }
 export const placesRadiusCap = ({ free = false } = {}) => free ? FREE_RADIUS_RANGE.max : MAX_SEARCH_RADIUS
 // 本機偏好只剩介面與排序；舊版存下的 noise／light／crowd／odor／indoor／radius 讀取時會被略過。
-export const DEFAULT_PREFERENCES = Object.freeze({ lowStimulus: false, sort: 'fit' })
+// dataMode：live（正式資料）或 remote-mock（後端測試專用 Mock API）；預設可由 VITE_DATA_MODE 設定，使用者可在「我的」切換。
+const DEFAULT_DATA_MODE = import.meta.env?.VITE_DATA_MODE === 'remote-mock' ? 'remote-mock' : 'live'
+export const DEFAULT_PREFERENCES = Object.freeze({ lowStimulus: false, sort: 'fit', dataMode: DEFAULT_DATA_MODE, scenario: 'weekday_day' })
+const PREFERENCE_VALUES = { sort: ['fit', 'distance'], dataMode: ['live', 'remote-mock'], scenario: ['weekday_day', 'weekday_evening', 'weekend_day'] }
 export function readPreferences(storage) {
   const defaults = () => ({ ...DEFAULT_PREFERENCES, sensitivities: { ...DEFAULT_SENSITIVITIES } })
   try {
@@ -180,7 +185,7 @@ export function readPreferences(storage) {
     const preferences = defaults()
     for (const [key, value] of Object.entries(data || {})) {
       if (!Object.hasOwn(DEFAULT_PREFERENCES, key)) continue
-      if (key === 'sort' ? ['fit', 'distance'].includes(value) : typeof value === 'boolean') preferences[key] = value
+      if (PREFERENCE_VALUES[key] ? PREFERENCE_VALUES[key].includes(value) : typeof value === 'boolean') preferences[key] = value
     }
     for (const key of Object.keys(DEFAULT_SENSITIVITIES)) {
       const value = data?.sensitivities?.[key]

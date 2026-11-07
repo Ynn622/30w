@@ -1,12 +1,13 @@
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { MOCK_NOTICE, sensoryApi } from '../lib/sensoryApi.js'
-import { SEARCH_RADIUS, distanceMeters, isCoordinate, nearestArea, pickSearchRadius, placesRadius, placesRadiusCap, readPreferences } from '../lib/sensoryDomain.js'
+import { PLACES_MAX, SEARCH_RADIUS, distanceMeters, isCoordinate, nearestArea, pickSearchRadius, placesRadius, placesRadiusCap, readPreferences } from '../lib/sensoryDomain.js'
 import { getNativeChannel } from '../lib/webview.js'
 import { requestNative } from '../lib/nativeClient.js'
 import { assessSensory, rankPlaces } from '../lib/sensoryIndex.js'
 import { reverseGeocoder } from '../lib/reverseGeocode.js'
 import { readNoiseHistory, saveNoiseEntry } from '../lib/noiseHistory.js'
 import { fakeLocation } from '../config/locationConfig.js'
+import { assessMockPlace, mockApi, rankMockPlaces } from '../lib/mockApi.js'
 
 function useRemote(query, fetcher) {
   // source 只在請求完成時更新，重新載入期間保留上一次結果，避免通知反覆跳出。
@@ -16,7 +17,7 @@ function useRemote(query, fetcher) {
     controller?.abort()
     const current = ++serial
     // 尚未定位或不在服務範圍時不呼叫後端。
-    if (!query.value) { controller = null; state.value = 'idle'; error.value = ''; data.value = null; meta.value = null; return }
+    if (!query.value) { controller = null; state.value = 'idle'; error.value = ''; data.value = null; meta.value = null; source.value = null; return }
     controller = new AbortController()
     state.value = 'loading'; error.value = ''; data.value = null; meta.value = null
     try {
@@ -113,17 +114,31 @@ export function useQuietCity(notify) {
     if (!moved && radiusKey(radius) === radiusKey(previous.radius)) return
     mapView.value = { lat: moved ? view.lat : previous.lat, lng: moved ? view.lng : previous.lng, radius }
   }
-  const mapQuery = computed(() => searchArea.value
+  // 測試情境（remote-mock）：正式感官地圖與場所查詢停用，不與 Mock 混用；首頁感官天氣仍為正式資料。
+  const remoteMock = computed(() => preferences.value.dataMode === 'remote-mock')
+  const mapQuery = computed(() => searchArea.value && !remoteMock.value
     ? { areaId: searchArea.value.id, lat: searchCenter.value.lat, lng: searchCenter.value.lng, radius: searchRadius.value } : null)
   // 地點查詢只帶區域、座標與半徑（已移除使用者感官篩選）。
-  const placeQuery = computed(() => mapQuery.value && { ...mapQuery.value, radius: placesSearchRadius.value })
+  const placeQuery = computed(() => mapQuery.value && { ...mapQuery.value, radius: placesSearchRadius.value, max: PLACES_MAX })
   const overview = useRemote(query, sensoryApi.getOverview)
   const map = useRemote(mapQuery, sensoryApi.getMap)
   const places = useRemote(placeQuery, sensoryApi.getPlaces)
+  // Mock：每個情境一次取回全臺北 60 個設施代表點（減少請求、避開限流），清單與地圖再依地圖範圍在前端篩選。
+  // 切換情境會取消舊請求；切回正式時查詢為 null，Mock 場所立即清空。
+  const mockQuery = computed(() => remoteMock.value && serviceAvailable.value ? { scenario: preferences.value.scenario } : null)
+  const mock = useRemote(mockQuery, mockApi.getPlaces)
   // 篩選範圍以地圖中心計算，但清單顯示的直線距離一律從目前位置算。
-  const recommendations = computed(() => rankPlaces((places.data.value?.places || []).map(place => ({
+  const livePlaces = computed(() => rankPlaces((places.data.value?.places || []).map(place => ({
     ...place, distanceM: distanceMeters(center.value, place.location) ?? place.distanceM, assessment: assess(place, places.meta.value),
   })), preferences.value.sort))
+  const mockPlaces = computed(() => {
+    if (!remoteMock.value || !searchCenter.value) return []
+    return rankMockPlaces((mock.data.value?.places || [])
+      .filter(place => (distanceMeters(searchCenter.value, place.location) ?? Infinity) <= placesSearchRadius.value)
+      .map(place => ({ ...place, mock: true, distanceM: distanceMeters(center.value, place.location), mockAssessment: assessMockPlace(place, preferences.value.sensitivities) })),
+    preferences.value.sort)
+  })
+  const recommendations = computed(() => remoteMock.value ? mockPlaces.value : livePlaces.value)
   // 任一資料改用模擬就視為模擬模式；三者都取得後端資料才算恢復。
   const dataSource = computed(() => {
     const sources = [overview, map, places].map(remote => remote.source.value)
@@ -196,5 +211,7 @@ export function useQuietCity(notify) {
   onScopeDispose(() => { disposed = true; locationController?.abort(); addressController?.abort(); clearInterval(refreshTimer); window.removeEventListener?.('focus', resume) })
   // 模擬模式下強度選項可完整操作；後端模式需後端宣告支援。
   const reportIntensityEnabled = computed(() => sensoryApi.supportsReportIntensity || usingMock.value)
-  return { noiseHistory, recordNoise, mapCenter, mapView, searchRadius, placesSearchRadius, searchCap, viewTruncated, searchArea, searchAvailable, searchingElsewhere, setMapView, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, map, places, locating, locate, reportLocation }
+  // 測試情境禁止正式寫入（回報、量測），畫面需明確停用。
+  const writesEnabled = computed(() => !remoteMock.value)
+  return { remoteMock, mock, writesEnabled, noiseHistory, recordNoise, mapCenter, mapView, searchRadius, placesSearchRadius, searchCap, viewTruncated, searchArea, searchAvailable, searchingElsewhere, setMapView, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, map, places, locating, locate, reportLocation }
 }

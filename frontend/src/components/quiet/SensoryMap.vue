@@ -6,7 +6,7 @@ import { CONTOUR_LEVELS, FIELD_GRADIENT_CSS, NO_DATA_AS_GREEN, contourSegments, 
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 // field 由探索頁以 buildSensoryField 建立（地圖與清單共用），這裡只負責畫。
-const props = defineProps({ places: { type: Array, default: () => [] }, field: { type: Object, default: null }, center: { type: Object, required: true }, deviceLocated: Boolean, lowStimulus: Boolean, layerVisible: { type: Boolean, default: true }, mock: Boolean })
+const props = defineProps({ places: { type: Array, default: () => [] }, field: { type: Object, default: null }, center: { type: Object, required: true }, deviceLocated: Boolean, lowStimulus: Boolean, layerVisible: { type: Boolean, default: true }, mock: Boolean, remoteMock: Boolean })
 const emit = defineEmits(['select', 'locate', 'viewchange'])
 const container = ref(null), ready = ref(false), error = ref(''), hasField = ref(false)
 // 敏感圖層：每個點依使用者敏感度算出個人刺激值，再內插成像氣壓圖的平滑色帶（raster）與 33／66 等值線（line）。
@@ -67,12 +67,16 @@ const PIN_KINDS = {
   hall: { color: '#0391A7', icon: '<path d="M3 11 12 4l9 7v9H3Z"/><path d="M10 20v-5h4v5"/>' },
 }
 const PIN_HEIGHT = 36
+// 測試情境中休館或開放狀態未知的點位以灰色顯示（仍可點開詳情，但不列為推薦）。
+const UNAVAILABLE_PIN = '#8a969d'
+const unavailable = place => place.mock && ['closed', 'unknown'].includes(place.openStatus)
 function pinElement(place) {
-  const kind = PIN_KINDS[place.artwork] || PIN_KINDS.hall
+  const kind = unavailable(place) ? { ...(PIN_KINDS[place.artwork] || PIN_KINDS.hall), color: UNAVAILABLE_PIN } : PIN_KINDS[place.artwork] || PIN_KINDS.hall
   const button = document.createElement('button')
   button.type = 'button'
   button.className = 'q-map-pin'
-  button.setAttribute('aria-label', `查看${place.name}`)
+  if (unavailable(place)) button.classList.add('unavailable')
+  button.setAttribute('aria-label', `查看${place.name}${unavailable(place) ? '（情境中不開放或狀態未知）' : ''}`)
   const icon = document.createElement('span')
   icon.className = 'q-map-pin-icon'
   icon.setAttribute('aria-hidden', 'true')
@@ -167,6 +171,7 @@ onUnmounted(() => { disposed = true; generation++; clearTimeout(timer); clearTim
     <div ref="container" class="sensory-map" role="region" aria-label="城市感官互動地圖，可拖曳縮放"></div>
     <div v-if="!ready || error" class="q-map-state" role="status"><AppIcon :name="error ? 'map' : 'layers'" :size="28"/><strong>{{ error || '正在展開城市地圖…' }}</strong><button v-if="error" class="q-secondary" @click="initialize">重新載入地圖</button></div>
     <div v-if="ready && !error && layerVisible" class="map-legend"><strong>敏感圖層</strong><em v-if="mock" class="map-legend-mock">模擬資料</em><div class="map-legend-bar" :style="{ background: FIELD_GRADIENT_CSS }"></div><span class="map-legend-ticks"><span>安靜</span><span>33</span><span>66</span><span>刺激</span></span><small class="map-legend-note">依你的感官敏感度加權；綠線內為 33 以下的綠區，紅線內為 66 以上。遠離回報處淡出，無色處為無資料{{ NO_DATA_AS_GREEN ? '（暫視為綠區）' : '' }}。</small><small v-if="!hasField" class="map-legend-empty">附近 30 分鐘內回報尚未達公開門檻，暫無資料</small></div>
+    <div v-if="ready && !error && remoteMock" class="map-legend"><strong>測試情境點位</strong><em class="map-legend-mock">合成分數</em><small class="map-legend-note">每點為設施代表點，非實測點或入口；分數為人工情境推估，非即時。灰色為情境中休館或開放狀態未知。</small></div>
     <div class="map-tools"><button class="q-icon-button" aria-label="使用目前位置並移至地圖中心" @click="$emit('locate')"><AppIcon name="locate" :size="21"/></button><button class="q-icon-button" aria-label="放大地圖" @click="map?.zoomIn({ duration: reduced() ? 0 : 200 })"><AppIcon name="plus" :size="21"/></button><button class="q-icon-button" aria-label="縮小地圖" @click="map?.zoomOut({ duration: reduced() ? 0 : 200 })"><span class="minus-icon">−</span></button></div>
   </div>
 </template>

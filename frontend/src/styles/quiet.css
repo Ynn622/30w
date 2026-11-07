@@ -307,6 +307,8 @@ body { background: #edf3f7; }
 .q-map-pin:hover .q-map-pin-icon { transform: scale(1.08); }
 .q-map-pin-label { display: block; max-width: 96px; margin-top: 1px; padding: 0 4px; overflow: hidden; border-radius: 4px; background: #ffffffe6; color: #263b46; font-size: 11px; font-weight: 600; line-height: 16px; white-space: nowrap; text-overflow: ellipsis; box-shadow: 0 1px 2px #1d3c4a24; }
 .q-pin-labels-hidden .q-map-pin-label { display: none; }
+.q-map-pin.unavailable { opacity: .8; }
+.q-map-pin.unavailable .q-map-pin-label { color: #66747d; font-weight: 500; }
 .q-map-pin:focus-visible { outline: none; }
 .q-map-pin:focus-visible .q-map-pin-icon { outline: 3px solid #0391a780; outline-offset: 2px; border-radius: 50%; }
 .q-user-dot { width: 13px; height: 13px; border: 2.5px solid #fff; border-radius: 50%; background: #2d96ed; box-shadow: 0 0 0 8px #4eacfa2b; }
