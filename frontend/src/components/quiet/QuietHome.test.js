@@ -8,6 +8,7 @@ import { assessSensory } from '../../lib/sensoryIndex.js'
 import { DEFAULT_PREFERENCES } from '../../lib/sensoryDomain.js'
 import SenseInfoDialog from './SenseInfoDialog.vue'
 import OverviewInfoDialog from './OverviewInfoDialog.vue'
+import { hourlyOverviewFor } from '../../lib/hourlyApi.fixture.js'
 // 首頁以目前時間判斷新鮮度，模擬資料也以目前時間產生。
 const NOW = Date.now()
 const sampleOverview = () => mockOverview('zhongzheng', NOW)
@@ -172,5 +173,60 @@ describe('sense info dialog', () => {
     // 未知時不畫箭頭，不暗示任何級別。
     expect(html).toContain('level-bar')
     expect(html).not.toContain('level-marker')
+  })
+})
+
+describe('home overview from the 150 m average (test/mock/overview)', () => {
+  function gridCity(overview = hourlyOverviewFor()) {
+    const city = cityFor(sampleOverview())
+    city.overview = { data: ref(overview.data), meta: ref(overview.meta), state: ref('ready'), error: ref(''), reload: () => {} }
+    return city
+  }
+  const home = city => renderToString(createSSRApp(QuietHome, { city }))
+  async function dialog(component, props) {
+    const context = {}
+    await renderToString(createSSRApp(component, props), context)
+    return context.teleports.body
+  }
+  it('computes the headline and description from the four averages with the personal sensitivities', async () => {
+    const html = await home(gridCity())
+    // 預設敏感度 4／2／3／1：(26.6×4 + 23.7×2 + 11.4×3 + 12.4×1) ÷ 10 ≈ 20 → 整體舒適；不用後端固定文字。
+    expect(html).toContain('整體舒適')
+    expect(html).toContain('各項感官刺激都低。')
+    expect(html).not.toContain('附近150公尺感官模擬平均')
+    // simulatedAt 2026-11-07T19:00:26Z = 臺北 03:00
+    expect(html).toContain('更新：03:00')
+    expect(html).not.toContain('模擬：')
+    expect(html).not.toContain('資料不足，暫無法判斷')
+  })
+  it('updates the headline when the sensitivities change', async () => {
+    const city = gridCity(hourlyOverviewFor({ senses: { noise: 80, light: 10, crowd: 10, odor: 10 }, validPointCounts: { noise: 5, light: 5, crowd: 5, odor: 5 } }))
+    city.preferences.value = { ...city.preferences.value, sensitivities: { noise: 5, light: 1, crowd: 1, odor: 1 } }
+    const noisy = await home(city)
+    expect(noisy).toContain('整體普通')
+    expect(noisy).toContain('聲音吵雜，其他感官刺激低。')
+    city.preferences.value = { ...city.preferences.value, sensitivities: { noise: 1, light: 5, crowd: 5, odor: 5 } }
+    expect(await home(city)).toContain('整體舒適')
+  })
+  it('treats decimals and zero as values and partial nulls as unknown', async () => {
+    const html = await home(gridCity(hourlyOverviewFor({ senses: { noise: 0, light: 33.4, crowd: null, odor: 66.1 }, validPointCounts: { noise: 2, light: 2, crowd: 0, odor: 2 } })))
+    const levels = [...html.matchAll(/<strong[^>]*>([^<]+)<\/strong>/g)].map(match => match[1]).filter(text => ['低', '中等', '偏高', '未知'].includes(text))
+    expect(levels).toEqual(['低', '中等', '未知', '偏高'])
+  })
+  it('shows insufficient data for an empty circle instead of zero', async () => {
+    const empty = hourlyOverviewFor({ senses: { noise: null, light: null, crowd: null, odor: null }, pointCount: 0, validPointCounts: { noise: 0, light: 0, crowd: 0, odor: 0 } })
+    const html = await home(gridCity(empty))
+    expect(html).toContain('資料不足，暫無法判斷')
+    expect(html).toContain('附近 150 公尺內沒有資料。未知不代表環境安靜。')
+    expect(html.match(/>未知</g)).toHaveLength(4)
+  })
+  it('explains values in the dialogs with the personal index and no mock label', async () => {
+    const city = gridCity()
+    expect(await dialog(SenseInfoDialog, { city, senseKey: 'noise', value: 26.6, described: true })).toContain('刺激指數 26.6／100')
+    expect(await dialog(SenseInfoDialog, { city, senseKey: 'crowd', value: null, described: true })).toContain('附近 150 公尺內這一項沒有有效資料')
+    const overview = await dialog(OverviewInfoDialog, { city, ssi: 20, headline: '整體舒適', described: true })
+    expect(overview).toContain('整體舒適')
+    expect(overview).toContain('個人刺激指數 20／100（低），由附近 150 公尺平均依你在「我的」設定的感官敏感度加權計算。')
+    expect(overview).not.toContain('目前為模擬資料')
   })
 })

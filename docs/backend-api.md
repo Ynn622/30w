@@ -30,7 +30,7 @@ VITE_REPORT_INTENSITY=false
 
 | 方法與路徑 | 用途 | 前端使用處 |
 | --- | --- | --- |
-| `GET sensory/overview` | 區域感官概況、天氣、空品、回報與量測計數 | 首頁 |
+| `GET sensory/overview` | 區域感官概況、天氣、空品、回報與量測計數 | 首頁（2026-11-08 起前端改讀 `test/mock/overview`，暫不呼叫） |
 | `GET sensory/map` | 近期匿名彙整感官熱區 | 探索地圖（2026-11-08 起前端改用 hourly 模擬網格，暫不呼叫） |
 | `GET places` | 查詢中心指定半徑內、符合資料條件的場所 | 探索地圖與清單 |
 | `GET places/{id}` | 場所詳情、可進入性、感官與來源 | 詳情三分頁 |
@@ -78,6 +78,8 @@ VITE_REPORT_INTENSITY=false
 建議狀態：400 驗證失敗、401 未授權、403 禁止、404 場所不存在、409 重複寫入、429 頻率限制、503 上游暫不可用。請回傳可顯示的繁體中文 `error.message`，不得包含資料庫、金鑰或個資。可另送 `X-Request-Id`，讓前端 debug 比對。
 
 ## 1 區域感官概況
+
+> 2026-11-08 起前端首頁改讀 `test/mock/overview`（附近 150 公尺網格平均，目前當正式資料對待），暫不呼叫本接口；以下契約保留供日後改回。
 
 `GET sensory/overview?areaId=zhongzheng&lat=25.0386&lng=121.5143&radius=500`
 
@@ -511,6 +513,7 @@ dimensionCoverage = 有效維度數 / 4
 |---|---|
 | `GET test/mock/hourly?dayType=&hour=&limit=30000&offset=0` | 每個時段一次取全市 30,000 點（gzip 約 0.5 MB、約 2–3 秒），依 `nextOffset` 續取；不帶圈選（圈選只收 300／500／1000m，探索地圖範圍可能更大），前端依地圖範圍裁切 |
 | `GET test/mock/hourly/{tg00001}?dayType=&hour=` | 前端目前未使用（網格沒有詳情頁） |
+| `GET test/mock/overview?lat=&lng=` | 首頁感官概況（目前當正式資料對待）：只送目前位置座標，後端固定 150 公尺、自動取當下臺北時段；驗證 `aggregationVersion: hourly-radius-mean-v1`、`radiusMeters: 150`、時段一致、四維 0–100（可小數）或 null、`validPointCounts ≤ pointCount`、`confidence` 與全 null 一致、`observedAt`／`reportCount` 為 null。失敗顯示錯誤並可重試，不改用內建模擬資料 |
 
 前端驗證：`meta.mock === true`、`demo === true`、`mode === "test-only"`、`datasetVersion === "taipei-hourly-grid-v1"`、`meta.dayType`／`hour` 與查詢相同、`timeBasis === "simulated_request_time"`、`simulatedAt` 為有效時間；每點 `id` 符合 `tg\d{5}`、座標有效、`coordinateKind === "synthetic_grid_center"`、`quality ∈ estimated|insufficient`、四維為 0–100 整數或 null、`sound.unit === "dB(A)"`；回傳筆數須等於 `total`。不符即顯示「模擬網格格式不符」，不改用內建模擬資料。400／404／429／503 各自顯示說明並可重試。
 

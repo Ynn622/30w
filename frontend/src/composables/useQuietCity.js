@@ -24,7 +24,9 @@ function useRemote(query, fetcher) {
     try {
       const response = await fetcher(query.value, { signal: controller.signal })
       if (current !== serial) return
-      data.value = response.data; meta.value = response.meta; state.value = 'ready'; source.value = response.meta?.mock ? 'mock' : 'api'
+      data.value = response.data; meta.value = response.meta; state.value = 'ready'
+      // 後端 test/mock 接口（mode: test-only）目前當正式資料對待，不是內建模擬備援，不觸發「已改用模擬資料」通知。
+      source.value = response.meta?.mode === 'test-only' || !response.meta?.mock ? 'api' : 'mock'
     } catch (reason) {
       if (current !== serial) return
       error.value = reason.message; state.value = 'error'
@@ -141,7 +143,10 @@ export function useQuietCity(notify) {
     ? { areaId: searchArea.value.id, lat: searchCenter.value.lat, lng: searchCenter.value.lng, radius: searchRadius.value } : null)
   // 地點查詢只帶區域、座標與半徑（已移除使用者感官篩選）；各接口的 radius 規則不同，分開建立。
   const placeQuery = computed(() => searchQuery.value && { ...searchQuery.value, radius: placesSearchRadius.value, max: PLACES_MAX })
-  const overview = useRemote(query, sensoryApi.getOverview)
+  // 首頁概況：後端 test/mock/overview（目前位置 150 公尺內網格平均，時段由後端依當下臺北時間決定），目前當正式資料對待；
+  // 只送 lat／lng，失敗時顯示錯誤並可重試，不改用內建模擬資料。
+  const overviewQuery = computed(() => query.value && { lat: query.value.lat, lng: query.value.lng })
+  const overview = useRemote(overviewQuery, hourlyApi.getOverview)
   const places = useRemote(placeQuery, sensoryApi.getPlaces)
   // 每個時段一次取回全臺北 30,000 點（gzip 約 0.5 MB，避開每分鐘 100 次限流），再依地圖範圍在前端裁切。
   // 查詢只在時段改變時才變（當下時段每到整點才換），切換時段會取消舊請求。
@@ -159,16 +164,16 @@ export function useQuietCity(notify) {
   })), preferences.value.sort))
   const recommendations = livePlaces
   // 任一資料改用模擬就視為模擬模式；三者都取得後端資料才算恢復。
-  // 只有首頁概況與場所清單會在後端失敗時改用內建模擬資料；敏感圖層一律呼叫後端，失敗就顯示錯誤。
-  const fallbackParts = [overview, places]
+  // 只有場所清單會在後端失敗時改用內建模擬資料；首頁概況與敏感圖層一律呼叫後端，失敗就顯示錯誤並可重試。
+  const fallbackParts = [places]
   const dataSource = computed(() => {
     const sources = fallbackParts.map(remote => remote.source.value)
     return sources.includes('mock') ? 'mock' : sources.every(value => value === 'api') ? 'api' : null
   })
   const usingMock = computed(() => dataSource.value === 'mock')
   const fallbackReason = computed(() => fallbackParts.map(remote => remote.meta.value?.fallbackReason).find(Boolean) || '')
-  // 概況與清單都回應後才通知，並指出哪些部分改用模擬資料（後端可能只完成部分接口）。
-  const PART_LABELS = ['感官概況', '場所清單']
+  // 清單回應後才通知是否改用模擬資料。
+  const PART_LABELS = ['場所清單']
   let announced = ''
   watch(() => fallbackParts.map(remote => remote.source.value), sources => {
     if (!sources.every(Boolean)) return

@@ -10,18 +10,39 @@ import CityIllustration from './CityIllustration.vue'
 import LocationGate from './LocationGate.vue'
 import { MOCK_LABEL, SENSES, REPORT_KINDS, formatTime, isFresh, levelText } from '../../lib/sensoryDomain.js'
 import { estimateDb, noiseLevel, readDbOffset } from '../../lib/noiseLevel.js'
+import { OVERVIEW_AGGREGATION_VERSION } from '../../lib/hourlyApi.js'
+import { summarizeOverview } from '../../lib/overviewSummary.js'
 
 const props = defineProps({ city: { type: Object, required: true } })
 // 「附近的安靜角落」暫時隱藏；改回 true 即可恢復，推薦清單仍可在探索頁使用。
 const SHOW_NEARBY = false
+// 首頁概況目前讀後端 test/mock/overview（目前位置 150 公尺內網格平均），先當正式資料呈現：
+// 直接採用後端平均值（可為小數、0 為有效、各維獨立為 null），沒有觀測時間與樣本數，不套正式回報的新鮮度與 SSI 規則。
+const gridOverview = computed(() => props.city.overview.meta.value?.aggregationVersion === OVERVIEW_AGGREGATION_VERSION)
 const canDescribe = computed(() => {
   const data = props.city.overview.data.value
+  if (gridOverview.value) return Boolean(data) && data.confidence !== 'insufficient'
   return data && data.confidence !== 'insufficient' && (data.reportCount > 0 || data.measurementCount > 0)
     && isFresh(data.observedAt, Date.now())
 })
 // 首頁四維與 SSI 只採有效觀測；空品 AQI 另列，不代替氣味。
-const assessment = computed(() => props.city.overview.data.value ? props.city.assess(props.city.overview.data.value, props.city.overview.meta.value) : null)
-const senseValue = key => canDescribe.value ? assessment.value?.dimensions?.[key] ?? null : null
+const assessment = computed(() => props.city.overview.data.value && !gridOverview.value ? props.city.assess(props.city.overview.data.value, props.city.overview.meta.value) : null)
+const senseValue = key => {
+  if (!canDescribe.value) return null
+  return gridOverview.value ? props.city.overview.data.value.senses?.[key] ?? null : assessment.value?.dimensions?.[key] ?? null
+}
+// 標題與說明不用後端固定文字，改由四維平均依「我的」感官敏感度加權計算（個人化指數，與敏感圖層一致）。
+const personal = computed(() => gridOverview.value && canDescribe.value
+  ? summarizeOverview(props.city.overview.data.value.senses, props.city.preferences.value.sensitivities) : null)
+const weatherHeadline = computed(() => gridOverview.value ? personal.value?.headline : props.city.overview.data.value?.headline)
+const weatherDescription = computed(() => gridOverview.value ? personal.value?.description : props.city.overview.data.value?.description)
+const MISSING_TEXT = { no_points_within_radius: '附近 150 公尺內沒有資料。', no_valid_mock_values: '附近 150 公尺內的資料皆為未知。' }
+const insufficientText = computed(() => gridOverview.value
+  ? `${MISSING_TEXT[props.city.overview.data.value?.missingReason] || '附近沒有可用的資料。'}未知不代表環境安靜。`
+  : '近期資料不足或已過期，歡迎分享感受。')
+// 資料時間：正式資料用 meta.updatedAt，150 公尺平均用後端的 simulatedAt；只有內建模擬備援才標「模擬」。
+const overviewTime = computed(() => props.city.overview.meta.value?.updatedAt || props.city.overview.data.value?.simulatedAt || null)
+const fallbackMock = computed(() => Boolean(props.city.overview.meta.value?.mock) && !gridOverview.value)
 // 首頁只列最近三次量測，完整紀錄保留在此裝置。
 const recentNoise = computed(() => {
   const { offset } = readDbOffset()
@@ -37,7 +58,7 @@ const historyOpen = ref(false)
 // 首頁概況或清單還在載入，就視為重新整理中（敏感圖層的模擬網格只在換時段時重抓，不計入）。
 const refreshing = computed(() => [props.city.overview, props.city.places].some(remote => remote?.state?.value === 'loading'))
 const updatedClock = computed(() => {
-  const value = props.city.overview.meta.value?.updatedAt
+  const value = overviewTime.value
   if (!value || !Number.isFinite(new Date(value).getTime())) return '時間未知'
   return new Intl.DateTimeFormat('zh-TW', {
     timeZone: 'Asia/Taipei', hour: '2-digit', minute: '2-digit', hour12: false,
@@ -67,9 +88,9 @@ defineEmits(['report', 'measure', 'explore', 'select'])
         <small class="area-source">目前位置</small>
       </span>
       <!-- 重新整理期間資料會先清空，按鈕仍保留並顯示「更新中…」，避免整列跳動。 -->
-      <button v-if="city.overview.state.value !== 'idle'" type="button" class="q-text-button muted updated-button" :class="{ refreshing }" :disabled="refreshing" :title="refreshing ? '更新中' : `資料時間 ${formatTime(city.overview.meta.value?.updatedAt)}，點選重新整理`" :aria-label="refreshing ? '資料更新中' : `重新整理資料（${city.overview.meta.value?.mock ? '模擬資料時間' : '資料更新時間'} ${formatTime(city.overview.meta.value?.updatedAt)}）`" @click="city.refresh">
+      <button v-if="city.overview.state.value !== 'idle'" type="button" class="q-text-button muted updated-button" :class="{ refreshing }" :disabled="refreshing" :title="refreshing ? '更新中' : `資料時間 ${formatTime(overviewTime)}，點選重新整理`" :aria-label="refreshing ? '資料更新中' : `重新整理資料（${fallbackMock ? '模擬資料時間' : '資料更新時間'} ${formatTime(overviewTime)}）`" @click="city.refresh">
         <template v-if="refreshing">更新中…</template>
-        <template v-else-if="city.overview.state.value === 'ready'">{{ city.overview.meta.value?.mock ? '模擬' : '更新' }}：{{ updatedClock }}</template>
+        <template v-else-if="city.overview.state.value === 'ready'">{{ fallbackMock ? '模擬' : '更新' }}：{{ updatedClock }}</template>
         <template v-else>重新整理</template>
         <AppIcon name="refresh" :size="14" />
       </button>
@@ -83,8 +104,8 @@ defineEmits(['report', 'measure', 'explore', 'select'])
           <div class="weather-waves" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
         </div>
         <div class="weather-copy">
-          <h2 :class="{ 'insufficient-headline': !canDescribe }">{{ canDescribe ? city.overview.data.value.headline : '資料不足，暫無法判斷' }}</h2>
-          <p>{{ canDescribe ? city.overview.data.value.description : '近期資料不足或已過期，歡迎分享感受。' }}</p>
+          <h2 :class="{ 'insufficient-headline': !canDescribe }">{{ canDescribe ? weatherHeadline : '資料不足，暫無法判斷' }}</h2>
+          <p>{{ canDescribe ? weatherDescription : insufficientText }}</p>
         </div>
         <button class="weather-more q-icon-button" aria-label="查看感官概況說明" @click="overviewOpen = true"><AppIcon name="chevron" :size="21" /></button>
       </div>
@@ -97,7 +118,7 @@ defineEmits(['report', 'measure', 'explore', 'select'])
       </div>
       <p class="sense-hint">點選卡片可查看說明與計算方式</p>
     </article>
-    <OverviewInfoDialog v-if="overviewOpen" :city="city" :ssi="canDescribe ? assessment?.ssi ?? null : null" :described="canDescribe" @close="overviewOpen = false" />
+    <OverviewInfoDialog v-if="overviewOpen" :city="city" :ssi="canDescribe ? (gridOverview ? personal?.stimulus : assessment?.ssi) ?? null : null" :headline="weatherHeadline" :described="canDescribe" @close="overviewOpen = false" />
     <SenseInfoDialog v-if="infoKey" :city="city" :sense-key="infoKey" :value="senseValue(infoKey)" :described="canDescribe" @close="infoKey = null" />
 
     <section class="quick-report-section q-reveal">

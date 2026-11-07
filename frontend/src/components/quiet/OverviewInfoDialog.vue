@@ -9,12 +9,21 @@ import { MOCK_LABEL, OVERALL_SCALE, levelText } from '../../lib/sensoryDomain.js
 // 不放說明文字與資料來源（開發者 2026-11-08 決定）；以敏感圖層同款色帶加小箭頭標示目前級別，只保留模擬資料標示。
 const props = defineProps({
   city: { type: Object, required: true },
-  ssi: { type: Number, default: null }, // 首頁實際採用的環境刺激指數；null 代表無法計算，不畫箭頭
+  ssi: { type: Number, default: null }, // 首頁實際採用的整體指數（正式為 SSI，150 公尺平均為個人化指數）；null 代表無法計算，不畫箭頭
+  headline: { type: String, default: '' }, // 首頁顯示的標題（150 公尺平均時由個人化指數計算）
   described: Boolean, // 整體概況是否可判斷（資料足夠且未過期）
 })
 defineEmits(['close'])
 const data = computed(() => props.city.overview.data.value)
-const mock = computed(() => Boolean(props.city.overview.meta.value?.mock))
+// 150 公尺平均（test/mock/overview）當正式資料呈現：不計算 SSI，也不標成內建模擬資料。
+const gridOverview = computed(() => Boolean(props.city.overview.meta.value?.aggregationVersion))
+const mock = computed(() => Boolean(props.city.overview.meta.value?.mock) && !gridOverview.value)
+const summary = computed(() => {
+  if (gridOverview.value) return props.described && props.ssi !== null
+    ? `個人刺激指數 ${props.ssi}／100（${levelText(props.ssi)}），由附近 150 公尺平均依你在「我的」設定的感官敏感度加權計算。`
+    : '附近 150 公尺內沒有可用的資料；未知不代表環境安靜。'
+  return props.ssi === null ? '近期資料不足或已過期，暫無法判斷；未知不代表環境安靜。' : `環境刺激指數 SSI ${props.ssi}／100（${levelText(props.ssi)}）`
+})
 </script>
 
 <template>
@@ -22,8 +31,8 @@ const mock = computed(() => Boolean(props.city.overview.meta.value?.mock))
     <div class="sense-info-value">
       <AppIcon name="cloud" :size="30" />
       <div>
-        <strong>{{ described ? data?.headline : '資料不足' }}</strong>
-        <span>{{ ssi === null ? '近期資料不足或已過期，暫無法判斷；未知不代表環境安靜。' : `環境刺激指數 SSI ${ssi}／100（${levelText(ssi)}）` }}</span>
+        <strong>{{ described ? headline || data?.headline : '資料不足' }}</strong>
+        <span>{{ summary }}</span>
       </div>
     </div>
     <LevelScale :value="ssi" label="整體刺激程度" :ticks="OVERALL_SCALE" />

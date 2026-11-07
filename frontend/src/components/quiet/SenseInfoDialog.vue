@@ -19,6 +19,8 @@ const dimension = computed(() => data.value?.sensoryIndex?.dimensionMeta?.[props
 const REASONS = { no_data: '近 30 分鐘沒有這一項的回報。', stale: '觀測已超過 30 分鐘，不採用。', insufficient_samples: '樣本數不足，暫不判斷。', incompatible_scale: '資料尺度無法比較，暫不採用。' }
 const missingText = computed(() => {
   if (props.value !== null) return ''
+  // 150 公尺平均（test/mock/overview）：各維獨立為 null。
+  if (props.city.overview.meta.value?.aggregationVersion) return props.described ? '附近 150 公尺內這一項沒有有效資料；未知不代表環境安靜。' : '附近 150 公尺內沒有可用的資料；未知不代表環境安靜。'
   if (!props.described) return '附近整體資料不足或已過期，暫不判斷。'
   if (dimension.value?.missingReason) return REASONS[dimension.value.missingReason] || '目前沒有可採用的資料。'
   return '目前沒有可採用的資料；未知不代表環境安靜。'
