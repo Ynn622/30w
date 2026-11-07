@@ -5,7 +5,7 @@ import QuietHome from './QuietHome.vue'
 import PlaceCard from './PlaceCard.vue'
 import { mockMeta, mockOverview, mockPlaces } from '../../data/quietMock.js'
 import { assessSensory } from '../../lib/sensoryIndex.js'
-import { DEFAULT_PREFERENCES, MOCK_LABEL } from '../../lib/sensoryDomain.js'
+import { DEFAULT_PREFERENCES } from '../../lib/sensoryDomain.js'
 import SenseInfoDialog from './SenseInfoDialog.vue'
 // 首頁以目前時間判斷新鮮度，模擬資料也以目前時間產生。
 const NOW = Date.now()
@@ -89,15 +89,14 @@ describe('sense info dialog', () => {
     await renderToString(createSSRApp(SenseInfoDialog, { city: cityFor(sampleOverview()), ...props }), context)
     return context.teleports.body
   }
-  it('explains the value, calculation and mock source for a dimension', async () => {
+  it('explains the value and calculation only, without the data table or source list', async () => {
     const html = await renderDialog({ senseKey: 'noise', value: 72, described: true })
     expect(html).toContain('聲音資料說明')
     expect(html).toContain('刺激指數 72／100')
     expect(html).toContain('0–33 低')
     expect(html).toContain('不是分貝')
     expect(html).toContain('40%')
-    expect(html).toContain('城市靜音鍵模擬資料')
-    expect(html).toContain(MOCK_LABEL)
+    for (const removed of ['觀測時間', '有效至', '採用樣本', '資料信心', '資料來源', '城市靜音鍵模擬資料']) expect(html).not.toContain(removed)
   })
   it('says why a dimension is unknown instead of treating it as quiet', async () => {
     const html = await renderDialog({ senseKey: 'odor', value: null, described: true })
