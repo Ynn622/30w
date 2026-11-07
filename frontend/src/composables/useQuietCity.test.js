@@ -162,4 +162,56 @@ describe('sensory queries', () => {
     expect(sensoryApi.getOverview).not.toHaveBeenCalled()
     scope.stop()
   })
+  it('names only the parts that fell back when the backend is partly ready', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
+    const mock = { data: { cells: [] }, meta: { mock: true, fallbackReason: 'HTTP 404：Route not found', sources: [] } }
+    sensoryApi.getOverview.mockResolvedValue(mock)
+    sensoryApi.getMap.mockResolvedValue(mock)
+    sensoryApi.getPlaces.mockResolvedValue({ data: { places: [] }, meta: { sources: [] } })
+    const notify = vi.fn()
+    const { scope, city } = located(notify)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(city.usingMock.value).toBe(true)
+    expect(notify.mock.calls.map(([message]) => message)).toEqual(['感官概況、感官地圖暫時無法取得後端資料，已改用模擬資料顯示。'])
+    scope.stop()
+  })
+  it('loads places and heat cells around the map center after the map stops moving, keeping the overview on the device', async () => {
+    vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
+    for (const fn of [sensoryApi.getOverview, sensoryApi.getMap]) fn.mockResolvedValue({ data: { cells: [] }, meta: {} })
+    const farPlace = { id: 'p1', name: '遠處場所', location: { lat: 25.0275, lng: 121.5360 } }
+    sensoryApi.getPlaces.mockResolvedValue({ data: { places: [farPlace] }, meta: {} })
+    const { scope, city } = located()
+    await nextTick(); await Promise.resolve()
+    const overviewCalls = sensoryApi.getOverview.mock.calls.length
+    city.setMapCenter({ lat: ZHONGZHENG.lat + 0.0003, lng: ZHONGZHENG.lng }) // 約 33 公尺：不重新查詢
+    await nextTick()
+    expect(city.mapCenter.value).toBeNull()
+    city.setMapCenter({ lat: 25.0270, lng: 121.5355 }) // 移到大安區
+    await nextTick(); await Promise.resolve()
+    expect(sensoryApi.getPlaces).toHaveBeenLastCalledWith(expect.objectContaining({ areaId: 'daan', lat: 25.0270, lng: 121.5355 }), expect.anything())
+    expect(sensoryApi.getMap).toHaveBeenLastCalledWith(expect.objectContaining({ areaId: 'daan' }), expect.anything())
+    expect(sensoryApi.getOverview).toHaveBeenCalledTimes(overviewCalls)
+    expect(city.searchingElsewhere.value).toBe(true)
+    // 清單距離仍從目前位置（中正區）計算。
+    await Promise.resolve()
+    expect(city.recommendations.value[0].distanceM).toBeGreaterThan(1500)
+    city.setMapCenter({ lat: 25.0136, lng: 121.4628 }) // 新北市板橋
+    await nextTick()
+    expect(city.searchAvailable.value).toBe(false)
+    expect(city.places.state.value).toBe('idle')
+    scope.stop()
+  })
+  it('returns the search to the device location after relocating', async () => {
+    vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: success => success({ coords: { latitude: AREAS[0].lat, longitude: AREAS[0].lng } }) } })
+    for (const fn of [sensoryApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
+    const { scope, city } = located()
+    city.setMapCenter({ lat: 25.0270, lng: 121.5355 })
+    expect(city.mapCenter.value).not.toBeNull()
+    await city.locate()
+    expect(city.mapCenter.value).toBeNull()
+    expect(city.searchingElsewhere.value).toBe(false)
+    scope.stop()
+  })
 })

@@ -21,7 +21,7 @@ VITE_REPORT_INTENSITY=false
 
 前端每次都先呼叫以下接口；網路錯誤、逾時、404／405、5xx 或回應格式不符時，該次請求改用前端 `frontend/src/data/quietMock.js` 的模擬資料（`meta.mock=true`、`meta.fallbackReason` 記錄原因），畫面跳出通知並標示「模擬」，之後每 60 秒重試，後端恢復即自動切回。POST 只在無法連線或 404／405／5xx 時模擬完成且不上傳；400、409、429 等錯誤直接顯示。後端上線後請確認不會落入模擬（例如格式不符也會觸發備援）。既有 debug 的 hello/health 測試獨立運作。
 
-2026-11-07 查核 `https://30wbackend.idfc.dev/api/v1`：`GET hello` 200；`sensory/overview`、`sensory/map`、`places`、`places/{id}`、`POST reports`、`POST measurements` 皆回 404 `Route not found`。CORS 允許 `http://localhost:5173` 與 `https://ynn622.github.io`，**未允許** `http://localhost:7890`（前端 dev server 預設埠，回 403）。
+2026-11-07 晚間查核 `https://30wbackend.idfc.dev/api/v1`：`GET places`、`GET places/{id}` 200，符合本契約（前端已實測顯示真實場所與詳情；四維 senses 皆 null、confidence insufficient）；`sensory/overview`、`sensory/map`、`POST reports`、`POST measurements` 仍回 404 `Route not found`，前端這些部分維持模擬資料並以通知指出。後端 `/openapi.json` 另列 `resources`、`resources/sources`、`resources/{id}` 開放資料點位接口，不屬本契約，前端尚未使用。CORS 允許 `http://localhost:5173` 與 `https://ynn622.github.io`，**未允許** `http://localhost:7890`（前端 dev server 預設埠，回 403）。
 
 前端入口：`frontend/src/lib/sensoryApi.js`。以下路徑全部接在 base URL 後，不含開頭 `/`，確保 `/api/v1` 不被覆蓋。頁面可見時每 60 秒重新讀取三種概況／地圖／清單資料，視窗重新取得焦點也更新；離開產品頁（含 debug）會清除 timer 與 listener。每次切區域／偏好會取消舊 GET，避免舊回覆覆蓋新查詢；POST 送出期間禁止重複點選。
 

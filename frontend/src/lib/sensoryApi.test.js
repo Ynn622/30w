@@ -156,7 +156,8 @@ describe('honest sensory values', () => {
   })
   it('restores only supported preferences and tolerates unavailable storage', () => {
     const restored = readPreferences({ getItem: () => '{"radius":3,"noise":"yes","shareMeasurement":true}' })
-    expect(restored).toMatchObject({ radius: 500, noise: true })
+    // 無效值回到預設：低噪篩選預設關閉（後端場所尚無感官資料時才不會一開始就是空清單）。
+    expect(restored).toMatchObject({ radius: 500, noise: false })
     expect(restored).not.toHaveProperty('shareMeasurement')
     expect(readPreferences({ getItem: () => { throw new Error('blocked') } })).toMatchObject({ radius: 500 })
   })

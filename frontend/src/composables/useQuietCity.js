@@ -1,6 +1,6 @@
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { MOCK_NOTICE, sensoryApi } from '../lib/sensoryApi.js'
-import { isCoordinate, nearestArea, readPreferences } from '../lib/sensoryDomain.js'
+import { distanceMeters, isCoordinate, nearestArea, readPreferences } from '../lib/sensoryDomain.js'
 import { getNativeChannel } from '../lib/webview.js'
 import { requestNative } from '../lib/nativeClient.js'
 import { assessSensory, rankPlaces } from '../lib/sensoryIndex.js'
@@ -81,16 +81,33 @@ export function useQuietCity(notify) {
   })
   const query = computed(() => serviceAvailable.value
     ? { areaId: areaId.value, lat: center.value.lat, lng: center.value.lng, radius: preferences.value.radius } : null)
-  const placeQuery = computed(() => query.value && ({ ...query.value,
+  // 探索地圖停止移動後，地點與熱區改抓地圖中心附近；首頁概況與回報位置仍用目前定位。
+  const mapCenter = ref(null)
+  const searchCenter = computed(() => serviceAvailable.value ? (mapCenter.value || center.value) : null)
+  const searchArea = computed(() => searchCenter.value ? nearestArea(searchCenter.value) : null)
+  // 地圖中心離目前位置超過 100 公尺才視為在看別處（標示用）。
+  const searchingElsewhere = computed(() => Boolean(mapCenter.value && center.value && distanceMeters(mapCenter.value, center.value) > 100))
+  const searchAvailable = computed(() => Boolean(searchArea.value))
+  function setMapCenter(point) {
+    if (!serviceAvailable.value || !isCoordinate(point)) return
+    // 移動不到 80 公尺不重新查詢，避免輕微拖動就打後端。
+    const previous = mapCenter.value || center.value
+    if (previous && distanceMeters(previous, point) < 80) return
+    mapCenter.value = { lat: point.lat, lng: point.lng }
+  }
+  const mapQuery = computed(() => searchArea.value
+    ? { areaId: searchArea.value.id, lat: searchCenter.value.lat, lng: searchCenter.value.lng, radius: preferences.value.radius } : null)
+  const placeQuery = computed(() => mapQuery.value && ({ ...mapQuery.value,
     noise: preferences.value.noise ? 'low' : 'any', light: preferences.value.light ? 'low' : 'any',
     crowd: preferences.value.crowd ? 'low' : 'any', indoor: preferences.value.indoor,
   }))
   const overview = useRemote(query, sensoryApi.getOverview)
-  const map = useRemote(query, sensoryApi.getMap)
+  const map = useRemote(mapQuery, sensoryApi.getMap)
   const places = useRemote(placeQuery, sensoryApi.getPlaces)
   // Odor and personalization are local additions; do not send unsupported query fields to older backends.
+  // 篩選範圍以地圖中心計算，但清單顯示的直線距離一律從目前位置算。
   const recommendations = computed(() => rankPlaces((places.data.value?.places || []).map(place => ({
-    ...place, assessment: assess(place, places.meta.value),
+    ...place, distanceM: distanceMeters(center.value, place.location) ?? place.distanceM, assessment: assess(place, places.meta.value),
   })).filter(place => !preferences.value.odor || (place.assessment.dimensions.odor !== null && place.assessment.dimensions.odor <= 33)), preferences.value.sort))
   // 任一資料改用模擬就視為模擬模式；三者都取得後端資料才算恢復。
   const dataSource = computed(() => {
@@ -99,12 +116,18 @@ export function useQuietCity(notify) {
   })
   const usingMock = computed(() => dataSource.value === 'mock')
   const fallbackReason = computed(() => [overview, map, places].map(remote => remote.meta.value?.fallbackReason).find(Boolean) || '')
-  let announced = null
-  watch(dataSource, value => {
-    if (!value || value === announced) return
-    if (value === 'mock') notify(MOCK_NOTICE)
-    else if (announced === 'mock') notify('已連上後端，改為顯示後端資料。')
-    announced = value
+  // 三種資料都回應後才通知，並指出哪些部分改用模擬資料（後端可能只完成部分接口）。
+  const PART_LABELS = ['感官概況', '感官地圖', '場所清單']
+  let announced = ''
+  watch(() => [overview, map, places].map(remote => remote.source.value), sources => {
+    if (!sources.every(Boolean)) return
+    const parts = PART_LABELS.filter((_, index) => sources[index] === 'mock')
+    const key = parts.join('、')
+    if (key === announced) return
+    if (parts.length === PART_LABELS.length) notify(MOCK_NOTICE)
+    else if (parts.length) notify(`${key}暫時無法取得後端資料，已改用模擬資料顯示。`)
+    else notify('已連上後端，改為顯示後端資料。')
+    announced = key
   })
   // 正式資料每分鐘重取，防止頁面長時間開啟後仍把過期觀測當成現在。
   const refresh = () => { now.value = Date.now(); overview.reload(); map.reload(); places.reload() }
@@ -136,6 +159,7 @@ export function useQuietCity(notify) {
       if (!isCoordinate(result)) throw new Error('App 未回傳有效座標，請重試。')
       const previous = area.value
       deviceLocation.value = { lat: result.lat, lng: result.lng, source: 'device', label: '目前位置' }
+      mapCenter.value = null
       locationError.value = ''
       if (previous && area.value && previous.id !== area.value.id) notify(`已更新目前位置，區域切換為${area.value.name}。`)
       return deviceLocation.value
@@ -157,5 +181,5 @@ export function useQuietCity(notify) {
   onScopeDispose(() => { disposed = true; locationController?.abort(); addressController?.abort(); clearInterval(refreshTimer); window.removeEventListener?.('focus', resume) })
   // 模擬模式下強度選項可完整操作；後端模式需後端宣告支援。
   const reportIntensityEnabled = computed(() => sensoryApi.supportsReportIntensity || usingMock.value)
-  return { dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, favorites, overview, map, places, locating, locate, toggleFavorite, reportLocation }
+  return { mapCenter, searchArea, searchAvailable, searchingElsewhere, setMapCenter, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, favorites, overview, map, places, locating, locate, toggleFavorite, reportLocation }
 }

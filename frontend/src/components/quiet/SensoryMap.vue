@@ -6,9 +6,9 @@ import { sensoryValues } from '../../lib/sensoryIndex.js'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 const props = defineProps({ places: { type: Array, default: () => [] }, cells: { type: Array, default: () => [] }, center: { type: Object, required: true }, layer: { type: String, default: 'noise' }, deviceLocated: Boolean, lowStimulus: Boolean, layerVisible: { type: Boolean, default: true } })
-const emit = defineEmits(['select', 'locate'])
+const emit = defineEmits(['select', 'locate', 'viewchange'])
 const container = ref(null), ready = ref(false), error = ref('')
-let map, maplibre, markers = [], centerMarker, observer, timer, disposed = false, generation = 0
+let map, maplibre, markers = [], centerMarker, observer, timer, moveTimer, disposed = false, generation = 0
 const reduced = () => props.lowStimulus || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 const layerLabels = { noise: '聲音', light: '光線', crowd: '人潮', odor: '氣味' }
 function applyVisibility() {
@@ -53,7 +53,7 @@ function sync() {
 }
 async function initialize() {
   const current = ++generation
-  ready.value = false; error.value = ''; clearTimeout(timer); observer?.disconnect(); clearMarkers(); centerMarker?.remove(); map?.remove(); map = null
+  ready.value = false; error.value = ''; clearTimeout(timer); clearTimeout(moveTimer); observer?.disconnect(); clearMarkers(); centerMarker?.remove(); map?.remove(); map = null
   try {
     const module = await import('maplibre-gl')
     if (disposed || current !== generation) return
@@ -84,6 +84,15 @@ async function initialize() {
       } })
       ready.value = true; applyStimulus(); applyVisibility(); sync()
     })
+    // 停止拖曳／縮放 0.5 秒後回報地圖中心，讓上層抓取該處附近的地點與熱區。
+    map.on('moveend', () => {
+      clearTimeout(moveTimer)
+      moveTimer = setTimeout(() => {
+        if (disposed || current !== generation || !map) return
+        const { lat, lng } = map.getCenter()
+        emit('viewchange', { lat, lng })
+      }, 500)
+    })
     map.on('error', () => { if (!ready.value) error.value = '底圖資源暫時無法取得，仍可使用下方場所清單。' })
     observer = new ResizeObserver(() => map?.resize()); observer.observe(container.value)
   } catch { error.value = '此裝置無法啟用地圖，請使用下方場所清單。' }
@@ -96,7 +105,7 @@ watch(() => props.center, center => {
   sync()
 }, { deep: true })
 onMounted(initialize)
-onUnmounted(() => { disposed = true; generation++; clearTimeout(timer); observer?.disconnect(); clearMarkers(); centerMarker?.remove(); map?.remove() })
+onUnmounted(() => { disposed = true; generation++; clearTimeout(timer); clearTimeout(moveTimer); observer?.disconnect(); clearMarkers(); centerMarker?.remove(); map?.remove() })
 </script>
 <template>
   <div class="sensory-map-wrap">

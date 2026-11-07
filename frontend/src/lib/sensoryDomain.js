@@ -99,7 +99,7 @@ export function filterPlaces(places, query = {}, now = Date.now()) {
     }))
     .sort((a, b) => a.distanceM - b.distanceM)
 }
-export const DEFAULT_PREFERENCES = Object.freeze({ noise: true, light: false, crowd: false, odor: false, radius: 500, indoor: false, lowStimulus: false, sort: 'fit' })
+export const DEFAULT_PREFERENCES = Object.freeze({ noise: false, light: false, crowd: false, odor: false, radius: 500, indoor: false, lowStimulus: false, sort: 'fit' })
 export function readPreferences(storage) {
   const defaults = () => ({ ...DEFAULT_PREFERENCES, sensitivities: { ...DEFAULT_SENSITIVITIES } })
   try {
