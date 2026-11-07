@@ -133,7 +133,7 @@ onUnmounted(() => { disposed = true; generation++; clearTimeout(timer); clearTim
   <div class="sensory-map-wrap">
     <div ref="container" class="sensory-map" role="region" aria-label="城市感官互動地圖，可拖曳縮放"></div>
     <div v-if="!ready || error" class="q-map-state" role="status"><AppIcon :name="error ? 'map' : 'layers'" :size="28"/><strong>{{ error || '正在展開城市地圖…' }}</strong><button v-if="error" class="q-secondary" @click="initialize">重新載入地圖</button></div>
-    <div v-if="ready && !error && layerVisible" class="map-legend"><strong>{{ layerLabels[layer] }}刺激示意</strong><em v-if="mock" class="map-legend-mock">模擬資料</em><div></div><span>較低 <span>較高</span></span><small>圓點代表有觀測的格網<br>回報加權熱區，非實測等值線</small></div>
+    <div v-if="ready && !error && layerVisible" class="map-legend"><strong>{{ layerLabels[layer] }}刺激示意</strong><em v-if="mock" class="map-legend-mock">模擬資料</em><div></div><span>較低 <span>較高</span></span></div>
     <div class="map-tools"><button class="q-icon-button" aria-label="使用目前位置並移至地圖中心" @click="$emit('locate')"><AppIcon name="locate" :size="21"/></button><button class="q-icon-button" aria-label="放大地圖" @click="map?.zoomIn({ duration: reduced() ? 0 : 200 })"><AppIcon name="plus" :size="21"/></button><button class="q-icon-button" aria-label="縮小地圖" @click="map?.zoomOut({ duration: reduced() ? 0 : 200 })"><span class="minus-icon">−</span></button></div>
   </div>
 </template>

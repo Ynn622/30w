@@ -294,7 +294,6 @@ body { background: #edf3f7; }
 .map-legend strong { font-size: 14px; font-weight: 600; }
 .map-legend > div { height: 7px; margin: 6px 0 4px; border-radius: 8px; background: linear-gradient(90deg, #3db4c5, #a3dca0, #f5e487, #ed8e80); }
 .map-legend > span { display: flex; justify-content: space-between; font-size: 12px; color: var(--q-muted); }
-.map-legend small { display: block; font-size: 12px; line-height: 1.5; color: var(--q-muted); margin-top: 5px; }
 .map-tools { position: absolute; right: 12px; top: 12px; display: grid; gap: 7px; }
 .map-tools .q-icon-button { width: 44px; height: 44px; box-shadow: 0 2px 8px #2447561a; background: #fff; border: 1px solid #dce6ed; border-radius: 50%; color: #385c6e; }
 .minus-icon { font-size: 26px; line-height: 1; }

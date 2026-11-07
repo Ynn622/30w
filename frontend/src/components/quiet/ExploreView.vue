@@ -12,9 +12,8 @@ defineProps({ city: { type: Object, required: true } })
 defineEmits(['select', 'sources'])
 const layer = ref('noise'), sheet = ref('peek')
 const SHEET_PEEK = 72 // 最小收合高度，實際依標題列高度自動調整
-// 「感官地圖／靜音推薦」對應底部抽屜收合／展開，兩者是同一份推薦清單。
+// 抽屜展開時標題改為「符合你的靜音推薦」。
 const mode = computed(() => sheet.value === 'peek' ? 'map' : 'quiet')
-function setMode(value) { sheet.value = value === 'map' ? 'peek' : sheet.value === 'peek' ? 'half' : sheet.value }
 // 篩選條件改由「我的」頁設定，探索頁把空間留給地圖；聲音熱區可用開關顯示或隱藏。
 const showLayer = ref(true)
 </script>
@@ -24,17 +23,8 @@ const showLayer = ref(true)
     <h1 class="sr-only">探索・感官地圖與靜音推薦</h1>
     <LocationGate v-if="!city.serviceAvailable.value" :city="city" />
     <template v-else>
-    <div class="q-segment explore-tabs" role="group" aria-label="探索模式">
-      <button type="button" :class="{ selected: mode === 'map' }" :aria-pressed="mode === 'map'" @click="setMode('map')"><AppIcon name="map" :size="21"/>感官地圖</button>
-      <button type="button" :class="{ selected: mode === 'quiet' }" :aria-pressed="mode === 'quiet'" @click="setMode('quiet')"><AppIcon name="leaf" :size="21"/>靜音推薦</button>
-    </div>
-
-    <div class="explore-context">
-      <span class="q-area-select"><AppIcon name="pin" :size="16"/>{{ city.area.value.name }}<button type="button" class="q-icon-button relocate" :disabled="city.locating.value" :aria-label="city.locating.value ? '定位中' : '重新定位'" @click="city.locate"><AppIcon name="locate" :size="17"/></button></span>
-      <label class="layer-switch"><span>聲音圖層</span><input v-model="showLayer" class="q-switch" type="checkbox" role="switch" :aria-checked="showLayer" aria-label="顯示聲音刺激圖層"/></label>
-    </div>
-
     <div class="explore-stage">
+      <label class="layer-switch"><span>聲音圖層</span><input v-model="showLayer" class="q-switch" type="checkbox" role="switch" :aria-checked="showLayer" aria-label="顯示聲音刺激圖層"/></label>
       <SensoryMap :places="city.recommendations.value" :low-stimulus="city.preferences.value.lowStimulus" :cells="city.map.data.value?.cells || []" :center="city.center.value" :layer="layer" :layer-visible="showLayer" :mock="Boolean(city.map.meta.value?.mock)" :device-located="Boolean(city.deviceLocation.value)" @select="$emit('select', $event)" @locate="city.locate" @viewchange="city.setMapView" />
       <BottomSheet v-model:snap="sheet" :peek="SHEET_PEEK" label="附近靜音推薦">
         <template #header>
@@ -55,28 +45,18 @@ const showLayer = ref(true)
 </template>
 
 <style scoped>
-.explore-view { display: flex; flex-direction: column; height: 100dvh; min-height: 0; overflow: hidden; padding: calc(10px + env(safe-area-inset-top)) 12px calc(70px + env(safe-area-inset-bottom)); background: #fff; }
+.explore-view { display: flex; flex-direction: column; height: 100dvh; min-height: 0; overflow: hidden; padding: env(safe-area-inset-top) 12px calc(70px + env(safe-area-inset-bottom)); background: #fff; }
 .explore-view > :not(.explore-stage) { flex: none; }
 /* 地圖填滿剩餘高度，底部抽屜覆蓋在地圖上；地圖底緣留給收合時的抽屜，確保授權標示不被遮住。 */
 .explore-stage { position: relative; flex: 1; min-height: 240px; margin: 0 -12px; overflow: hidden; }
+/* 地圖上只保留聲音圖層開關：浮在左上，圖例往下讓位。 */
+.layer-switch { position: absolute; z-index: 3; top: 12px; left: 12px; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 6px 0 12px; border: 1px solid #dce6ed; border-radius: 22px; background: #fffffff2; color: #34434c; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; box-shadow: 0 2px 8px #2447561a; }
+.layer-switch .q-switch { margin: 0; }
+.explore-stage :deep(.map-legend) { top: 66px; }
 .explore-stage :deep(.sensory-map-wrap) { position: absolute; inset: 0 0 calc(var(--sheet-peek, 124px) - 18px); height: auto; border: 0; border-radius: 0; }
 .explore-stage :deep(.maplibregl-ctrl-bottom-left) { margin-bottom: 18px; }
-.explore-tabs { gap: 0; padding: 0; background: #f1f3f5; border-radius: 10px 10px 0 0; overflow: hidden; }
-.explore-tabs button { position: relative; gap: 9px; min-height: 49px; padding: 10px 6px; border: 0; border-radius: 0; background: transparent; color: #68727a; font-size: 16px; font-weight: 600; box-shadow: none; }
-.explore-tabs button.selected { color: var(--q-deep, #007a90); background: #fff; box-shadow: none; }
-.explore-tabs button.selected::after { position: absolute; content: ''; bottom: 0; left: 0; right: 0; height: 3px; border-radius: 3px 3px 0 0; background: var(--q-brand, #0391a7); }
-.explore-context { display: flex; gap: 8px; align-items: center; justify-content: space-between; min-height: 44px; margin: 3px 0 0; }
-.q-area-select { gap: 4px; font-size: 13px; color: var(--q-brand, #0391a7); }
-.q-area-select { color: var(--q-ink, #27323a); font-weight: 600; }
-.q-area-select svg { color: var(--q-brand, #0391a7); }
-.relocate { width: 44px; min-height: 44px; padding: 0; color: var(--q-brand, #0391a7); }
 .truncated-search { margin: 4px 0 10px; padding: 8px 11px; border-radius: 8px; background: #eef6f9; color: #3f5d6b; font-size: 13px; line-height: 1.6; }
 .outside-search { margin: 4px 0 10px; padding: 9px 11px; border-radius: 8px; background: #fff4e8; color: #7a4a1f; font-size: 13px; line-height: 1.6; }
-.layer-switch { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; color: #4f5f69; font-size: 13px; white-space: nowrap; cursor: pointer; }
-.layer-switch .q-switch { margin: 0; }
-.explore-context { margin-bottom: 6px; gap: 4px; }
-.explore-context > * { white-space: nowrap; }
-.q-area-select { flex-shrink: 0; }
 .section-heading { align-items: center; margin-bottom: 0; }
 .section-heading h2 { font-size: 17px; line-height: 1.5; color: #28343c; }
 .section-heading h2 small { font-size: 13px; font-weight: 400; color: #63717a; white-space: nowrap; }
@@ -84,8 +64,7 @@ const showLayer = ref(true)
 .mock-inline { margin: 0 0 8px; padding: 6px 8px; background: #f4f7f9; color: #65747d; border-radius: 6px; font-size: 12px; line-height: 1.6; }
 .list-footnote { gap: 6px; margin: 15px 0 3px; font-size: 12px; line-height: 1.6; color: #6c7c85; }
 @media (max-width: 359px) {
-  .layer-switch { font-size: 12px; }
-  .explore-view { padding-inline: 10px; }
+    .explore-view { padding-inline: 10px; }
   .section-heading h2 small { font-size: 12px; }
 }
 </style>
