@@ -208,10 +208,11 @@ describe('home overview from the 150 m average (test/mock/overview)', () => {
     city.preferences.value = { ...city.preferences.value, sensitivities: { noise: 1, light: 5, crowd: 5, odor: 5 } }
     expect(await home(city)).toContain('整體舒適')
   })
-  it('treats decimals and zero as values and partial nulls as unknown', async () => {
+  it('shows each sense with its own scale word and red / yellow / green, treating decimals and zero as values', async () => {
     const html = await home(gridCity(hourlyOverviewFor({ senses: { noise: 0, light: 33.4, crowd: null, odor: 66.1 }, validPointCounts: { noise: 2, light: 2, crowd: 0, odor: 2 } })))
-    const levels = [...html.matchAll(/<strong[^>]*>([^<]+)<\/strong>/g)].map(match => match[1]).filter(text => ['低', '中等', '偏高', '未知'].includes(text))
-    expect(levels).toEqual(['低', '中等', '未知', '偏高'])
+    // 卡片用各感官自己的刻度用語，並依級距加上 low／mid／high（綠黃紅）樣式；未知不上色。
+    const levels = [...html.matchAll(/<strong class="([^"]*\bsense-level\b[^"]*)"[^>]*>([^<]+)<\/strong>/g)].map(match => [match[2], match[1].replace('sense-level', '').trim()])
+    expect(levels).toEqual([['安靜', 'low'], ['明亮', 'mid'], ['未知', ''], ['刺鼻', 'high']])
   })
   it('shows insufficient data for an empty circle instead of zero', async () => {
     const empty = hourlyOverviewFor({ senses: { noise: null, light: null, crowd: null, odor: null }, pointCount: 0, validPointCounts: { noise: 0, light: 0, crowd: 0, odor: 0 } })
@@ -222,11 +223,15 @@ describe('home overview from the 150 m average (test/mock/overview)', () => {
   })
   it('explains values in the dialogs with the personal index and no mock label', async () => {
     const city = gridCity()
-    expect(await dialog(SenseInfoDialog, { city, senseKey: 'noise', value: 26.6, described: true })).toContain('刺激指數 26.6／100')
+    const noise = await dialog(SenseInfoDialog, { city, senseKey: 'noise', value: 26.6, described: true })
+    expect(noise).toContain('刺激指數 26.6／100')
+    expect(noise).toMatch(/<strong class="low"[^>]*>安靜<\/strong>/)
+    expect(await dialog(SenseInfoDialog, { city, senseKey: 'crowd', value: 80, described: true })).toMatch(/<strong class="high"[^>]*>擁擠<\/strong>/)
     expect(await dialog(SenseInfoDialog, { city, senseKey: 'crowd', value: null, described: true })).toContain('附近 150 公尺內這一項沒有有效資料')
     const overview = await dialog(OverviewInfoDialog, { city, ssi: 20, headline: '整體舒適', described: true })
     expect(overview).toContain('整體舒適')
-    expect(overview).toContain('個人刺激指數 20／100（低），由附近 150 公尺平均依你在「我的」設定的感官敏感度加權計算。')
+    expect(overview).toContain('個人刺激指數 20／100<')
+    expect(overview).not.toContain('由附近 150 公尺平均')
     expect(overview).not.toContain('目前為模擬資料')
   })
 })

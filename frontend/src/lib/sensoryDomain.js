@@ -115,6 +115,14 @@ export function personalStimulus(record, sensitivities = DEFAULT_SENSITIVITIES, 
   const { sfs } = assessSensory(record, sensitivities, now)
   return sfs === null ? null : 100 - sfs
 }
+// 各感官依自己的刻度用語顯示級距（例如聲音：安靜／有點吵／吵雜），與說明視窗色帶的刻度相同；
+// tone 用於紅黃綠配色：0–33 low（綠）、34–66 mid（黃）、67–100 high（紅），未知為 null。
+export function senseLevel(senseKey, value) {
+  const sense = SENSES.find(item => item.key === senseKey)
+  if (!sense || !Number.isFinite(value) || value < 0 || value > 100) return { text: '未知', tone: null }
+  const index = value <= 33 ? 0 : value <= 66 ? 1 : 2
+  return { text: sense.scale[index], tone: ['low', 'mid', 'high'][index] }
+}
 export function levelText(value, air = false) {
   if (!Number.isFinite(value) || value < 0 || value > 100) return '未知'
   return air ? (value <= 33 ? '良好' : value <= 66 ? '普通' : '不佳')

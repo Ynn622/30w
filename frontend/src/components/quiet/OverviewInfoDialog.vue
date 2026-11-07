@@ -20,7 +20,7 @@ const gridOverview = computed(() => Boolean(props.city.overview.meta.value?.aggr
 const mock = computed(() => Boolean(props.city.overview.meta.value?.mock) && !gridOverview.value)
 const summary = computed(() => {
   if (gridOverview.value) return props.described && props.ssi !== null
-    ? `個人刺激指數 ${props.ssi}／100（${levelText(props.ssi)}），由附近 150 公尺平均依你在「我的」設定的感官敏感度加權計算。`
+    ? `個人刺激指數 ${props.ssi}／100`
     : '附近 150 公尺內沒有可用的資料；未知不代表環境安靜。'
   return props.ssi === null ? '近期資料不足或已過期，暫無法判斷；未知不代表環境安靜。' : `環境刺激指數 SSI ${props.ssi}／100（${levelText(props.ssi)}）`
 })

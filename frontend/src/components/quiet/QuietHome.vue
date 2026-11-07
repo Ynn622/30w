@@ -8,7 +8,7 @@ import OverviewInfoDialog from './OverviewInfoDialog.vue'
 import QuietLogo from './QuietLogo.vue'
 import CityIllustration from './CityIllustration.vue'
 import LocationGate from './LocationGate.vue'
-import { MOCK_LABEL, SENSES, REPORT_KINDS, formatTime, isFresh, levelText } from '../../lib/sensoryDomain.js'
+import { MOCK_LABEL, SENSES, REPORT_KINDS, formatTime, isFresh, senseLevel } from '../../lib/sensoryDomain.js'
 import { estimateDb, noiseLevel, readDbOffset } from '../../lib/noiseLevel.js'
 import { OVERVIEW_AGGREGATION_VERSION } from '../../lib/hourlyApi.js'
 import { summarizeOverview } from '../../lib/overviewSummary.js'
@@ -16,6 +16,8 @@ import { summarizeOverview } from '../../lib/overviewSummary.js'
 const props = defineProps({ city: { type: Object, required: true } })
 // 「附近的安靜角落」暫時隱藏；改回 true 即可恢復，推薦清單仍可在探索頁使用。
 const SHOW_NEARBY = false
+// 感官卡片下方的「點選卡片可查看說明」提示暫時隱藏；改回 true 即可恢復。
+const SHOW_SENSE_HINT = false
 // 首頁概況目前讀後端 test/mock/overview（目前位置 150 公尺內網格平均），先當正式資料呈現：
 // 直接採用後端平均值（可為小數、0 為有效、各維獨立為 null），沒有觀測時間與樣本數，不套正式回報的新鮮度與 SSI 規則。
 const gridOverview = computed(() => props.city.overview.meta.value?.aggregationVersion === OVERVIEW_AGGREGATION_VERSION)
@@ -110,13 +112,13 @@ defineEmits(['report', 'measure', 'explore', 'select'])
         <button class="weather-more q-icon-button" aria-label="查看感官概況說明" @click="overviewOpen = true"><AppIcon name="chevron" :size="21" /></button>
       </div>
       <div class="sense-grid">
-        <button v-for="sense in SENSES" :key="sense.key" type="button" class="sense-tile" :class="sense.color" :aria-label="`${sense.label}：${levelText(senseValue(sense.key))}，查看說明與計算方式`" @click="infoKey = sense.key">
+        <button v-for="sense in SENSES" :key="sense.key" type="button" class="sense-tile" :class="sense.color" :aria-label="`${sense.label}：${senseLevel(sense.key, senseValue(sense.key)).text}，查看說明與計算方式`" @click="infoKey = sense.key">
           <AppIcon :name="sense.icon" :size="29" />
           <span>{{ sense.label }}</span>
-          <strong :class="{ 'high-stimulus': senseValue(sense.key) > 66 }">{{ levelText(senseValue(sense.key)) }}</strong>
+          <strong class="sense-level" :class="senseLevel(sense.key, senseValue(sense.key)).tone">{{ senseLevel(sense.key, senseValue(sense.key)).text }}</strong>
         </button>
       </div>
-      <p class="sense-hint">點選卡片可查看說明與計算方式</p>
+      <p v-if="SHOW_SENSE_HINT" class="sense-hint">點選卡片可查看說明與計算方式</p>
     </article>
     <OverviewInfoDialog v-if="overviewOpen" :city="city" :ssi="canDescribe ? (gridOverview ? personal?.stimulus : assessment?.ssi) ?? null : null" :headline="weatherHeadline" :described="canDescribe" @close="overviewOpen = false" />
     <SenseInfoDialog v-if="infoKey" :city="city" :sense-key="infoKey" :value="senseValue(infoKey)" :described="canDescribe" @close="infoKey = null" />
@@ -198,13 +200,18 @@ defineEmits(['report', 'measure', 'explore', 'select'])
 .weather-main p { margin: 0; color: #58666f; font-size: 14px; line-height: 1.55; }
 .weather-more { position: absolute; right: -10px; top: 18px; width: 44px; min-height: 44px; padding: 8px; color: #29353d; }
 .sense-grid { gap: 7px; }
+/* 隱藏下方提示時，卡片是最後一個元素，補回與外框底部的間距。 */
+.sense-grid:last-child { margin-bottom: 14px; }
 .sense-tile { min-width: 0; gap: 5px; padding: 10px 3px 9px; border-color: #dbe6ec; border-radius: 10px; background: #ffffffba; }
 .sense-tile > span { color: #29363f; font-size: 14px; line-height: 1.4; letter-spacing: -.03em; }
 .sense-tile strong { color: #26343c; font-size: 16px; line-height: 1.35; font-weight: 600; }
 .sense-tile.teal { color: var(--q-brand, #0391A7); }.sense-tile.amber { color: #e5b13e; }.sense-tile.blue { color: #3387a4; }.sense-tile.green { color: #2f7f39; }
 .sense-tile { width: 100%; font: inherit; cursor: pointer; }
 .sense-tile:hover { border-color: #9fd2dc; background: #fff; }
-.sense-tile strong.high-stimulus { color: #b45761; }
+/* 級距文字依刺激程度配色（綠／黃／紅，與色帶一致；文字色加深以確保對比），未知維持中性色。 */
+.sense-tile strong.low { color: #2b7d57; }
+.sense-tile strong.mid { color: #9a6700; }
+.sense-tile strong.high { color: #b8423a; }
 .sense-hint { margin: 8px 0 12px; color: var(--q-muted); font-size: 12px; line-height: 1.5; text-align: center; }
 .quick-report-section { margin-top: 12px; padding: 12px 13px 0; border: 1px solid #e5eaee; border-radius: 15px; background: #fff; }
 .quick-report-section .section-heading { justify-content: flex-start; gap: 10px; margin-bottom: 11px; }

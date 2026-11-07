@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import AppIcon from '../AppIcon.vue'
 import AppSheet from './AppSheet.vue'
 import LevelScale from './LevelScale.vue'
-import { SENSES, levelText } from '../../lib/sensoryDomain.js'
+import { SENSES, senseLevel } from '../../lib/sensoryDomain.js'
 
 // 首頁感官卡片的小視窗：顯示此維度的數值，並以敏感圖層同款色帶加小箭頭標示目前級別（與概況說明視窗相同，不放說明文字）。
 const props = defineProps({
@@ -14,6 +14,8 @@ const props = defineProps({
 })
 defineEmits(['close'])
 const sense = computed(() => SENSES.find(item => item.key === props.senseKey))
+// 與首頁卡片相同：依此感官的刻度用語與紅黃綠顯示級距。
+const level = computed(() => senseLevel(props.senseKey, props.value))
 const data = computed(() => props.city.overview.data.value)
 const dimension = computed(() => data.value?.sensoryIndex?.dimensionMeta?.[props.senseKey] || null)
 const REASONS = { no_data: '近 30 分鐘沒有這一項的回報。', stale: '觀測已超過 30 分鐘，不採用。', insufficient_samples: '樣本數不足，暫不判斷。', incompatible_scale: '資料尺度無法比較，暫不採用。' }
@@ -32,7 +34,7 @@ const missingText = computed(() => {
     <div class="sense-info-value" :class="sense?.color">
       <AppIcon :name="sense?.icon || 'layers'" :size="30" />
       <div>
-        <strong>{{ levelText(value) }}</strong>
+        <strong :class="level.tone">{{ level.text }}</strong>
         <span>{{ value === null ? missingText : `刺激指數 ${value}／100` }}</span>
       </div>
     </div>
@@ -44,5 +46,8 @@ const missingText = computed(() => {
 .sense-info-value { display: flex; align-items: center; gap: 12px; margin: 4px 0 10px; padding: 12px; border-radius: 12px; background: #f1f8fa; }
 .sense-info-value.teal { color: var(--q-brand, #0391a7); }.sense-info-value.amber { color: #c9961f; }.sense-info-value.blue { color: #3387a4; }.sense-info-value.green { color: #2f7f39; }
 .sense-info-value strong { display: block; color: var(--q-ink, #222c33); font-size: 22px; line-height: 1.3; }
+.sense-info-value strong.low { color: #2b7d57; }
+.sense-info-value strong.mid { color: #9a6700; }
+.sense-info-value strong.high { color: #b8423a; }
 .sense-info-value span { display: block; color: #4f5f69; font-size: 13px; line-height: 1.6; }
 </style>
