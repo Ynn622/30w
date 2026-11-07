@@ -47,6 +47,9 @@ jobs:
       - name: Build
         working-directory: ./frontend
         run: npm run build
+        env:
+          # 於 repo Settings → Secrets and variables → Actions → Variables 設定；未設定等同 false。
+          VITE_FAKE_LOCATION: ${{ vars.VITE_FAKE_LOCATION }}
 
       - name: Copy 404 fallback
         run: cp frontend/dist/index.html frontend/dist/404.html
