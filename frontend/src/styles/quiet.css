@@ -391,11 +391,8 @@ body { background: #edf3f7; }
 .noise-history strong small { margin-left: 3px; font-size: 12px; font-weight: 400; color: #5f8292; }
 .noise-history li > span { min-width: 0; text-align: right; font-size: 12px; line-height: 1.5; color: #5e7988; }
 .noise-history li > span b { display: block; font-size: 14px; font-weight: 600; color: #3f5360; }
-.noise-wave span { font-size: 12px; color: #698897; text-align: center; }
 .noise-progress { height: 6px; width: 100%; border-radius: 6px; overflow: hidden; background: #dcecf3; }
 .noise-progress i { display: block; height: 100%; background: var(--q-brand); transition: width .25s; }
-.noise-explanation { display: flex; align-items: start; gap: 9px; font-size: 14px; line-height: 1.75; color: #5b727f; padding: 0 3px; margin: 18px 0; }
-.noise-explanation > svg { margin-top: 3px; color: var(--q-brand); }
 .noise-share { margin-top: 20px; padding-top: 18px; border-top: 1px solid #dfeaf0; }
 .q-checkbox { display: flex; align-items: start; gap: 10px; min-height: 44px; padding: 5px 0 12px; cursor: pointer; }
 .q-checkbox input { width: 20px; height: 20px; accent-color: var(--q-brand); flex-shrink: 0; margin-top: 3px; }

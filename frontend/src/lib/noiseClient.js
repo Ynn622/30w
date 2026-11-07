@@ -55,7 +55,7 @@ export function microphoneSupport(host = globalThis) {
 function permissionFailure(error) {
   const code = `（${error?.name || 'Error'}）`
   if (['NotAllowedError', 'SecurityError', 'PermissionDeniedError'].includes(error?.name)) {
-    return { status: 'denied', message: `麥克風權限未允許。若在城市通 App 內，請確認 App 已允許麥克風且 WebView 有處理權限請求。${code}` }
+    return { status: 'denied', message: `麥克風權限未允許。若在台北通 App 內，請確認 App 已允許麥克風且 WebView 有處理權限請求。${code}` }
   }
   if (['NotFoundError', 'OverconstrainedError'].includes(error?.name)) return { status: 'unsupported', message: `找不到可用的麥克風。${code}` }
   if (error?.name === 'NotReadableError') return { status: 'error', message: `麥克風正被其他程式使用或遭系統中斷。${code}` }

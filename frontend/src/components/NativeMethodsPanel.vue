@@ -49,7 +49,7 @@ async function send() {
   response.value = null
   request.value = { name: selectedName.value, data }
   if (channel.value !== 'town-pass') {
-    status.value = '尚未連接城市通 flutterObject；請在城市通 App WebView 內開啟此頁。此要求未送出。'
+    status.value = '尚未連接台北通 flutterObject；請在台北通 App WebView 內開啟此頁。此要求未送出。'
     return
   }
 
@@ -93,8 +93,8 @@ onUnmounted(() => {
 
 <template>
   <section class="native-panel" aria-labelledby="native-panel-title">
-    <h2 id="native-panel-title">城市通介接測試</h2>
-    <p>連線：{{ channel === 'town-pass' ? '已偵測到 flutterObject' : '未連接城市通 WebView' }}</p>
+    <h2 id="native-panel-title">台北通介接測試</h2>
+    <p>連線：{{ channel === 'town-pass' ? '已偵測到 flutterObject' : '未連接台北通 WebView' }}</p>
     <label for="native-method">App 方法</label>
     <select id="native-method" v-model="selectedName" :disabled="pending" @change="selectMethod">
       <option v-for="method in methods" :key="method.name" :value="method.name">{{ method.label }} · {{ method.name }}</option>

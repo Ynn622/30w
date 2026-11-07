@@ -12,7 +12,7 @@ export function requestNative(name, data = null, {
   return new Promise((resolve, reject) => {
     const fail = (code, message) => Object.assign(new Error(message), { code })
     if (signal?.aborted) return reject(fail('CANCELLED', '已停止等待 App 回覆。'))
-    if (getNativeChannel(host) !== 'town-pass') return reject(fail('UNAVAILABLE', '尚未連接城市通 WebView，請由 App 開啟此頁。'))
+    if (getNativeChannel(host) !== 'town-pass') return reject(fail('UNAVAILABLE', '尚未連接台北通 WebView，請由 App 開啟此頁。'))
     if (activeHosts.has(host)) return reject(fail('BUSY', '已有其他 App 請求等待回覆，請稍後重試。'))
     activeHosts.add(host)
     let unsubscribe = () => {}
