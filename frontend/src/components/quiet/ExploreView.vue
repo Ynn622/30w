@@ -11,7 +11,7 @@ import { buildSensoryField, zoneOf } from '../../lib/sensoryField.js'
 
 const SensoryMap = defineAsyncComponent(() => import('./SensoryMap.vue'))
 const props = defineProps({ city: { type: Object, required: true } })
-defineEmits(['select', 'sources'])
+defineEmits(['select'])
 const sheet = ref('peek')
 const SHEET_PEEK = 72 // 最小收合高度，實際依標題列高度自動調整
 // 抽屜展開時標題改為「符合你的靜音推薦」。

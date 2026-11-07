@@ -53,19 +53,6 @@ body { background: #edf3f7; }
   padding: calc(16px + env(safe-area-inset-top)) 16px calc(94px + env(safe-area-inset-bottom));
 }
 .q-eyebrow { margin: 0; font-size: 12px; font-weight: 500; letter-spacing: .02em; color: var(--q-muted); line-height: 1.6; }
-.q-status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  border: 1px solid #cce7ee;
-  background: #f0fafd;
-  color: var(--q-deep);
-  border-radius: 20px;
-  font-size: 12px;
-  padding: 4px 9px;
-}
-.q-status-badge > span { width: 6px; height: 6px; background: var(--q-brand); border-radius: 50%; }
 .q-icon-button {
   display: inline-flex;
   align-items: center;
@@ -416,16 +403,6 @@ body { background: #edf3f7; }
 .q-checkbox input { width: 20px; height: 20px; accent-color: var(--q-brand); flex-shrink: 0; margin-top: 3px; }
 .q-checkbox > span { font-size: 15px; color: #435d6b; line-height: 1.75; }
 .q-checkbox small { display: block; color: var(--q-muted); font-size: 13px; margin-top: 6px; }
-.source-explainer { color: #4e6572; font-size: 15px; line-height: 1.8; margin: 18px 0; }
-.source-info-row { display: flex; align-items: center; gap: 10px; padding: 14px; background: var(--q-mint); border-radius: 10px; color: #5d7b8a; font-size: 14px; }
-.source-info-row strong { display: block; color: #325a6d; font-size: 14px; margin-bottom: 5px; font-weight: 600; }
-.source-subtitle { color: var(--q-ink); font-size: 18px; margin: 22px 0 10px; }
-.source-entry { display: grid; gap: 5px; padding: 13px 0; border-bottom: 1px solid #e3edf2; font-size: 15px; color: #506d7b; }
-.source-entry strong { font-weight: 500; }
-.source-entry > span { font-size: 13px; color: var(--q-muted); }
-.source-entry a,
-.source-map-links a { display: inline-flex; align-items: center; min-height: 44px; color: var(--q-deep); }
-.source-map-links { font-size: 13px; line-height: 1.8; color: var(--q-muted); }
 
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .toast { z-index: 1000; font-size: 15px; }

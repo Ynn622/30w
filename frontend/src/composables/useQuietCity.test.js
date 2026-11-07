@@ -70,7 +70,7 @@ describe('sensory queries', () => {
     sensoryApi.getMap.mockResolvedValue({ data: { cells: [] }, meta: {} })
     sensoryApi.getPlaces.mockResolvedValue({ data: { places: [] }, meta: {} })
     const { scope } = located()
-    // 3 分鐘前不重取，滿 3 分鐘才重取一次。
+    // 2 分鐘前不重取，滿 2 分鐘才重取一次。
     await vi.advanceTimersByTimeAsync(REFRESH_INTERVAL_MS - 1000)
     expect(sensoryApi.getOverview).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(1000)

@@ -7,6 +7,7 @@ import { mockMeta, mockOverview, mockPlaces } from '../../data/quietMock.js'
 import { assessSensory } from '../../lib/sensoryIndex.js'
 import { DEFAULT_PREFERENCES } from '../../lib/sensoryDomain.js'
 import SenseInfoDialog from './SenseInfoDialog.vue'
+import OverviewInfoDialog from './OverviewInfoDialog.vue'
 // 首頁以目前時間判斷新鮮度，模擬資料也以目前時間產生。
 const NOW = Date.now()
 const sampleOverview = () => mockOverview('zhongzheng', NOW)
@@ -28,12 +29,21 @@ describe('home sensory presentation', () => {
     expect(before).toContain('中正區')
     expect(before).not.toContain('臺北市')
     const after = await renderToString(createSSRApp(QuietHome, { city: { ...cityFor(sampleOverview()), village: ref({ district: '中正區', village: '黎明里', name: '中正區黎明里' }) } }))
-    expect(after).toContain('中正區黎明里')
+    expect(after).toContain('中正區・黎明里')
     expect(after).not.toContain('臺北市')
     expect(after).not.toContain('今日感官天氣')
     expect(after).toContain('sensory-weather')
     // 重新定位為地點前的圖示按鈕；資料時間移到地點列右側（在感官卡片之前）。
-    expect(after).toMatch(/class="area-row"[\s\S]*aria-label="重新定位"[\s\S]*中正區黎明里[\s\S]*模擬：[\s\S]*sensory-weather/)
+    expect(after).toMatch(/class="area-row"[\s\S]*aria-label="重新定位"[\s\S]*中正區・黎明里[\s\S]*模擬：[\s\S]*sensory-weather/)
+  })
+  it('turns the data time into a refresh button and keeps it visible while reloading', async () => {
+    const ready = await renderToString(createSSRApp(QuietHome, { city: cityFor(sampleOverview()) }))
+    // 時間旁有重新整理圖示，點選是重新整理，不再開啟資料來源視窗。
+    expect(ready).toMatch(/aria-label="重新整理資料（模擬資料時間[^"]*）"[^>]*>[\s\S]*模擬：[\s\S]*<\/button>/)
+    const loading = { ...cityFor(sampleOverview()), overview: { ...cityFor(sampleOverview()).overview, state: ref('loading') } }
+    const html = await renderToString(createSSRApp(QuietHome, { city: loading }))
+    expect(html).toContain('更新中…')
+    expect(html).toContain('aria-label="資料更新中"')
   })
   it('renders the product and labels mock data only when the fallback is active', async () => {
     const html = await renderToString(createSSRApp(QuietHome, { city: cityFor(sampleOverview()) }))
@@ -59,7 +69,8 @@ describe('home sensory presentation', () => {
     const html = await renderToString(createSSRApp(QuietHome, { city: cityFor(sampleOverview(), samplePlaces()) }))
     expect(html).toContain('氣味')
     expect((html.match(/<button[^>]*class="[^"]*sense-tile/g) || []).length).toBe(4)
-    expect(html).toContain('查看資料來源與計算方式')
+    expect(html).toContain('查看說明與計算方式')
+    expect(html).toContain('aria-label="查看感官概況說明"')
     for (const removed of ['空氣品質', 'AQI', '筆回報', 'SSI', '適配', '降雨', '°C']) expect(html).not.toContain(removed)
   })
   it.each([
@@ -116,6 +127,23 @@ describe('sense info dialog', () => {
     await renderToString(createSSRApp(SenseInfoDialog, { city: cityFor(sampleOverview()), ...props }), context)
     return context.teleports.body
   }
+  it('explains the overview in the same dialog style without a source list', async () => {
+    const context = {}
+    const city = cityFor(sampleOverview())
+    await renderToString(createSSRApp(OverviewInfoDialog, { city, ssi: 58, described: true }), context)
+    const html = context.teleports.body
+    expect(html).toContain('感官概況說明')
+    expect(html).toContain('sense-info-value')
+    expect(html).toContain('環境刺激指數 SSI 58／100（中等）')
+    expect(html).toContain('聲音 40%')
+    expect(html).toContain('目前為模擬資料')
+    expect(html).not.toContain('資料來源')
+    expect(html).not.toContain('Nominatim')
+    const unknown = {}
+    await renderToString(createSSRApp(OverviewInfoDialog, { city, ssi: null, described: false }), unknown)
+    expect(unknown.teleports.body).toContain('資料不足')
+    expect(unknown.teleports.body).toContain('未知不代表環境安靜')
+  })
   it('explains the value and calculation only, without the data table or source list', async () => {
     const html = await renderDialog({ senseKey: 'noise', value: 72, described: true })
     expect(html).toContain('聲音資料說明')

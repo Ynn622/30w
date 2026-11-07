@@ -4,7 +4,7 @@ const prefersReducedMotion = typeof window !== 'undefined' && Boolean(window.mat
 import AppIcon from '../AppIcon.vue'
 import { MOCK_LABEL, MOCK_SCENARIOS } from '../../lib/mockApi.js'
 defineProps({ city: { type: Object, required: true } })
-defineEmits(['select', 'explore', 'sources'])
+defineEmits(['select', 'explore'])
 const sensitivities = [{ key: 'noise', label: '聲音', icon: 'sound' }, { key: 'light', label: '光線', icon: 'sun' }, { key: 'crowd', label: '人潮', icon: 'people' }, { key: 'odor', label: '氣味', icon: 'wind' }]
 const levelWords = ['', '不太在意', '稍微在意', '普通', '在意', '非常在意']
 </script>

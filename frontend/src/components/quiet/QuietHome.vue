@@ -4,6 +4,7 @@ import AppIcon from '../AppIcon.vue'
 import AsyncState from '../AsyncState.vue'
 import PlaceCard from './PlaceCard.vue'
 import SenseInfoDialog from './SenseInfoDialog.vue'
+import OverviewInfoDialog from './OverviewInfoDialog.vue'
 import QuietLogo from './QuietLogo.vue'
 import CityIllustration from './CityIllustration.vue'
 import LocationGate from './LocationGate.vue'
@@ -30,10 +31,12 @@ const recentNoise = computed(() => {
     return { ...item, db, level: noiseLevel(db) }
   })
 })
-// 點選感官卡片時開啟的資料說明小視窗。
-const infoKey = ref(null)
+// 點選感官卡片時開啟的資料說明小視窗；概況卡片右側箭頭開啟整體說明（同樣式）。
+const infoKey = ref(null), overviewOpen = ref(false)
 // 最近的量測紀錄預設收起，點標題才展開。
 const historyOpen = ref(false)
+// 首頁概況、地圖或清單任一還在載入，就視為重新整理中。
+const refreshing = computed(() => [props.city.overview, props.city.map, props.city.places].some(remote => remote?.state?.value === 'loading'))
 const updatedClock = computed(() => {
   const value = props.city.overview.meta.value?.updatedAt
   if (!value || !Number.isFinite(new Date(value).getTime())) return '時間未知'
@@ -41,7 +44,7 @@ const updatedClock = computed(() => {
     timeZone: 'Asia/Taipei', hour: '2-digit', minute: '2-digit', hour12: false,
   }).format(new Date(value))
 })
-defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
+defineEmits(['report', 'measure', 'explore', 'select'])
 </script>
 
 <template>
@@ -58,15 +61,19 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
     <!-- 目前只依裝置定位提供服務，不開放手動選擇區域。 -->
     <LocationGate v-if="!city.serviceAvailable.value" :city="city" />
     <template v-else>
-    <!-- 地點前的定位圖示即「重新定位」按鈕（與分享感受的地址框相同）；右側為資料時間，點選可查看資料來源。 -->
+    <!-- 地點前的定位圖示即「重新定位」按鈕（與分享感受的地址框相同）；右側為資料時間與重新整理圖示，點選即重新整理。 -->
     <div class="area-row">
       <span class="q-area-select" aria-live="polite">
         <button type="button" class="q-icon-button relocate-button" :class="{ locating: city.locating.value }" :disabled="city.locating.value" :aria-label="city.locating.value ? '定位中' : '重新定位'" :title="city.locating.value ? '定位中' : '重新定位'" @click="city.locate"><AppIcon name="locate" :size="20" /></button>
-        <span class="area-city">{{ city.village?.value?.name || city.area.value.name }}</span>
+        <span class="area-city">{{ city.village?.value ? `${city.village.value.district}・${city.village.value.village}` : city.area.value.name }}</span>
         <small class="area-source">目前位置</small>
       </span>
-      <button v-if="city.overview.state.value === 'ready'" class="q-text-button muted updated-button" :title="formatTime(city.overview.meta.value?.updatedAt)" :aria-label="`${city.overview.meta.value?.mock ? '模擬資料時間' : '資料更新時間'}：${formatTime(city.overview.meta.value?.updatedAt)}`" @click="$emit('sources')">
-        {{ city.overview.meta.value?.mock ? '模擬' : '更新' }}：{{ updatedClock }}
+      <!-- 重新整理期間資料會先清空，按鈕仍保留並顯示「更新中…」，避免整列跳動。 -->
+      <button v-if="city.overview.state.value !== 'idle'" type="button" class="q-text-button muted updated-button" :class="{ refreshing }" :disabled="refreshing" :title="refreshing ? '更新中' : `資料時間 ${formatTime(city.overview.meta.value?.updatedAt)}，點選重新整理`" :aria-label="refreshing ? '資料更新中' : `重新整理資料（${city.overview.meta.value?.mock ? '模擬資料時間' : '資料更新時間'} ${formatTime(city.overview.meta.value?.updatedAt)}）`" @click="city.refresh">
+        <template v-if="refreshing">更新中…</template>
+        <template v-else-if="city.overview.state.value === 'ready'">{{ city.overview.meta.value?.mock ? '模擬' : '更新' }}：{{ updatedClock }}</template>
+        <template v-else>重新整理</template>
+        <AppIcon name="refresh" :size="14" />
       </button>
     </div>
 
@@ -81,17 +88,18 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
           <h2 :class="{ 'insufficient-headline': !canDescribe }">{{ canDescribe ? city.overview.data.value.headline : '資料不足，暫無法判斷' }}</h2>
           <p>{{ canDescribe ? city.overview.data.value.description : '近期資料不足或已過期，歡迎分享感受。' }}</p>
         </div>
-        <button class="weather-more q-icon-button" aria-label="查看感官資料來源" @click="$emit('sources')"><AppIcon name="chevron" :size="21" /></button>
+        <button class="weather-more q-icon-button" aria-label="查看感官概況說明" @click="overviewOpen = true"><AppIcon name="chevron" :size="21" /></button>
       </div>
       <div class="sense-grid">
-        <button v-for="sense in SENSES" :key="sense.key" type="button" class="sense-tile" :class="sense.color" :aria-label="`${sense.label}：${levelText(senseValue(sense.key))}，查看資料來源與計算方式`" @click="infoKey = sense.key">
+        <button v-for="sense in SENSES" :key="sense.key" type="button" class="sense-tile" :class="sense.color" :aria-label="`${sense.label}：${levelText(senseValue(sense.key))}，查看說明與計算方式`" @click="infoKey = sense.key">
           <AppIcon :name="sense.icon" :size="29" />
           <span>{{ sense.label }}</span>
           <strong :class="{ 'high-stimulus': senseValue(sense.key) > 66 }">{{ levelText(senseValue(sense.key)) }}</strong>
         </button>
       </div>
-      <p class="sense-hint">點選卡片可查看資料來源與計算方式</p>
+      <p class="sense-hint">點選卡片可查看說明與計算方式</p>
     </article>
+    <OverviewInfoDialog v-if="overviewOpen" :city="city" :ssi="canDescribe ? assessment?.ssi ?? null : null" :described="canDescribe" @close="overviewOpen = false" />
     <SenseInfoDialog v-if="infoKey" :city="city" :sense-key="infoKey" :value="senseValue(infoKey)" :described="canDescribe" @close="infoKey = null" />
 
     <section class="quick-report-section q-reveal">
@@ -151,7 +159,9 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
 .sensory-weather { padding: 0 14px; border: 1px solid #dce8ed; border-radius: 15px; background: linear-gradient(120deg, #eaf8fc 0%, #f8fcfe 70%, #fff 100%); box-shadow: none; }
 .section-heading h2 { color: var(--q-ink, #222c33); font-size: 18px; font-weight: 700; }
 .section-heading > span { color: #5c6870; font-size: 13px; line-height: 1.4; }
-.updated-button { flex-shrink: 0; min-height: 44px; color: #68747c; font-size: 12px; font-weight: 400; white-space: nowrap; }
+.updated-button { flex-shrink: 0; gap: 4px; min-height: 44px; color: #68747c; font-size: 12px; font-weight: 400; white-space: nowrap; }
+.updated-button svg { color: var(--q-brand, #0391a7); }
+.updated-button.refreshing svg { animation: q-relocate-spin 1s linear infinite; }
 /* 地點前的定位圖示即「重新定位」按鈕，觸控區 44px（同分享感受的地址框）。 */
 .relocate-button { flex-shrink: 0; width: 44px; min-height: 44px; margin: -6px -6px -6px -10px; padding: 0; border-radius: 50%; color: var(--q-brand, #0391a7); }
 .relocate-button:hover:not(:disabled) { background: var(--q-mint, #edf8fc); }
