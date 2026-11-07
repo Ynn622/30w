@@ -1,8 +1,27 @@
-# CityLink 城市通 WebView
+# 城市靜音鍵 WebView
 
-Vue 3 + JavaScript + Vite 的行動版城市服務入口示範。資訊架構參考市民服務 App 常見的卡證、快捷服務、公告與底部導覽，但未使用台北通的商標或官方素材。
+Vue 3 + JavaScript + Vite 的行動版城市感官服務。首頁、探索、我的三頁搭配場所詳情、兩步回報與 Flutter 環境音量面板；不含參考圖最上方的服務導覽列。
+
+## 感官功能與交接
+
+- [前端實作計畫](../docs/superpowers/plans/2026-11-07-city-quiet.md)
+- [六個後端 API 與完整 JSON 契約](../docs/backend-api.md)
+- [Flutter iOS 環境噪音協定](../docs/flutter-noise-interface.md)
+- [地圖與資料來源、授權](../docs/data-sources.md)
+
+`VITE_SENSORY_MODE=demo`（預設）使用明示的固定示例，不呼叫感官 API；`api` 才呼叫既有 base URL。失敗不降級為假資料。請複製 `.env.example` 至 `.env.local` 設定，之後重新啟動或建置。正式模式前景每 60 秒及重新取得焦點時更新，元件卸載清除輪詢。API 模式目前待後端依契約實作，不代表現有 hello/health 後端已支援。
+
+首頁展示聲音、光線、人潮與空品，主觀回報與手機音量分開統計。資料不足／感官觀測過期會顯示未知，推薦再次過濾過期與 null 值；所有距離皆為直線。偏好與收藏 ID 僅本機儲存，位置與量測只在記憶體。
+
+地圖使用 `maplibre-gl@6.16.0`（BSD-3-Clause）與指定 Yuzen 地圖相同的 OpenFreeMap Liberty。地圖引擎與 worker 延遲載入，只有探索頁需要；底圖服務需連網，WebGL 不可用或載入錯誤時提供重試與清單。第三方授權原文隨 `public/third-party/` 交付。UI 插畫、圖示為原創 SVG，沒有下載額外字型或照片。
+
+噪音介接新增 `webview.js` 的 `startNativeNoise(sessionId, durationSeconds, host)`、`stopNativeNoise(sessionId, host)`；`noiseClient.js` 管理 session、逾時、樣本驗證及清理。自訂訊息 `noise_start`、`noise_stop`、`noise_status`、`noise_sample` 需 **Flutter 另行註冊 handler**。沒有原生支援不會產生假數字。僅支援未校準 **dBFS**，不宣稱環境 dBA。麥克風與定位分開取得權限，分享摘要還需另勾選並主動送出；不送原始音訊。
+
+Vue 頁面切換、卡片進場、sheet 與感官指示動畫支援 `prefers-reduced-motion`；按鈕或其標籤提供至少 44px 觸控區，支援 safe-area、320px 與對話框鍵盤 focus trap。
 
 ## 本機開發
+
+需要 Node.js **22.12 或以上**（`frontend/.nvmrc` 指定 22）；GitHub Actions 使用 Node 22。新地圖的傳遞依賴要求 Node 22，因此同步調整原有版本要求。
 
 ```bash
 npm install

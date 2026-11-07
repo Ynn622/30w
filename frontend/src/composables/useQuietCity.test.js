@@ -1,0 +1,61 @@
+import { effectScope, nextTick } from 'vue'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { sensoryApi } from '../lib/sensoryApi.js'
+import { useQuietCity } from './useQuietCity.js'
+vi.mock('../lib/sensoryApi.js', () => ({ sensoryApi: { mode: 'api', getOverview: vi.fn(), getMap: vi.fn(), getPlaces: vi.fn() } }))
+afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); vi.useRealTimers() })
+describe('sensory queries', () => {
+  it('cancels obsolete queries and does not let a late reply replace the new region', async () => {
+    vi.stubGlobal('window', { localStorage: { getItem: () => null } })
+    const pending = []
+    sensoryApi.getOverview.mockImplementation((query, { signal }) => new Promise(resolve => pending.push({ query, signal, resolve })))
+    sensoryApi.getMap.mockResolvedValue({ data: { cells: [] }, meta: {} })
+    sensoryApi.getPlaces.mockResolvedValue({ data: { places: [] }, meta: {} })
+    const scope = effectScope()
+    const city = scope.run(() => useQuietCity(vi.fn()))
+    expect(pending).toHaveLength(1)
+    city.areaId.value = 'daan'
+    await nextTick()
+    expect(pending).toHaveLength(2)
+    expect(pending[0].signal.aborted).toBe(true)
+    pending[1].resolve({ data: { area: '大安區' }, meta: {} })
+    await Promise.resolve()
+    pending[0].resolve({ data: { area: '中正區' }, meta: {} })
+    await Promise.resolve()
+    expect(city.overview.data.value.area).toBe('大安區')
+    expect(city.places.data.value.places).toEqual([])
+    scope.stop()
+    expect(pending[1].signal.aborted).toBe(true)
+  })
+  it('clears outdated values and exposes an actionable error', async () => {
+    vi.stubGlobal('window', { localStorage: { getItem: () => null } })
+    sensoryApi.getOverview.mockResolvedValueOnce({ data: { area: '中正區' }, meta: {} }).mockRejectedValueOnce(new Error('offline'))
+    sensoryApi.getMap.mockResolvedValue({ data: { cells: [] }, meta: {} })
+    sensoryApi.getPlaces.mockResolvedValue({ data: { places: [] }, meta: {} })
+    const scope = effectScope()
+    const city = scope.run(() => useQuietCity(vi.fn()))
+    await Promise.resolve()
+    await city.overview.reload()
+    expect(city.overview.state.value).toBe('error')
+    expect(city.overview.data.value).toBeNull()
+    expect(city.overview.error.value).toBe('offline')
+    scope.stop()
+  })
+  it('refreshes live observations while visible and releases its polling timer', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('window', { localStorage: { getItem: () => null } })
+    vi.stubGlobal('document', { visibilityState: 'visible' })
+    sensoryApi.getOverview.mockResolvedValue({ data: {}, meta: {} })
+    sensoryApi.getMap.mockResolvedValue({ data: { cells: [] }, meta: {} })
+    sensoryApi.getPlaces.mockResolvedValue({ data: { places: [] }, meta: {} })
+    const scope = effectScope()
+    scope.run(() => useQuietCity(vi.fn()))
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(sensoryApi.getOverview).toHaveBeenCalledTimes(2)
+    document.visibilityState = 'hidden'
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(sensoryApi.getOverview).toHaveBeenCalledTimes(2)
+    scope.stop()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+})

@@ -4,6 +4,15 @@ export function createTownPassMessage(name, data = null) {
   return JSON.stringify({ name, data })
 }
 
+// 自訂提案協定，須由 Flutter 端註冊同名 handler；沒有 handler 不代表可量測。
+export function startNativeNoise(sessionId, durationSeconds = 15, host = globalThis) {
+  return sendToNative('noise_start', { protocolVersion: 1, sessionId, durationSeconds, intervalMs: 250, includeAudio: false }, host)
+}
+
+export function stopNativeNoise(sessionId, host = globalThis) {
+  return sendToNative('noise_stop', { protocolVersion: 1, sessionId }, host)
+}
+
 export function parseTownPassMessage(message) {
   try {
     const parsed = typeof message === 'string' ? JSON.parse(message) : message

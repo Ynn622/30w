@@ -5,6 +5,8 @@ import {
   parseTownPassMessage,
   sendToNative,
   subscribeToNativeMessages,
+  startNativeNoise,
+  stopNativeNoise,
 } from './webview.js'
 
 describe('sendToNative', () => {
@@ -51,6 +53,15 @@ describe('sendToNative', () => {
 })
 
 describe('TownPass message helpers', () => {
+  it('sends the proposed noise protocol without raw audio', () => {
+    const postMessage = vi.fn()
+    const host = { flutterObject: { postMessage } }
+    startNativeNoise('session-1', 15, host)
+    stopNativeNoise('session-1', host)
+    expect(JSON.parse(postMessage.mock.calls[0][0])).toEqual({ name: 'noise_start', data: { protocolVersion: 1, sessionId: 'session-1', durationSeconds: 15, intervalMs: 250, includeAudio: false } })
+    expect(JSON.parse(postMessage.mock.calls[1][0])).toEqual({ name: 'noise_stop', data: { protocolVersion: 1, sessionId: 'session-1' } })
+    expect(startNativeNoise('browser', 15, {}).delivered).toBe(false)
+  })
   it('preserves false replies rather than treating them as missing data', () => {
     expect(parseTownPassMessage('{"name":"phone_call","data":false}'))
       .toEqual({ name: 'phone_call', data: false })
