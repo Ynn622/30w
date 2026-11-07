@@ -17,7 +17,9 @@ describe('report intensity', () => {
   it('asks a single-dimension intensity without a preselected answer', async () => {
     const html = await render('odor')
     expect(html).toContain('此刻的氣味刺激有多強？')
-    expect(html).toContain('沒有明顯刺激')
+    expect(html).toContain('輕微')
+    expect(html).toContain('強烈')
+    expect(html).not.toContain('沒有明顯刺激')
     expect(html).not.toMatch(/type="radio"[^>]*checked/)
     expect(html).toContain('請先選擇強度')
   })
@@ -51,5 +53,19 @@ describe('report kind header', () => {
     expect(html).toContain('更換')
     // 種類清單收合時不顯示。
     expect(html).not.toContain('id="report-kind-picker"')
+  })
+})
+describe('two-layer quick report', () => {
+  it('shows quick tags, persistence and indoor/outdoor choices for a sense kind', async () => {
+    const html = await render('noisy')
+    for (const text of ['具體情況', '施工噪音', '持續低頻聲', '持續狀態', '現在仍然如此', '這個地方經常如此', '在室內還是室外？', '室內', '室外']) expect(html).toContain(text)
+    expect(html).toContain('此刻的聲音刺激有多強？')
+    expect(html).not.toMatch(/aria-pressed="true"/)
+  })
+  it('requires a description for other feelings and has no quick tags', async () => {
+    const html = await render('other')
+    expect(html).not.toContain('具體情況')
+    expect(html).toContain('必填')
+    expect(html).toContain('請在補充說明描述環境狀況')
   })
 })

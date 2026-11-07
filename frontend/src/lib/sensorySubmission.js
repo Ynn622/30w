@@ -20,8 +20,12 @@ export function createRetryableDraft(build) {
   }
 }
 export function createReportDraft(now = () => Date.now()) {
-  return createRetryableDraft(({ kind, note, location, intensity }) => {
+  return createRetryableDraft(({ kind, note, location, intensity, tags, persistence, setting }) => {
     const body = { kind, note, location, observedAt: new Date(now()).toISOString() }
+    // 選填欄位只在使用者有選時才送出，維持與舊 body 相容。
+    if (tags?.length) body.tags = tags
+    if (persistence) body.persistence = persistence
+    if (setting) body.setting = setting
     if (intensity !== undefined) body.intensity = intensity
     return body
   })

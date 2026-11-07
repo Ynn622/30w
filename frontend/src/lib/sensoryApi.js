@@ -1,6 +1,6 @@
 import { apiRequest } from './apiClient.js'
 import { mockCells, mockMeta, mockOverview, mockPlace, mockPlaces } from '../data/quietMock.js'
-import { filterPlaces, INTENSITY_DIMENSIONS, isCoordinate, REPORT_INTENSITIES, REPORT_KINDS } from './sensoryDomain.js'
+import { filterPlaces, INTENSITY_KINDS, isCoordinate, REPORT_INTENSITIES, REPORT_PERSISTENCE, REPORT_SETTINGS, reportKind } from './sensoryDomain.js'
 
 export const MOCK_NOTICE = '後端感官服務暫時無法連線，已改用模擬資料顯示。'
 
@@ -86,12 +86,21 @@ export function createSensoryApi({
     }, time => mockPlace(id, time, areaId => mockCenters.get(areaId)), options.signal),
     async createReport(body) {
       locationOf(body)
-      if (!REPORT_KINDS.some(kind => kind.id === body.kind) || (body.note?.length || 0) > 140) throw new Error('回報內容格式不正確。')
+      const kind = reportKind(body.kind)
+      if (!kind || (body.note?.length || 0) > 140) throw new Error('回報內容格式不正確。')
+      if (kind.noteRequired && !body.note?.trim()) throw new Error('請描述你感受到的環境狀況。')
+      if (body.tags !== undefined) {
+        const allowed = new Set(kind.tags.map(item => item.id))
+        if (!Array.isArray(body.tags) || new Set(body.tags).size !== body.tags.length || !body.tags.every(id => allowed.has(id))) throw new Error('具體情況的選項不正確。')
+      }
+      if (body.persistence !== undefined && !REPORT_PERSISTENCE.some(item => item.id === body.persistence)) throw new Error('持續狀態的選項不正確。')
+      if (body.setting !== undefined && !REPORT_SETTINGS.some(item => item.id === body.setting)) throw new Error('室內／室外的選項不正確。')
       const { intensity, ...payload } = body
+      const needsIntensity = INTENSITY_KINDS.includes(body.kind)
       if (intensity != null) {
-        if (!INTENSITY_DIMENSIONS[body.kind]) throw new Error('此感受不需要選擇強度。')
+        if (!needsIntensity) throw new Error('此感受不需要選擇強度。')
         if (!REPORT_INTENSITIES.some(item => item.id === intensity)) throw new Error('請選擇有效的感受強度。')
-      } else if (supportsReportIntensity && INTENSITY_DIMENSIONS[body.kind]) throw new Error('請先選擇感受強度。')
+      } else if (supportsReportIntensity && needsIntensity) throw new Error('請先選擇感受強度。')
       if (supportsReportIntensity && intensity != null) payload.intensity = intensity
       return write('reports', payload, '回報')
     },

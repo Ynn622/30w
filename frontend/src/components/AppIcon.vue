@@ -19,6 +19,7 @@ const paths = {
   cloud: ['M7 18h12a4 4 0 0 0 0-8h-1A7 7 0 0 0 4 9a4.5 4.5 0 0 0 3 9'],
   layers: ['m12 2 10 5-10 5L2 7Zm-10 10 10 5 10-5M2 17l10 5 10-5'],
   arrow: ['M4 12h16m-7-7 7 7-7 7'],
+  thermometer: ['M14 14.8V5a2 2 0 1 0-4 0v9.8a4 4 0 1 0 4 0Z', 'M12 17v-6'],
 }
 defineProps({
   name: { type: String, required: true },

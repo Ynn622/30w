@@ -105,8 +105,8 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
     <section class="quick-report-section q-reveal">
       <div class="section-heading"><h2>快速回報</h2><span>讓城市知道這裡的感受</span></div>
       <div class="report-grid">
-        <button v-for="kind in REPORT_KINDS" :key="kind.id" :class="kind.color" @click="$emit('report', kind)">
-          <AppIcon :name="kind.icon" :size="29" />
+        <button v-for="kind in REPORT_KINDS" :key="kind.id" :class="kind.color" :aria-label="`${kind.label}：${kind.hint}`" :title="kind.hint" @click="$emit('report', kind)">
+          <AppIcon :name="kind.icon" :size="26" />
           <span>{{ kind.label }}</span>
         </button>
       </div>
@@ -184,12 +184,12 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
 .sense-hint { margin: 8px 0 12px; color: var(--q-muted); font-size: 12px; line-height: 1.5; text-align: center; }
 .quick-report-section { margin-top: 12px; padding: 12px 13px 0; border: 1px solid #e5eaee; border-radius: 15px; background: #fff; }
 .quick-report-section .section-heading { justify-content: flex-start; gap: 10px; margin-bottom: 11px; }
-.report-grid { gap: 9px; }
-.report-grid button { min-height: 80px; gap: 6px; border: 1px solid #dde3e8; border-radius: 10px; background: linear-gradient(#fff, #fafbfc); box-shadow: none; }
+.report-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.report-grid button { min-height: 76px; padding: 8px 2px; gap: 5px; border: 1px solid #dde3e8; border-radius: 10px; background: linear-gradient(#fff, #fafbfc); box-shadow: none; }
 .report-grid button:hover { border-color: #63b5c3; background: #eaf8fb; }
 .report-grid button:focus-visible { outline-color: #0391a780; }
-.report-grid button span { color: #303e47; font-size: 15px; line-height: 1.3; }
-.report-grid button.teal { color: #2197ac; }.report-grid button.amber { color: #dfad36; }.report-grid button.blue { color: #5c707e; }.report-grid button.purple { color: #83a3ae; }.report-grid button.green { color: #3e8e49; }.report-grid button.muted { color: #50616d; }
+.report-grid button span { color: #303e47; font-size: 13px; line-height: 1.3; white-space: nowrap; }
+.report-grid button.teal { color: #2197ac; }.report-grid button.amber { color: #dfad36; }.report-grid button.blue { color: #5c707e; }.report-grid button.purple { color: #83a3ae; }.report-grid button.coral { color: #cf6f55; }.report-grid button.slate { color: #5f7186; }.report-grid button.green { color: #3e8e49; }.report-grid button.muted { color: #50616d; }
 .measurement-cta { justify-content: center; gap: 8px; min-height: 48px; margin-top: 15px; padding: 10px 36px 10px 14px; border-radius: 28px; background: var(--q-brand, #0391A7); color: #fff; box-shadow: none; }
 .measurement-icon { width: 26px; height: 26px; border: 0; border-radius: 0; }
 .measurement-cta > strong { min-width: 0; font-size: 19px; font-weight: 700; line-height: 1.4; letter-spacing: .02em; }
@@ -229,9 +229,9 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
   .quick-report-section .section-heading { gap: 7px; }
   .quick-report-section .section-heading h2 { font-size: 17px; }
   .quick-report-section .section-heading > span { font-size: 12px; }
-  .report-grid { gap: 7px; }
-  .report-grid button { min-height: 78px; }
-  .report-grid button span { font-size: 14px; }
+  .report-grid { gap: 5px; }
+  .report-grid button { min-height: 72px; }
+  .report-grid button span { font-size: 12px; }
   .measurement-cta { gap: 6px; }
   .measurement-arrow { right: 7px; width: 18px; }
 }

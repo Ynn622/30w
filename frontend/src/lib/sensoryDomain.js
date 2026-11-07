@@ -39,21 +39,46 @@ export const SENSES = [
   { key: 'crowd', label: '人潮', icon: 'people', color: 'blue' },
   { key: 'odor', label: '氣味', icon: 'wind', color: 'green' },
 ]
+// 快速回報 8 種類型（第一層）與快速標籤（第二層）。前四種直接對應 SSI 四維；
+// 溫度、動線另外統計不納入 SSI；舒適空間收集正向訊號；其他感受需自行描述。
+const tag = (id, label) => ({ id, label })
 export const REPORT_KINDS = [
-  { id: 'noisy', label: '這裡太吵', icon: 'sound', color: 'teal' },
-  { id: 'bright', label: '光線刺眼', icon: 'sun', color: 'amber' },
-  { id: 'crowded', label: '人潮擁擠', icon: 'people', color: 'blue' },
-  { id: 'odor', label: '有異味', icon: 'wind', color: 'purple' },
-  { id: 'comfortable', label: '這裡很舒服', icon: 'leaf', color: 'green' },
-  { id: 'other', label: '其他感受', icon: 'plus', color: 'muted' },
+  { id: 'noisy', label: '聲音刺激', hint: '噪音、廣播、施工聲', icon: 'sound', color: 'teal', intensityLabel: '聲音刺激',
+    tags: [tag('construction', '施工噪音'), tag('traffic', '交通噪音'), tag('announcement', '廣播音量大'), tag('voices', '人聲吵雜'), tag('sudden_loud', '突發巨響'), tag('low_frequency', '持續低頻聲')] },
+  { id: 'bright', label: '光線刺激', hint: '刺眼、閃爍、光線不足', icon: 'sun', color: 'amber', intensityLabel: '光線刺激',
+    tags: [tag('sun_glare', '陽光刺眼'), tag('too_bright', '燈光過亮'), tag('flicker', '燈光閃爍'), tag('too_dark', '光線不足')] },
+  { id: 'crowded', label: '人潮擁擠', hint: '人多、排隊、空間壓迫', icon: 'people', color: 'blue', intensityLabel: '擁擠程度',
+    tags: [tag('dense_crowd', '人潮密集'), tag('long_queue', '排隊過長'), tag('congested_path', '動線擁堵'), tag('cramped_space', '空間狹窄')] },
+  { id: 'odor', label: '氣味刺激', hint: '油煙、香水、異味', icon: 'wind', color: 'purple', intensityLabel: '氣味刺激',
+    tags: [tag('cooking_fumes', '油煙'), tag('fragrance', '香水或香氛'), tag('smoke', '菸味'), tag('garbage', '垃圾異味'), tag('other_irritant', '其他刺激性氣味')] },
+  { id: 'thermal', label: '溫度不適', hint: '悶熱、寒冷、通風不良', icon: 'thermometer', color: 'coral', intensityLabel: '溫度不適',
+    tags: [tag('too_hot', '過熱'), tag('too_cold', '過冷'), tag('stuffy', '悶熱不通風')] },
+  { id: 'mobility', label: '動線不適', hint: '通道狹窄、難以通行', icon: 'route', color: 'slate', intensityLabel: '通行困難',
+    tags: [tag('obstacle', '障礙物'), tag('narrow_path', '通道狹窄'), tag('hard_to_find_exit', '難以找到出口')] },
+  { id: 'comfortable', label: '舒適空間', hint: '安靜、舒適、適合休息', icon: 'leaf', color: 'green',
+    tags: [tag('quiet', '安靜'), tag('soft_light', '光線柔和'), tag('few_people', '人潮少'), tag('seating', '有座位'), tag('rest_friendly', '可短暫休息')] },
+  { id: 'other', label: '其他感受', hint: '自行描述環境狀況', icon: 'plus', color: 'muted', tags: [], noteRequired: true },
 ]
-// 強度只描述該感受對應的單一維度；comfortable／other 不帶強度。
+export const reportKind = id => REPORT_KINDS.find(kind => kind.id === id) || null
+// 回報種類對應的 SSI 維度；溫度、動線、舒適與其他不直接計入 SSI。
 export const INTENSITY_DIMENSIONS = Object.freeze({ noisy: 'noise', bright: 'light', crowded: 'crowd', odor: 'odor' })
+// 需要選擇感受程度的種類（含不計入 SSI 的溫度與動線）。
+export const INTENSITY_KINDS = Object.freeze(REPORT_KINDS.filter(kind => kind.intensityLabel).map(kind => kind.id))
 export const REPORT_INTENSITIES = [
-  { id: 'none', label: '沒有明顯刺激' },
   { id: 'mild', label: '輕微' },
-  { id: 'noticeable', label: '明顯' },
+  { id: 'noticeable', label: '中等' },
   { id: 'strong', label: '強烈' },
+]
+// 事件是否仍在持續：影響回報的有效時間（已結束的不應讓該處整天顯示高刺激）。
+export const REPORT_PERSISTENCE = [
+  { id: 'ongoing', label: '現在仍然如此' },
+  { id: 'ended', label: '剛剛發生，現在已結束' },
+  { id: 'recurring', label: '這個地方經常如此' },
+]
+// 同一 GPS 位置的室內外可能差異很大，分開統計。
+export const REPORT_SETTINGS = [
+  { id: 'indoor', label: '室內' },
+  { id: 'outdoor', label: '室外' },
 ]
 export function isCoordinate(value) {
   return Number.isFinite(value?.lat) && Number.isFinite(value?.lng)

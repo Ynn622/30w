@@ -75,11 +75,11 @@ describe('writes', () => {
   })
   it('simulates writes only when the backend is unreachable or missing, not for validation errors', async () => {
     const offline = createSensoryApi({ request: vi.fn().mockRejectedValue(Object.assign(new Error('無法連接後端'), { code: 'NETWORK_ERROR' })), now })
-    await expect(offline.createReport({ kind: 'other', location, note: '' })).resolves.toMatchObject({ data: { accepted: true }, meta: { mock: true } })
+    await expect(offline.createReport({ kind: 'comfortable', location, note: '' })).resolves.toMatchObject({ data: { accepted: true }, meta: { mock: true } })
     await expect(createSensoryApi({ request: vi.fn().mockRejectedValue(routeMissing), now }).createMeasurement({ location, consent: true })).resolves.toMatchObject({ meta: { mock: true } })
     for (const status of [400, 429]) {
       const api = createSensoryApi({ request: vi.fn().mockRejectedValue(Object.assign(new Error(`錯誤 ${status}`), { status })), now })
-      await expect(api.createReport({ kind: 'other', location, note: '' })).rejects.toThrow(`錯誤 ${status}`)
+      await expect(api.createReport({ kind: 'comfortable', location, note: '' })).rejects.toThrow(`錯誤 ${status}`)
     }
   })
   it('keeps the legacy report body until the backend declares intensity support', async () => {
@@ -95,8 +95,25 @@ describe('writes', () => {
     await expect(enabled.createReport({ ...body, intensity: undefined })).rejects.toThrow('強度')
     await expect(enabled.createReport({ ...body, intensity: 'loud' })).rejects.toThrow('強度')
     await expect(enabled.createReport({ ...body, kind: 'comfortable' })).rejects.toThrow('不需要')
-    await expect(enabled.createReport({ kind: 'other', location, note: '' })).resolves.toBeTruthy()
+    await expect(enabled.createReport({ kind: 'comfortable', location, note: '' })).resolves.toBeTruthy()
     expect(request).toHaveBeenCalledTimes(3)
+  })
+  it('accepts the 8 kinds with their own quick tags, persistence and indoor/outdoor, and rejects mismatches', async () => {
+    const request = vi.fn().mockResolvedValue({ data: { data: { accepted: true } } })
+    const api = createSensoryApi({ request, now, reportIntensity: true })
+    const body = { kind: 'noisy', location, note: '', intensity: 'strong', tags: ['construction', 'low_frequency'], persistence: 'ongoing', setting: 'outdoor' }
+    await api.createReport(body)
+    expect(request).toHaveBeenLastCalledWith('reports', { method: 'POST', body })
+    await api.createReport({ kind: 'thermal', location, note: '', intensity: 'mild', tags: ['stuffy'], setting: 'indoor' })
+    await api.createReport({ kind: 'comfortable', location, note: '', tags: ['quiet', 'seating'], persistence: 'recurring' })
+    await expect(api.createReport({ ...body, tags: ['too_hot'] })).rejects.toThrow('具體情況')
+    await expect(api.createReport({ ...body, tags: ['traffic', 'traffic'] })).rejects.toThrow('具體情況')
+    await expect(api.createReport({ ...body, persistence: 'forever' })).rejects.toThrow('持續狀態')
+    await expect(api.createReport({ ...body, setting: 'roof' })).rejects.toThrow('室內')
+    await expect(api.createReport({ ...body, intensity: 'none' })).rejects.toThrow('強度')
+    await expect(api.createReport({ kind: 'other', location, note: '  ' })).rejects.toThrow('描述')
+    await expect(api.createReport({ kind: 'other', location, note: '入口有很多鴿子' })).resolves.toBeTruthy()
+    expect(request).toHaveBeenCalledTimes(4)
   })
   it('does not upload measurements without separate sharing consent', async () => {
     const request = vi.fn()

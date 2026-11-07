@@ -32,7 +32,7 @@ Vue 3 + JavaScript + Vite 的行動版城市感官服務。首頁、探索、我
 - `useQuietCity` 的 `city.assess(record, meta)` 供各畫面使用；`city.recommendations` 在本機依 SFS（完整資料優先）或直線距離排序，敏感度、排序與低刺激模式皆不加入 API query。
 - 「我的」提供四維 1–5 敏感度（預設 聲音 4／光線 2／人潮 3／氣味 1）與低刺激模式；舊版或損壞的 localStorage 會回到有效預設。
 - 低刺激模式在 `body` 加上 `q-low-stimulus`，讓 Teleport sheet 一併套用：柔和配色、停止動畫與地圖飛行、降低熱區不透明度、加大操作區並隱藏裝飾插畫；錯誤、模擬資料標示與資料不足仍以文字保留。
-- 快速回報的四種刺激感受提供未預選的強度（`none | mild | noticeable | strong`）；comfortable／other 不送強度。改用模擬資料時可完整操作但不上傳；後端模式需 `VITE_REPORT_INTENSITY=true` 才顯示並送出 `intensity`，否則維持舊 body。
+- 快速回報為兩層式：8 種類型（聲音、光線、人潮、氣味、溫度、動線、舒適、其他）＋該類型的快速標籤（可複選），另有未預選的感受程度（`mild | noticeable | strong`，四種 SSI 類型與溫度、動線）、持續狀態（`ongoing | ended | recurring`）與室內／室外（`indoor | outdoor`），後兩者選填；「其他感受」需填說明。欄位與後端彙整規則見 `docs/backend-api.md` 第 5 節。改用模擬資料時可完整操作但不上傳；後端模式需 `VITE_REPORT_INTENSITY=true` 才顯示並送出 `intensity`，否則維持舊 body。
 
 地圖使用 `maplibre-gl@6.16.0`（BSD-3-Clause）與 OpenFreeMap Liberty 底圖。地圖引擎與 worker 延遲載入，只有探索頁需要；底圖服務需連網，WebGL 不可用或載入錯誤時提供重試與清單。第三方授權原文隨 `public/third-party/` 交付。UI 插畫、圖示為原創 SVG，沒有下載額外字型或照片。
 

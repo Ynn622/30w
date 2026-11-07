@@ -7,7 +7,7 @@
 | 階段 | 交付範圍 | 目前狀態 |
 | --- | --- | --- |
 | 第一階段 | 六個接口、四維缺值處理、來源／時間／信心揭露 | 前端已有呼叫層，後端與真實來源待整合 |
-| 第二階段 | 強度回報、逐維資料品質、SSI 與覆蓋率 | 前端已可讀取 `sensoryIndex`（ssi-v0.1）並送出強度（需 `VITE_REPORT_INTENSITY=true`）；後端待實作 |
+| 第二階段 | 兩層式回報（8 類型、快速標籤、強度、持續狀態、室內外）、逐維資料品質、SSI 與覆蓋率 | 前端已可讀取 `sensoryIndex`（ssi-v0.1）並送出強度（需 `VITE_REPORT_INTENSITY=true`）；後端待實作 |
 | 第三階段 | 1–5 敏感度、端側 SFS 排序、低刺激介面模式 | 前端已完成（2026-11-07）；不增加會員或偏好上傳接口 |
 
 ## 啟用與範圍
@@ -117,7 +117,7 @@ VITE_REPORT_INTENSITY=false
 
 ## 2 感官地圖
 
-`GET sensory/map` 使用相同的區域、座標與距離 query。回傳 `data`：
+`GET sensory/map` 使用相同格式的區域、座標與距離 query；探索頁停止拖曳／縮放 0.5 秒後，前端以**地圖中心**為 `lat`／`lng`、該處推估的行政區為 `areaId` 重新查詢（移動不到 80 公尺不查；地圖中心在臺北市外時不查）。回傳 `data`：
 
 ```json
 {
@@ -152,7 +152,7 @@ VITE_REPORT_INTENSITY=false
 | `crowd` | `low` / `any` | low 時人潮指數 <=33 |
 | `indoor` | 字串 `true` / `false` | true 僅室內；false 不限制，**不是僅戶外** |
 
-多項條件為 AND。應另外排除已關閉、不可合法進入或已知環境危害的候選場所；天氣／空品不適宜戶外時，後端可排除戶外並提供說明。若進入條件未知，顯示待確認，避免保證可用。不得把 NOS_P_08 的測站位置當安靜推薦依據。
+前端目前只送 `areaId`、`lat`、`lng` 與固定 `radius=500`（使用者感官篩選已移除），`lat`／`lng` 為目前位置或探索地圖停止移動後的地圖中心；下列篩選參數仍屬契約，後端保留支援即可。多項條件為 AND。應另外排除已關閉、不可合法進入或已知環境危害的候選場所；天氣／空品不適宜戶外時，後端可排除戶外並提供說明。若進入條件未知，顯示待確認，避免保證可用。不得把 NOS_P_08 的測站位置當安靜推薦依據。
 
 回傳 `data: { "places": [Place] }`。無結果回 200 + 空陣列。前端也會再次檢查篩選、觀測時間與座標，不完全信任後端篩選。結果依直線距離遞增排列；本版不做分頁，請限制回傳數量，例如最多 50 筆。`Place` 使用下一節欄位；清單至少需要 id、name、category、location、indoor、senses、tag、confidence、updatedAt。
 
@@ -199,25 +199,51 @@ VITE_REPORT_INTENSITY=false
 
 ## 5 主觀感受回報
 
-`POST reports`，`Content-Type: application/json`：
+`POST reports`，`Content-Type: application/json`。2026-11-07 起改為兩層式快速回報：第一層 8 種類型，第二層快速標籤，另有感受程度、持續狀態與室內／室外，讓使用者 5–10 秒完成，也讓後端能直接轉成 SSI 輸入。
 
 ```json
 {
   "kind": "noisy",
+  "tags": ["construction", "low_frequency"],
+  "intensity": "strong",
+  "persistence": "ongoing",
+  "setting": "outdoor",
   "note": "靠近馬路的座位比較吵",
   "location": { "lat": 25.0386, "lng": 121.5143, "source": "device", "areaId": "zhongzheng", "label": "目前位置（中正區）" },
   "observedAt": "2026-11-07T10:30:00+08:00"
 }
 ```
 
-- kind：`noisy | bright | crowded | odor | comfortable | other`。
-- **現有 body 沒有強度、逐維評分或 `placeId`。** `noisy` 只表示聲音刺激事件，不能自行當作 65 分或精準分貝；`comfortable` 不能讓四維一律變低，未回報的維度也不是零。第一階段可提供事件計數與文字提示，沒有可解釋的數值來源時 `senses` 保持 null。需要數值回報與場所關聯時，依第二階段擴充，不從自由文字猜測或把行政區中心回報掛到最近場所。
-- note 選填，最長 140 字；前後端都要驗證，後端需限制 payload 大小及儲存期限。
+| 欄位 | 必填 | 說明 |
+| --- | --- | --- |
+| `kind` | 是 | 8 種之一，見下表 |
+| `location`、`observedAt` | 是 | 同前；目前前端只送 `source: "device"` |
+| `note` | 視 `kind` | 最長 140 字；`kind=other` 時必填（去除空白後不可為空），其他選填 |
+| `tags` | 否 | 第二層快速標籤 id 陣列，只能用該 `kind` 的標籤、不可重複；沒選時不送此欄 |
+| `intensity` | 否 | `mild \| noticeable \| strong`（輕微／中等／強烈），只適用下表標示「有」的類型；前端需 `VITE_REPORT_INTENSITY=true` 才送出 |
+| `persistence` | 否 | `ongoing`（現在仍然如此）、`ended`（剛剛發生，現在已結束）、`recurring`（這個地方經常如此） |
+| `setting` | 否 | `indoor`（室內）、`outdoor`（室外） |
+
+| `kind` | 名稱 | 強度 | 對應 | 第二層 `tags` |
+| --- | --- | --- | --- | --- |
+| `noisy` | 聲音刺激 | 有 | SSI `noise` | `construction` 施工噪音、`traffic` 交通噪音、`announcement` 廣播音量大、`voices` 人聲吵雜、`sudden_loud` 突發巨響、`low_frequency` 持續低頻聲 |
+| `bright` | 光線刺激 | 有 | SSI `light` | `sun_glare` 陽光刺眼、`too_bright` 燈光過亮、`flicker` 燈光閃爍、`too_dark` 光線不足 |
+| `crowded` | 人潮擁擠 | 有 | SSI `crowd` | `dense_crowd` 人潮密集、`long_queue` 排隊過長、`congested_path` 動線擁堵、`cramped_space` 空間狹窄 |
+| `odor` | 氣味刺激 | 有 | SSI `odor` | `cooking_fumes` 油煙、`fragrance` 香水或香氛、`smoke` 菸味、`garbage` 垃圾異味、`other_irritant` 其他刺激性氣味 |
+| `thermal` | 溫度不適 | 有 | 另列，不計入 SSI | `too_hot` 過熱、`too_cold` 過冷、`stuffy` 悶熱不通風 |
+| `mobility` | 動線不適 | 有 | 另列，不計入 SSI | `obstacle` 障礙物、`narrow_path` 通道狹窄、`hard_to_find_exit` 難以找到出口 |
+| `comfortable` | 舒適空間 | 無 | 正向訊號 | `quiet` 安靜、`soft_light` 光線柔和、`few_people` 人潮少、`seating` 有座位、`rest_friendly` 可短暫休息 |
+| `other` | 其他感受 | 無 | 僅文字 | 無；需填 `note` |
+
+- 舊 kind 名稱不變（`noisy`、`bright`、`crowded`、`odor`、`comfortable`、`other`），新增 `thermal`、`mobility`；畫面文字改為「聲音刺激」等類別名稱。
+- `tags`、`persistence`、`setting` 為選填，**後端即使尚未儲存也必須接受（不可回 400）**；未知 `kind` 或標籤不屬於該 `kind`、重複、超出列舉值時回 400。缺少這些欄位的回報仍為有效回報，未提供不代表「無」。
+- **事件 ≠ 分數**：`noisy` 等只表示該類型的主觀事件，不能自行當作分貝；`comfortable` 及其標籤是正向訊號，不能讓四維一律變低，未回報的維度也不是零。不從自由文字猜測分數或標籤。
+- 舒適空間一定要保留並計數，否則地圖只會累積負面事件，沒有足夠資料推薦真正舒服的地方。
 - location.source：`manual`（區域中心）或 `device`（另行取得授權的裝置位置）。目前前端只開放目前定位，實際只會送出 `device`；`manual` 保留為相容值。手動回報不能變成該格網的精確觀測；可只計區域統計，不加入街道熱點。
-- 不傳疾病、診斷、會員個資。實際 body 只包含上列資料，使用者按「確認送出」才送。
+- 不傳疾病、診斷、會員個資。使用者按「確認送出」才送。
 - 成功回 201 + 共用 envelope：`data: { "id": "report-001", "accepted": true }`。
 - 後端需做合法位置／時間範圍驗證、匿名濫用控制、去重及 rate limit。`observedAt` 不可任意相信客戶端時間。
-- 重送界線（issue #2）：前端在使用者按下確認時凍結 `kind`／`note`／`location`／`intensity`／`observedAt`；失敗後原樣重送會送出位元相同的 body，改了內容或位置才產生新的 `observedAt`，視為新事件。尚未加入 requestId／Idempotency-Key，若要新增須先共同約定，且不得改成必填。
+- 重送界線（issue #2）：前端在使用者按下確認時凍結 `kind`／`tags`／`intensity`／`persistence`／`setting`／`note`／`location`／`observedAt`；失敗後原樣重送會送出位元相同的 body，改了任一內容或位置才產生新的 `observedAt`，視為新事件。尚未加入 requestId／Idempotency-Key，若要新增須先共同約定，且不得改成必填。
 
 ## 6 環境音量摘要
 
@@ -289,12 +315,19 @@ VITE_REPORT_INTENSITY=false
 
 ### 回報擴充
 
-現有 `POST reports` 保持可接受原 body。第二階段可新增選填 `intensity` 與 `placeId`，前後端部署相容後才啟用。前端已實作 `intensity`：api 模式需設定 `VITE_REPORT_INTENSITY=true` 才會送出（未設定時維持舊 body、不顯示強度選項）；`placeId` 目前不送出。
+`POST reports` 的欄位與列舉見第 5 節。`placeId` 仍為未來選填欄位，目前前端不送出。
 
-- `intensity`：`none | mild | noticeable | strong`，僅適用 `noisy | bright | crowded | odor` 所對應的單一維度。暫定映射為 10／35／65／90，屬產品假設，不是醫學或法規閾值。畫面須讓使用者明確選擇「沒有明顯刺激」，不能替使用者預填。
-- 缺少 `intensity` 的舊回報只列事件計數，不納入此強度平均；`comfortable | other` 不接受 `intensity`，不從備註自動生成評分。
+- `intensity`：`mild | noticeable | strong`（輕微／中等／強烈），不預選。2026-11-07 起移除 `none`，因為使用者已先選定類型與具體情況；舊資料若有 `none` 可視為 10。四種 SSI 類型暫定映射為 35／65／90，屬產品假設，不是醫學或法規閾值。`thermal`、`mobility` 的強度另列統計，不計入 SSI。
+- 缺少 `intensity` 的回報只列事件與標籤計數，不納入強度平均；`comfortable | other` 不接受 `intensity`，不從備註自動生成評分。
+- `persistence` 影響有效期，避免短暫事件讓某處整天顯示高刺激：
+  - `ongoing`：照常進入 30 分鐘有效窗。
+  - `ended`：只在較短的回溯窗內計入，例如 10 分鐘，之後不再影響目前狀態；確切參數需版本化。
+  - `recurring`：描述長期模式，不當作「現在」的觀測，不計入即時 SSI；可另行彙整為「經常如此」的場所／區域提示，並揭露統計期間。
+  - 未提供：依舊規則視為當下觀測，信心可較低。
+- `setting` 分開統計室內與室外：同一 GPS 位置，圖書館內可能很安靜，門口卻在施工。場所為室內時只採 `indoor`（或另行驗證屬於該場所）的回報；未提供室內外的回報不得併入室內場所評分，可只計入格網／室外統計或標示為不確定。
+- `tags` 只做分類計數與說明文字，例如「近 30 分鐘 3 筆施工噪音」，不直接換算分數；不同標籤不另加權，除非另訂版本化規則。
 - `placeId` 若存在，後端驗證場所、位置來源與可接受範圍；手動行政區中心仍只計區域事件，不據此建立場所評分。未提供時，不以最近場所猜測歸屬。
-- 每一維只彙整同一空間範圍、30 分鐘內且通過去重／品質規則的有效回報。採算術平均或時間衰減平均均須固定公式、參數與版本；未訂規則或樣本不足時回 null。
+- 每一維只彙整同一空間範圍、有效窗內且通過去重／品質規則的有效回報。採算術平均或時間衰減平均均須固定公式、參數與版本；未訂規則或樣本不足時回 null。
 
 若未來取得經校正的 dB(A)，可研究 `clip((dBA - 35) / 45 × 100, 0, 100)` 作為聲音產品映射；35／80 只是範例端點，不代表安全或不適閾值。此公式**不適用現有 protocolVersion=1 的 dBFS**，不得直接開啟。
 
@@ -374,4 +407,4 @@ dimensionCoverage = 有效維度數 / 4
 5. 完成匿名資料最小化、寫入驗證、rate limit、去重、保存與刪除策略，正式提供前另訂隱私政策。
 6. 在實際 GitHub Pages 與城市通 WebView 測試 CORS、HTTPS、取消、逾時、錯誤及實際資料來源展示。
 
-第二階段驗收另加：強度缺漏不轉分、四維與空品分離、逐維來源與有效期可追溯；覆蓋率分母固定四維權重，驗證全缺值、有效 0 分、過期、零權重與部分覆蓋的計算結果。第三階段須驗證同一場所依不同偏好產生不同 SFS，且偏好留在裝置端；低刺激模式可實際切換。未完成前不得列入第一階段已串接項目。
+第二階段驗收另加：8 種 `kind` 與其標籤驗證（標籤不屬於該類型、重複或 `other` 無說明時回 400，選填欄位缺漏時仍接受）、`persistence=ended` 不延長有效期且 `recurring` 不計入即時 SSI、室內外分開統計、舒適空間正向訊號不把四維歸零、強度缺漏不轉分、四維與空品分離、逐維來源與有效期可追溯；覆蓋率分母固定四維權重，驗證全缺值、有效 0 分、過期、零權重與部分覆蓋的計算結果。第三階段須驗證同一場所依不同偏好產生不同 SFS，且偏好留在裝置端；低刺激模式可實際切換。未完成前不得列入第一階段已串接項目。

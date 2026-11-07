@@ -26,6 +26,16 @@ describe('report retry draft', () => {
       expect(next.observedAt).not.toBe(first.observedAt)
     }
   })
+  it('includes quick tags, persistence and setting only when chosen, and treats changing them as a new event', () => {
+    let time = 0
+    const draft = createReportDraft(() => (time += 1000))
+    const plain = draft.take({ kind: 'noisy', note: '', location: device, tags: undefined, persistence: undefined, setting: undefined })
+    for (const key of ['tags', 'persistence', 'setting']) expect(plain).not.toHaveProperty(key)
+    const detailed = draft.take({ kind: 'noisy', note: '', location: device, tags: ['construction'], persistence: 'ended', setting: 'outdoor' })
+    expect(detailed).toMatchObject({ tags: ['construction'], persistence: 'ended', setting: 'outdoor' })
+    expect(detailed.observedAt).not.toBe(plain.observedAt)
+    expect(draft.take({ kind: 'noisy', note: '', location: device, tags: [], persistence: 'ended', setting: 'outdoor' })).not.toHaveProperty('tags')
+  })
   it('starts a new event after a successful submission is cleared', () => {
     let time = 0
     const draft = createReportDraft(() => (time += 1000))
