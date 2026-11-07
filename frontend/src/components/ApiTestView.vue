@@ -1,6 +1,10 @@
 <script setup>
 import { computed, onUnmounted, ref } from 'vue'
 import apiConfig from '../config/apiConfig.js'
+import { apiRequest } from '../lib/apiClient.js'
+import AsyncState from './AsyncState.vue'
+
+defineProps({ embedded: { type: Boolean, default: false } })
 
 const endpoint = ref('hello')
 const name = ref('CityLink')
@@ -8,7 +12,6 @@ const loading = ref(false)
 const result = ref(null)
 const errorMessage = ref('')
 let controller
-let timeout
 let disposed = false
 
 const requestURL = computed(() => {
@@ -28,48 +31,33 @@ async function execute() {
   errorMessage.value = ''
   controller = new AbortController()
   const url = requestURL.value
-  const started = performance.now()
-  timeout = setTimeout(() => controller.abort(), 15000)
-
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      signal: controller.signal,
-      cache: 'no-store',
-    })
-    const text = await response.text()
-    let body = text || '(空白回應)'
-    try { body = JSON.stringify(JSON.parse(text), null, 2) } catch { /* 保留非 JSON 回應。 */ }
+    const response = await apiRequest(url, { signal: controller.signal })
     if (disposed) return
     result.value = {
-      url,
-      status: response.status,
-      ok: response.ok,
-      elapsed: Math.round(performance.now() - started),
-      body,
+      ...response, ok: true, body: formatBody(response.data),
     }
-    if (!response.ok) errorMessage.value = `伺服器回傳 HTTP ${response.status}，請查看下方內容。`
   } catch (error) {
     if (disposed) return
-    errorMessage.value = error.name === 'AbortError'
-      ? '請求超過 15 秒，請稍後重試。'
-      : '無法取得回應。請檢查網路、後端連線與 CORS 允許的前端來源。'
+    errorMessage.value = error.message
+    if (error.status) result.value = { url, status: error.status, elapsed: error.elapsed, ok: false, body: formatBody(error.data) }
   } finally {
-    clearTimeout(timeout)
     if (!disposed) loading.value = false
   }
 }
 
+function formatBody(data) {
+  return typeof data === 'string' ? data : JSON.stringify(data, null, 2)
+}
+
 onUnmounted(() => {
   disposed = true
-  clearTimeout(timeout)
   controller?.abort()
 })
 </script>
 
 <template>
-  <section class="view api-test-view" aria-labelledby="api-test-title">
+  <section class="api-test-view" :class="{ view: !embedded }" aria-labelledby="api-test-title">
     <header class="subpage-header">
       <span class="section-kicker">BACKEND API</span>
       <h1 id="api-test-title">API 測試</h1>
@@ -91,8 +79,8 @@ onUnmounted(() => {
       <button type="submit" :disabled="loading">{{ loading ? '請求中…' : '送出 GET 請求' }}</button>
     </form>
 
-    <p v-if="loading" role="status">正在等待後端回應…</p>
-    <p v-if="errorMessage" class="api-test-error" role="alert">{{ errorMessage }}</p>
+    <AsyncState v-if="loading" state="loading" message="正在等待後端回應…" />
+    <AsyncState v-if="errorMessage" state="error" :message="errorMessage" retry @retry="execute" />
     <article v-if="result" class="api-test-card" aria-live="polite">
       <h2>回應結果</h2>
       <div class="api-test-meta">
@@ -102,7 +90,7 @@ onUnmounted(() => {
       <code>{{ result.url }}</code>
       <pre>{{ result.body }}</pre>
     </article>
-    <p v-else-if="!loading && !errorMessage" class="api-test-hint">選擇端點後按下送出，即可查看實際回應。</p>
+    <AsyncState v-else-if="!loading && !errorMessage" state="empty" title="尚無測試結果" message="選擇端點後按下送出，即可查看實際回應。" />
     <a class="api-test-docs" href="https://30wbackend.idfc.dev/docs/" target="_blank" rel="noopener noreferrer">開啟 Swagger 文件</a>
   </section>
 </template>

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { getNativeChannel, sendToNative, subscribeToNativeMessages } from '../lib/webview.js'
+import { getNativeChannel } from '../lib/webview.js'
+import { requestNative } from '../lib/nativeClient.js'
 
 const methods = [
   { name: 'userinfo', label: '會員資料', data: null },
@@ -8,10 +9,10 @@ const methods = [
   { name: 'location', label: '目前位置', data: null },
   { name: 'qr_code_scan', label: '掃描 QR Code', data: null },
   { name: 'launch_map', label: '開啟地圖', data: 'https://maps.app.goo.gl/sQKx4n3WctXuS5Bw8' },
-  { name: 'open_link', label: '開啟網頁', data: 'https://www.gov.taipei/', noReply: true },
+  { name: 'open_link', label: '開啟網頁', data: 'https://www.gov.taipei/' },
   { name: 'phone_call', label: '開啟撥號功能', data: '', hint: '請輸入要測試的電話號碼（JSON 字串）。' },
-  { name: '1999agree', label: '1999 撥號條款', data: true, noReply: true },
-  { name: 'notify', label: '發送測試通知', data: { title: '介接測試', content: '這是一則 WebView 測試通知' }, noReply: true },
+  { name: '1999agree', label: '1999 撥號條款', data: true },
+  { name: 'notify', label: '發送測試通知', data: { title: '介接測試', content: '這是一則 WebView 測試通知' } },
 ]
 const selectedName = ref('userinfo')
 const selected = computed(() => methods.find((item) => item.name === selectedName.value))
@@ -21,30 +22,19 @@ const status = ref('尚未送出')
 const request = ref(null)
 const response = ref(null)
 const pending = ref(false)
-let unsubscribe = () => {}
-let timer
+let controller
+let disposed = false
 
 function connect() {
-  unsubscribe()
   channel.value = getNativeChannel(window)
-  unsubscribe = subscribeToNativeMessages((message) => {
-    if (!request.value || message.name !== request.value.name) return
-    clearTimeout(timer)
-    pending.value = false
-    response.value = message
-    status.value = message.data === false
-      ? 'App 回覆 false：操作未完成，請確認參數、權限或裝置支援。'
-      : message.name === 'qr_code_scan' && message.data === null
-        ? '已取消掃描（App 回覆 null）'
-        : '已收到 App 回覆'
-  }, window)
 }
 
 function selectMethod() {
   input.value = JSON.stringify(selected.value.data, null, 2)
 }
 
-function send() {
+async function send() {
+  if (pending.value) return
   let data
   try {
     data = JSON.parse(input.value)
@@ -65,29 +55,29 @@ function send() {
 
   pending.value = true
   status.value = '等待 App 回覆…'
-  const noReply = selected.value.noReply
-  // 先設定等待狀態與計時器，再發送，以兼容同步回覆。
-  timer = setTimeout(() => {
-    pending.value = false
-    status.value = '尚未收到回覆。請確認 App 方法、權限或是否仍在操作原生頁面，可再次測試。'
-  }, selectedName.value === 'qr_code_scan' ? 120000 : 30000)
-
+  controller = new AbortController()
+  const currentController = controller
   try {
-    sendToNative(request.value.name, data, window)
-    if (noReply && pending.value) {
-      clearTimeout(timer)
-      pending.value = false
-      status.value = '已送出；官方規格中，此方法成功時不回覆，請查看 App 畫面或手機通知。'
-    }
+    const reply = await requestNative(request.value.name, data, { host: window, signal: controller.signal })
+    if (disposed || currentController !== controller) return
+    response.value = reply.replied ? { name: reply.name, data: reply.data } : null
+    status.value = !reply.replied
+      ? '已送出；此方法成功時不回覆，請查看 App 畫面或手機通知。'
+      : reply.data === false
+        ? 'App 回覆 false：操作未完成，請確認參數、權限或裝置支援。'
+        : reply.name === 'qr_code_scan' && reply.data === null
+          ? '已取消掃描（App 回覆 null）'
+          : '已收到 App 回覆'
   } catch (error) {
-    clearTimeout(timer)
-    pending.value = false
-    status.value = `送出失敗：${error.message}`
+    if (!disposed && currentController === controller && error.code !== 'CANCELLED') status.value = error.message
+  } finally {
+    if (!disposed && currentController === controller) pending.value = false
   }
 }
 
 function clearResult() {
-  clearTimeout(timer)
+  controller?.abort()
+  controller = undefined
   pending.value = false
   request.value = null
   response.value = null
@@ -96,8 +86,8 @@ function clearResult() {
 
 onMounted(connect)
 onUnmounted(() => {
-  unsubscribe()
-  clearTimeout(timer)
+  disposed = true
+  controller?.abort()
 })
 </script>
 

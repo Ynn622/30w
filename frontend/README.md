@@ -20,7 +20,7 @@ npm run build
 
 ## 後端 API
 
-底部導覽的「API 測試」可直接呼叫問候與健康檢查端點，顯示實際 HTTP 狀態、耗時與回應內容。請求超過 15 秒會中止，離開頁面也會取消請求。跨網域測試需由後端允許目前前端的 Origin。
+隱藏測試工作台的「後端 API」可直接呼叫問候與健康檢查端點，顯示實際 HTTP 狀態、耗時與回應內容。請求超過 15 秒會中止，離開頁面也會取消請求。跨網域測試需由後端允許目前前端的 Origin。
 
 `src/config/apiConfig.js` 僅管理 base URL，預設為 `https://30wbackend.idfc.dev/api/v1`。
 如需切換環境，可將 `.env.example` 複製為 `.env.local` 並修改 `VITE_API_BASE_URL`，之後重新啟動或建置。
@@ -63,7 +63,17 @@ App 回覆時，網頁透過 `window.flutterObject.addEventListener('message', c
 
 ## 介接測試面板
 
-從底部導覽進入「我的 → 城市通介接測試」，選擇官方方法、編輯 `data` JSON，點選測試後即可查看要求內容與 App 回傳 JSON。
+測試功能集中在隱藏工作台，平常不顯示於導覽或個人頁面。不區分本機、測試、正式環境。
+
+開啟方式：
+
+- 網址加上 `#debug`，例如 `http://localhost:7890/#debug` 或 `https://ynn622.github.io/30w/#debug`。
+- 瀏覽器 Console 執行 `cityDebug.open()`，關閉用 `cityDebug.close()`。
+- 鍵盤按 `Ctrl + Alt + D` 可切換顯示。
+
+工作台提供「後端 API」、「WebView」、「畫面狀態」三個分頁，按「離開測試」回到原頁。這是隱藏入口而非登入權限，知道網址的人都能開啟。進入頁面不會自動呼叫 API 或索取會員、定位資料。
+
+在「WebView」分頁選擇官方方法、編輯 `data` JSON，點選測試後即可查看要求內容與 App 回傳 JSON。
 
 - 提供官方文件的 9 個方法；所有要求均由使用者手動觸發。
 - `open_link`、`notify`、`1999agree` 成功時不回覆，因此只標示已送出。
@@ -71,6 +81,12 @@ App 回覆時，網頁透過 `window.flutterObject.addEventListener('message', c
 - 一般瀏覽器未注入 `flutterObject` 時不送出要求，也不以假資料冒充 App 回覆。
 - 顯示資料僅保留於元件記憶體，切換分頁或按「清除結果」即可移除。
 - 實機驗證需由城市通 App WebView 開啟此網站，確認允許的來源網域及 App handler 已設定。
+
+## 共用功能
+
+- `src/lib/apiClient.js`：`apiRequest('hello', { query: { name: 'CityLink' }, signal })`，回傳 `{ url, status, data, elapsed }`；統一 HTTP、網路、逾時、取消錯誤。相對路徑接在 API base 後，根路徑端點可使用完整 URL。可透過 `body` 傳送 JSON，並自行設定 `method`。
+- `src/lib/nativeClient.js`：`requestNative('userinfo', null, { host: window, signal })`，回傳 `{ name, data, replied }`；處理連線偵測、監聽、逾時、取消與清理。未提供 requestId 的官方協定一次只能等待一個請求，逾時後的延遲回覆仍需在實機整合時注意。
+- `src/components/AsyncState.vue`：共用 `loading`、`error`、`empty` 狀態，支援重試事件。可由測試工作台的「畫面狀態」預覽。
 
 ## GitHub Pages
 

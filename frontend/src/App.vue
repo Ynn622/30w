@@ -1,7 +1,6 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
 import BottomNav from './components/BottomNav.vue'
-import ApiTestView from './components/ApiTestView.vue'
 import HomeView from './components/HomeView.vue'
 import ProfileView from './components/ProfileView.vue'
 import ServicesView from './components/ServicesView.vue'
@@ -9,6 +8,33 @@ import WalletView from './components/WalletView.vue'
 import { serviceCategories, serviceItems } from './data/services.js'
 import { getNativeChannel, sendToNative, subscribeToNativeMessages } from './lib/webview.js'
 import { startVersionChecker } from './lib/versionChecker.js'
+
+const DebugView = defineAsyncComponent(() => import('./components/DebugView.vue'))
+const debugOpen = ref(window.location.hash === '#debug')
+let previousDebugCommand
+const debugCommands = Object.freeze({ open: openDebug, close: closeDebug })
+
+function syncDebugHash() {
+  debugOpen.value = window.location.hash === '#debug'
+}
+
+function openDebug() {
+  window.location.hash = 'debug'
+  debugOpen.value = true
+}
+
+function closeDebug() {
+  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+  debugOpen.value = false
+}
+
+function handleDebugShortcut(event) {
+  if (event.ctrlKey && event.altKey && event.code === 'KeyD' && !event.repeat) {
+    event.preventDefault()
+    if (debugOpen.value) closeDebug()
+    else openDebug()
+  }
+}
 
 const activeTab = ref('home')
 const toastMessage = ref('')
@@ -37,6 +63,10 @@ const bridgeLabel = computed(() => {
 })
 
 onMounted(() => {
+  window.addEventListener('hashchange', syncDebugHash)
+  window.addEventListener('keydown', handleDebugShortcut)
+  previousDebugCommand = window.cityDebug
+  window.cityDebug = debugCommands
   bridgeChannel.value = getNativeChannel(window)
   unsubscribeFromNative = subscribeToNativeMessages(handleNativeReply, window)
   stopVersionCheck = startVersionChecker({
@@ -48,6 +78,12 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('hashchange', syncDebugHash)
+  window.removeEventListener('keydown', handleDebugShortcut)
+  if (window.cityDebug === debugCommands) {
+    if (previousDebugCommand === undefined) delete window.cityDebug
+    else window.cityDebug = previousDebugCommand
+  }
   unsubscribeFromNative()
   window.clearTimeout(toastTimer)
   stopVersionCheck()
@@ -125,7 +161,7 @@ function handleNativeReply({ name, data }) {
   <main class="app-shell">
     <Transition name="page" mode="out-in">
       <HomeView
-        v-if="activeTab === 'home'"
+        v-if="!debugOpen && activeTab === 'home'"
         key="home"
         :services="serviceItems"
         :date-label="dateLabel"
@@ -134,19 +170,19 @@ function handleNativeReply({ name, data }) {
         @navigate="navigate"
       />
       <ServicesView
-        v-else-if="activeTab === 'services'"
+        v-else-if="!debugOpen && activeTab === 'services'"
         key="services"
         :services="serviceItems"
         :categories="serviceCategories"
         @select-service="handleService"
       />
       <WalletView
-        v-else-if="activeTab === 'wallet'"
+        v-else-if="!debugOpen && activeTab === 'wallet'"
         key="wallet"
         @native-action="handleNativeAction"
         @navigate="navigate"
       />
-      <ApiTestView v-else-if="activeTab === 'api'" key="api" />
+      <DebugView v-else-if="debugOpen" key="debug" @close="closeDebug" />
       <ProfileView
         v-else
         key="profile"
@@ -155,7 +191,7 @@ function handleNativeReply({ name, data }) {
       />
     </Transition>
 
-    <BottomNav :active-tab="activeTab" @navigate="navigate" />
+    <BottomNav v-if="!debugOpen" :active-tab="activeTab" @navigate="navigate" />
 
     <div v-if="updateAvailable" class="toast" role="status" aria-live="polite">
       偵測到新版本，10 秒後自動重新整理頁面。
