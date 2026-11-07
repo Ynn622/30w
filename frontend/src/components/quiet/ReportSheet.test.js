@@ -28,12 +28,28 @@ describe('report intensity', () => {
   })
 })
 describe('report location', () => {
-  it('shows the current coordinates with a map and drops the old helper sentence', async () => {
+  it('shows the address with a map and drops coordinates and helper sentences', async () => {
     const html = await render('noisy')
     expect(html).toContain('mini-map')
     expect(html).toContain('臺北市中正區承德路一段3號')
-    expect(html).toContain('© OpenStreetMap contributors')
-    expect(html).toContain('經緯度 25.03860, 121.51430')
+    // 位置框只顯示地址，不再列出經緯度與說明文字。
+    expect(html).not.toContain('經緯度')
+    expect(html).not.toContain('這次回報會送出')
+    // 重新定位改為地址旁的定位圖示按鈕，不再有整列按鈕。
+    expect(html).toMatch(/<button[^>]*class="[^"]*relocate-button[^"]*"[^>]*aria-label="重新定位"/)
+    expect(html).not.toMatch(/<button[^>]*q-secondary full[^>]*>[\s\S]*?重新定位/)
     expect(html).not.toContain('不需要提供姓名')
+  })
+})
+describe('report kind header', () => {
+  it('renders the chosen feeling as a compact button that can switch to another kind', async () => {
+    const html = await render('crowded')
+    const header = html.match(/<button[^>]*report-selection[^>]*>/)?.[0] || ''
+    expect(header).toContain('aria-expanded="false"')
+    expect(header).toContain('aria-controls="report-kind-picker"')
+    expect(html).toContain('人潮擁擠')
+    expect(html).toContain('更換')
+    // 種類清單收合時不顯示。
+    expect(html).not.toContain('id="report-kind-picker"')
   })
 })

@@ -1,11 +1,15 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue'
+import AppIcon from '../AppIcon.vue'
 import { isCoordinate } from '../../lib/sensoryDomain.js'
 
-// 回報用的小地圖：只顯示目前位置，不可拖曳縮放。沿用 MapLibre + OpenFreeMap Liberty，保留授權標示。
+// 回報用的小地圖：顯示目前位置，可用 +／− 按鈕、兩指或 Ctrl＋滾輪縮放（單指仍可捲動視窗）。
+// 沿用 MapLibre + OpenFreeMap Liberty，保留授權標示。
 const props = defineProps({ location: { type: Object, default: null }, label: { type: String, default: '目前位置' } })
 const container = ref(null), ready = ref(false), failed = ref(false)
 let map, marker, disposed = false
+const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || document.body.classList.contains('q-low-stimulus')
+const zoom = direction => map?.[direction > 0 ? 'zoomIn' : 'zoomOut']({ duration: reduced() ? 0 : 200 })
 
 async function initialize() {
   if (!isCoordinate(props.location) || !container.value) return
@@ -20,8 +24,16 @@ async function initialize() {
     maplibre.setWorkerCount(1)
     map = new maplibre.Map({
       container: container.value, style: 'https://tiles.openfreemap.org/styles/liberty',
-      center: [props.location.lng, props.location.lat], zoom: 16, interactive: false, attributionControl: false,
+      center: [props.location.lng, props.location.lat], zoom: 16, minZoom: 12, maxZoom: 19, attributionControl: false,
+      // 單指拖曳交給視窗捲動；兩指或 Ctrl／⌘＋滾輪才操作地圖，避免卡住回報視窗。
+      cooperativeGestures: true, dragRotate: false, pitchWithRotate: false,
+      locale: {
+        'CooperativeGesturesHandler.WindowsHelpText': '按住 Ctrl 並滾動滑鼠滾輪來縮放地圖',
+        'CooperativeGesturesHandler.MacHelpText': '按住 ⌘ 並滾動滑鼠滾輪來縮放地圖',
+        'CooperativeGesturesHandler.MobileHelpText': '請用兩指移動或縮放地圖',
+      },
     })
+    map.touchZoomRotate.disableRotation()
     map.addControl(new maplibre.AttributionControl({ compact: false }), 'bottom-right')
     const dot = document.createElement('div')
     dot.className = 'q-user-dot'
@@ -50,16 +62,23 @@ onUnmounted(() => { disposed = true; marker?.remove(); map?.remove() })
 </script>
 
 <template>
-  <div class="mini-map" role="img" :aria-label="`${label}的地圖位置`">
+  <div class="mini-map" role="region" :aria-label="`${label}的地圖位置，可縮放`">
     <div ref="container" class="mini-map-canvas"></div>
+    <div v-if="ready" class="mini-map-tools">
+      <button type="button" class="q-icon-button" aria-label="放大地圖" @click="zoom(1)"><AppIcon name="plus" :size="19"/></button>
+      <button type="button" class="q-icon-button" aria-label="縮小地圖" @click="zoom(-1)"><span class="minus-icon" aria-hidden="true">−</span></button>
+    </div>
     <p v-if="failed" class="mini-map-state">地圖暫時無法載入，仍會送出下方座標。</p>
     <p v-else-if="!ready" class="mini-map-state">正在載入地圖…</p>
   </div>
 </template>
 
 <style scoped>
-.mini-map { position: relative; height: 150px; overflow: hidden; border: 1px solid #dce6ed; border-radius: 12px; background: #edf4f8; }
+.mini-map { position: relative; height: 200px; overflow: hidden; border: 1px solid #dce6ed; border-radius: 12px; background: #edf4f8; }
 .mini-map-canvas { position: absolute; inset: 0; }
+.mini-map-tools { position: absolute; z-index: 2; top: 8px; right: 8px; display: grid; gap: 6px; }
+.mini-map-tools .q-icon-button { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid #dce6ed; border-radius: 50%; background: #fff; color: #385c6e; box-shadow: 0 2px 6px #2447561a; }
+.minus-icon { font-size: 22px; line-height: 1; }
 .mini-map-state { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 12px; color: #607988; font-size: 13px; text-align: center; background: #f2f8fcf2; }
 .mini-map :deep(.maplibregl-ctrl-attrib) { padding: 1px 5px; font-size: 11px; line-height: 1.4; background: #ffffffe6; }
 .mini-map :deep(.maplibregl-ctrl-attrib a) { color: #4f6472; }
