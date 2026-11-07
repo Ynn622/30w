@@ -246,7 +246,7 @@ VITE_REPORT_INTENSITY=false
 - `averageDbfs` 為每 250ms 平均功率資料再以功率平均計算，不是直接對分貝取算術平均。網頁以 Web Audio 在裝置上計算 RMS dBFS，並關閉自動增益、降噪與回音消除；這不是 IEC 等級 Leq。`source` 由舊版 `native_microphone` 改為 `web_microphone`，後端若有列舉驗證需同步調整。
 - dBFS 範圍 -160 到 0，peakDbfs >= averageDbfs，durationMs <=31000，sampleCount >0。本版不傳音訊、逐筆波形、裝置名稱或使用者識別。
 - dBFS 只可表達同裝置相對音量，**不得標成 dBA，不可跨不同手機直接平均、拿來判定噪音法規或直接餵入城市聲音指數**。若後續需要校準 dBA，必須另定 protocolVersion 與校正證據欄位。
-- 測量與同意分享為不同操作，未勾選同意不會 POST。數值摘要與使用者自選的感受另存於裝置 localStorage（最近 20 筆，不含座標），本版不上傳感受。
+- 測量與同意分享為不同操作，未勾選同意不會 POST。數值摘要另存於裝置 localStorage（最近 20 筆，不含座標）。前端畫面另以 dBFS + 本機校準值估計 dB 與安靜／普通／吵雜，**此估計值不上傳**，後端仍只收 dBFS。
 - App 端麥克風權限設定見 [flutter-noise-interface.md](flutter-noise-interface.md)。
 
 ## 開放資料整合工作

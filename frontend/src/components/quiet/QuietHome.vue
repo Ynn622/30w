@@ -7,7 +7,7 @@ import SenseInfoDialog from './SenseInfoDialog.vue'
 import QuietLogo from './QuietLogo.vue'
 import LocationGate from './LocationGate.vue'
 import { MOCK_LABEL, SENSES, REPORT_KINDS, formatTime, isFresh, levelText } from '../../lib/sensoryDomain.js'
-import { perceptionLabel } from '../../lib/noiseHistory.js'
+import { estimateDb, noiseLevel, readDbOffset } from '../../lib/noiseLevel.js'
 
 const props = defineProps({ city: { type: Object, required: true } })
 // 「附近的安靜角落」暫時隱藏；改回 true 即可恢復，推薦清單仍可在探索頁使用。
@@ -21,7 +21,13 @@ const canDescribe = computed(() => {
 const assessment = computed(() => props.city.overview.data.value ? props.city.assess(props.city.overview.data.value, props.city.overview.meta.value) : null)
 const senseValue = key => canDescribe.value ? assessment.value?.dimensions?.[key] ?? null : null
 // 首頁只列最近三次量測，完整紀錄保留在此裝置。
-const recentNoise = computed(() => (props.city.noiseHistory?.value ?? []).slice(0, 3))
+const recentNoise = computed(() => {
+  const { offset } = readDbOffset()
+  return (props.city.noiseHistory?.value ?? []).slice(0, 3).map(item => {
+    const db = estimateDb(item.averageDbfs, offset)
+    return { ...item, db, level: noiseLevel(db) }
+  })
+})
 // 點選感官卡片時開啟的資料說明小視窗。
 const infoKey = ref(null)
 const updatedClock = computed(() => {
@@ -114,8 +120,8 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
         <h3>最近的量測紀錄</h3>
         <ol>
           <li v-for="item in recentNoise" :key="item.id">
-            <strong>{{ item.averageDbfs }}<small>dBFS</small></strong>
-            <span><b>{{ perceptionLabel(item.perception) ? `你覺得：${perceptionLabel(item.perception)}` : '未選感受' }}</b>{{ formatTime(item.measuredAt) }}{{ item.locationLabel ? ` · ${item.locationLabel}` : '' }}</span>
+            <strong>{{ item.db === null ? '—' : `約 ${item.db}` }}<small>dB</small><span v-if="item.level" class="noise-history-level" :class="`level-${item.level.id}`">{{ item.level.label }}</span></strong>
+            <span>{{ formatTime(item.measuredAt) }}{{ item.locationLabel ? ` · ${item.locationLabel}` : '' }}<br>原始 {{ item.averageDbfs }} dBFS</span>
           </li>
         </ol>
       </section>
