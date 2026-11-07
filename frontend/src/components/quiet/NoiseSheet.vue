@@ -68,6 +68,8 @@ async function upload() {
     uploaded.value = true
     emit('notify', result.meta?.mock ? '後端量測服務暫時無法連線，本次摘要僅模擬分享，未上傳。' : '已分享音量摘要，謝謝你的參與。')
     emit('shared')
+    // 分享完成即收起面板（與回報相同）；結果以通知顯示，量測紀錄已存在此裝置。失敗時保留面板與錯誤訊息供重試。
+    emit('close')
   } catch (reason) { message.value = reason.message }
   finally { uploading.value = false }
 }
