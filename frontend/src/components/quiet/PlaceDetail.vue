@@ -12,9 +12,17 @@ const emit = defineEmits(['back', 'notify'])
 const place = ref(null), meta = ref(null), state = ref('loading'), error = ref(''), tab = ref('sensory')
 let controller, serial = 0
 const distance = computed(() => distanceMeters(props.city.center.value, place.value?.location))
+// 直線距離以公里顯示到小數第一位（例如 0.4、1.2 公里）；無法計算時顯示「距離未知」。
+const distanceText = computed(() => distance.value === null ? '距離未知' : `距離 ${(distance.value / 1000).toFixed(1)} 公里`)
 // 長條與指數只採有效觀測；過期、不足或未知維度不畫長條。
 const assessment = computed(() => place.value ? props.city.assess(place.value, meta.value) : null)
 const fresh = computed(() => isFresh(place.value?.updatedAt, Date.now()))
+// 基本資訊的設施：依開放資料標示 true／false；null 為未知，不顯示（不把未知當成沒有）。
+const FACILITY_LABELS = { airConditioning: '冷氣', seating: '座位', toilet: '廁所', drinkingWater: '飲水', accessibleSeating: '無障礙座位' }
+const facilities = computed(() => Object.entries(FACILITY_LABELS)
+  .map(([key, label]) => ({ key, label, value: place.value?.facilities?.[key] ?? null }))
+  .filter(item => item.value !== null)
+  .sort((a, b) => Number(b.value) - Number(a.value)))
 async function load() {
   controller?.abort(); controller = new AbortController(); const current = ++serial
   state.value = 'loading'; error.value = ''; place.value = null
@@ -53,7 +61,8 @@ async function share() {
       <div class="detail-art"><PlaceArtwork :kind="place.artwork"/><span>原創示意插畫・非實景</span></div>
       <div class="detail-title">
         <div class="detail-title-copy"><h2>{{ place.name }}</h2><div class="detail-tags"><span><AppIcon :name="place.indoor ? 'book' : 'leaf'" :size="17"/>{{ place.category }}</span><span class="q-tag">{{ place.tag || '候選休息點' }}</span></div></div>
-        <div class="detail-distance"><AppIcon name="pin" :size="21"/><strong>{{ distance ?? '—' }}<small>公尺直線</small></strong></div>
+        <!-- 距離與導航放在名稱右側：距離一行，下方為導航按鈕。 -->
+        <div class="detail-nav"><span class="detail-distance">{{ distanceText }}</span><button type="button" class="detail-nav-button" @click="navigate"><span><AppIcon name="route" :size="15"/>導航</span></button></div>
       </div>
       <p v-if="meta.mock" class="mock-inline">{{ MOCK_LABEL }}，場所與地址為虛構。</p>
       <div class="q-segment detail-tabs" role="group" aria-label="場所資訊分頁"><button v-for="item in [{ id: 'sensory', label: '感官資訊' }, { id: 'info', label: '基本資訊' }, { id: 'reviews', label: '回報摘要' }]" :key="item.id" type="button" :class="{ selected: tab === item.id }" :aria-pressed="tab === item.id" @click="tab = item.id">{{ item.label }}</button></div>
@@ -70,8 +79,19 @@ async function share() {
             <p class="q-helper">刺激指數為 0–100 相對尺度，非分貝、照度或人數。</p>
           </template>
           <template v-else-if="tab === 'info'">
-            <h3>基本資訊</h3><p class="detail-description">{{ place.description || '暫無場所介紹。' }}</p>
-            <div class="info-list"><div><AppIcon name="pin" :size="22"/><p><strong>地址</strong>{{ place.address || '地址待確認' }}</p></div><div><AppIcon name="clock" :size="22"/><p><strong>開放時間</strong>{{ place.hours || '開放時間待確認' }}</p></div><div><AppIcon name="shield" :size="22"/><p><strong>可進入性與無障礙資訊</strong>{{ place.accessibility || '尚未取得可進入性資訊，請先向管理單位確認。' }}</p></div></div>
+            <!-- 介紹卡片 → 地址與開放時間 → 設施標籤 → 可進入性提醒。 -->
+            <p v-if="place.description" class="info-intro">{{ place.description }}</p>
+            <p v-else class="info-empty">暫無場所介紹。</p>
+            <div class="info-card">
+              <div class="info-row"><span class="info-icon"><AppIcon name="pin" :size="19"/></span><div><small>地址</small><p>{{ place.address || '地址待確認' }}</p></div></div>
+              <div class="info-row"><span class="info-icon"><AppIcon name="clock" :size="19"/></span><div><small>開放時間</small><p>{{ place.hours || '開放時間待確認' }}</p></div></div>
+            </div>
+            <h4 class="info-subtitle">設施</h4>
+            <ul v-if="facilities.length" class="info-facilities">
+              <li v-for="item in facilities" :key="item.key" :class="{ off: !item.value }"><AppIcon v-if="item.value" name="check" :size="14"/>{{ item.value ? item.label : `未提供${item.label}` }}</li>
+            </ul>
+            <p v-else class="info-empty">設施資訊待確認。</p>
+            <div class="info-access"><AppIcon name="shield" :size="18"/><div><strong>可進入性與無障礙</strong><p>{{ place.accessibility || '尚未取得可進入性資訊，請先向管理單位確認。' }}</p></div></div>
           </template>
           <template v-else>
             <h3>回報摘要</h3><div class="review-count"><strong>{{ place.reportCount ?? 0 }}</strong><span>近期主觀回報<br><small>不等於裝置音量量測</small></span></div><p class="detail-description">{{ place.summary || '回報數量不足，暫無摘要。' }}</p>
@@ -80,7 +100,6 @@ async function share() {
           </template>
         </div>
       </Transition>
-      <div class="detail-actions"><button type="button" class="q-primary" @click="navigate"><AppIcon name="route" :size="21"/>步行導航</button></div>
     </template>
   </section>
 </template>
@@ -94,14 +113,17 @@ async function share() {
 .detail-art > span { bottom: 8px; right: 8px; padding: 4px 7px; font-size: 12px; line-height: 1.4; border-radius: 5px; color: #fff; background: #263b46c7; }
 .detail-title { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; margin: 13px 0 11px; }
 .detail-title-copy { min-width: 0; }
+.detail-nav { display: flex; flex-direction: column; align-items: flex-end; gap: 0; }
+.detail-distance { color: #5d6c75; font-size: 13px; white-space: nowrap; }
+/* 按鈕本身保留 44px 觸控區（透明），內層小膠囊才是看得到的按鈕。 */
+.detail-nav-button { display: inline-flex; align-items: center; justify-content: flex-end; min-width: 44px; min-height: 44px; margin-right: -2px; padding: 0 2px; border: 0; background: transparent; font: inherit; cursor: pointer; }
+.detail-nav-button > span { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 12px; border-radius: 15px; background: var(--q-brand, #0391a7); color: #fff; font-size: 13px; font-weight: 700; box-shadow: 0 2px 6px #0391a72e; }
+.detail-nav-button:active > span { transform: scale(.96); }
 .detail-title h2 { margin: 0 0 7px; font-size: 21px; font-weight: 650; line-height: 1.4; letter-spacing: -.025em; color: #26323a; overflow-wrap: anywhere; }
 .detail-tags { gap: 8px; flex-wrap: wrap; }
 .detail-tags > span:first-child { display: inline-flex; align-items: center; gap: 5px; color: #66747d; font-size: 13px; }
 .detail-tags > span:first-child svg { color: #8b609e; }
 .detail-tags .q-tag { padding: 3px 7px; border-radius: 6px; color: #367d39; background: #e5f4de; font-size: 13px; line-height: 1.4; }
-.detail-distance { display: flex; align-items: flex-start; gap: 5px; color: var(--q-brand, #0391a7); }
-.detail-distance strong { padding-top: 1px; font-size: 17px; font-weight: 600; line-height: 1.2; color: #38454e; text-align: right; }
-.detail-distance small { margin-top: 6px; color: #66747d; font-size: 12px; line-height: 1.3; font-weight: 400; }
 .mock-inline { margin: 0 0 11px; padding: 7px 9px; background: #f4f7f9; color: #65747d; border-radius: 6px; font-size: 12px; line-height: 1.6; }
 .detail-tabs { gap: 0; padding: 0; margin: 0 0 19px; background: #f1f3f5; border-radius: 9px; overflow: hidden; }
 .detail-tabs button { position: relative; min-height: 47px; padding: 9px 4px; border: 0; border-radius: 0; color: #606d76; background: transparent; box-shadow: none; font-size: 15px; font-weight: 500; }
@@ -125,13 +147,24 @@ async function share() {
 .sense-track i { background: linear-gradient(90deg, #41b7c3, #269fb0); }
 .detail-content > .q-helper { margin: 9px 0 0; color: #66747d; font-size: 12px; line-height: 1.65; }
 .detail-content .q-error { color: #97572e; font-size: 13px; line-height: 1.6; }
-.detail-actions { display: grid; margin-top: 19px; }
-.detail-actions .q-secondary { min-height: 49px; padding: 10px; color: var(--q-deep, #007a90); border-color: var(--q-brand, #0391a7); border-radius: 10px; background: #fff; font-size: 16px; font-weight: 600; }
-.detail-actions .q-primary { width: 100%; min-height: 49px; padding: 10px; color: #fff; background: var(--q-brand, #0391a7); border-radius: 10px; font-size: 19px; font-weight: 700; line-height: 1.35; }
 .detail-description { margin: 0 0 9px; color: #556671; font-size: 15px; line-height: 1.8; }
-.info-list > div { gap: 11px; padding: 13px 0; color: var(--q-deep, #007a90); border-color: #e5ebee; }
-.info-list p { color: #5c6d77; font-size: 15px; line-height: 1.7; }
-.info-list strong { margin-bottom: 4px; color: #35444d; font-size: 15px; font-weight: 600; }
+/* 基本資訊 */
+.info-intro { margin: 0 0 14px; padding: 13px 14px; border-radius: 14px; background: linear-gradient(135deg, #eef8fb, #f7fbfc); color: #3f525d; font-size: 15px; line-height: 1.75; }
+.info-empty { margin: 0 0 12px; color: #7a8a93; font-size: 13px; }
+.info-card { overflow: hidden; border: 1px solid #e3ecf0; border-radius: 14px; background: #fff; }
+.info-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; }
+.info-row + .info-row { border-top: 1px solid #eef3f5; }
+.info-icon { display: grid; flex: none; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: #edf7fa; color: var(--q-brand, #0391a7); }
+.info-row small { display: block; color: #7a8a93; font-size: 12px; line-height: 1.5; }
+.info-row p { margin: 1px 0 0; color: #2f3d45; font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
+.info-subtitle { margin: 18px 0 8px; color: #2c3941; font-size: 15px; font-weight: 650; }
+.info-facilities { display: flex; flex-wrap: wrap; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.info-facilities li { display: inline-flex; align-items: center; gap: 4px; padding: 5px 11px; border-radius: 999px; background: #e9f6ef; color: #2b7d57; font-size: 13px; font-weight: 600; }
+.info-facilities li.off { background: #f1f4f5; color: #8a979e; font-weight: 500; }
+.info-access { display: flex; align-items: flex-start; gap: 10px; margin-top: 16px; padding: 12px 14px; border-radius: 14px; background: #f6f8f9; color: #5f6f78; }
+.info-access > svg { flex: none; margin-top: 2px; color: var(--q-brand, #0391a7); }
+.info-access strong { display: block; color: #3a4850; font-size: 14px; font-weight: 600; }
+.info-access p { margin: 2px 0 0; font-size: 13px; line-height: 1.65; }
 .review-count { gap: 14px; color: var(--q-deep, #007a90); }
 .review-count > strong { font-size: 38px; }
 .review-count > span { font-size: 15px; line-height: 1.6; }
@@ -143,9 +176,6 @@ async function share() {
   .detail-art { height: 132px; }
   .detail-title { column-gap: 8px; }
   .detail-title h2 { font-size: 20px; }
-  .detail-distance strong { font-size: 16px; }
   .sense-bars > div { grid-template-columns: 24px 66px minmax(0, 1fr) 30px; gap: 8px; }
-  .detail-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
-  .detail-actions .q-primary, .detail-actions .q-secondary { width: 100%; }
 }
 </style>
