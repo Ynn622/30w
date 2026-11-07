@@ -7,6 +7,7 @@ import SenseInfoDialog from './SenseInfoDialog.vue'
 import QuietLogo from './QuietLogo.vue'
 import LocationGate from './LocationGate.vue'
 import { MOCK_LABEL, SENSES, REPORT_KINDS, formatTime, isFresh, levelText } from '../../lib/sensoryDomain.js'
+import { perceptionLabel } from '../../lib/noiseHistory.js'
 
 const props = defineProps({ city: { type: Object, required: true } })
 // 「附近的安靜角落」暫時隱藏；改回 true 即可恢復，推薦清單仍可在探索頁使用。
@@ -19,6 +20,8 @@ const canDescribe = computed(() => {
 // 首頁四維與 SSI 只採有效觀測；空品 AQI 另列，不代替氣味。
 const assessment = computed(() => props.city.overview.data.value ? props.city.assess(props.city.overview.data.value, props.city.overview.meta.value) : null)
 const senseValue = key => canDescribe.value ? assessment.value?.dimensions?.[key] ?? null : null
+// 首頁只列最近三次量測，完整紀錄保留在此裝置。
+const recentNoise = computed(() => (props.city.noiseHistory?.value ?? []).slice(0, 3))
 // 點選感官卡片時開啟的資料說明小視窗。
 const infoKey = ref(null)
 const updatedClock = computed(() => {
@@ -107,6 +110,15 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
         <AppIcon class="measurement-arrow" name="chevron" :size="21" />
       </button>
       <p class="microcopy"><AppIcon name="shield" :size="14" />由你決定是否分享摘要，不儲存或上傳錄音。</p>
+      <section v-if="recentNoise.length" class="noise-history" aria-label="最近的量測紀錄">
+        <h3>最近的量測紀錄</h3>
+        <ol>
+          <li v-for="item in recentNoise" :key="item.id">
+            <strong>{{ item.averageDbfs }}<small>dBFS</small></strong>
+            <span><b>{{ perceptionLabel(item.perception) ? `你覺得：${perceptionLabel(item.perception)}` : '未選感受' }}</b>{{ formatTime(item.measuredAt) }}{{ item.locationLabel ? ` · ${item.locationLabel}` : '' }}</span>
+          </li>
+        </ol>
+      </section>
     </section>
     </template>
 

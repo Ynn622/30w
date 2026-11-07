@@ -389,6 +389,21 @@ body { background: #edf3f7; }
 .noise-meter > p { font-size: 13px; color: #5e7988; margin: 8px 0 5px; text-align: center; }
 .noise-wave { height: 68px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 4px; }
 .noise-wave i { background: #60bbce; border-radius: 4px; width: 5px; transition: height .2s; }
+.noise-perception { margin: 0 0 16px; padding: 0; border: 0; }
+.noise-perception legend { padding: 0; margin-bottom: 9px; color: var(--q-ink); font-size: 16px; }
+.noise-perception legend span { display: block; margin-top: 2px; color: var(--q-muted); font-size: 12px; }
+.noise-perception-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.noise-perception-options label { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; padding: 8px 6px; border: 1px solid #d1e0e8; border-radius: 10px; color: #3f5360; font-size: 15px; cursor: pointer; }
+.noise-perception-options label.selected { border-color: var(--q-brand); background: var(--q-mint); color: var(--q-deep); font-weight: 600; }
+.noise-perception-options input { width: 18px; height: 18px; margin: 0; flex-shrink: 0; accent-color: var(--q-brand); }
+.noise-history { margin-top: 14px; }
+.noise-history h3 { margin: 0 0 8px; font-size: 15px; color: var(--q-ink); }
+.noise-history ol { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.noise-history li { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; padding: 8px 12px; border: 1px solid #d8e9f0; border-radius: 12px; background: #f5fbfd; }
+.noise-history strong { font-size: 18px; font-weight: 600; color: var(--q-deep); white-space: nowrap; }
+.noise-history strong small { margin-left: 3px; font-size: 12px; font-weight: 400; color: #5f8292; }
+.noise-history li > span { min-width: 0; text-align: right; font-size: 12px; line-height: 1.5; color: #5e7988; }
+.noise-history li > span b { display: block; font-size: 14px; font-weight: 600; color: #3f5360; }
 .noise-wave span { font-size: 12px; color: #698897; text-align: center; }
 .noise-progress { height: 6px; width: 100%; border-radius: 6px; overflow: hidden; background: #dcecf3; }
 .noise-progress i { display: block; height: 100%; background: var(--q-brand); transition: width .25s; }

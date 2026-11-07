@@ -5,11 +5,13 @@ function harness({ getUserMedia } = {}) {
   const track = { stop: vi.fn(), onended: null }
   const stream = { getTracks: () => [track], getAudioTracks: () => [track] }
   let level = 0.1
-  const analyser = { fftSize: 0, getFloatTimeDomainData: buffer => buffer.fill(level) }
+  const analyser = { fftSize: 0, getFloatTimeDomainData: buffer => buffer.fill(level), connect: vi.fn(), disconnect: vi.fn() }
+  const sink = { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() }
   const source = { connect: vi.fn(), disconnect: vi.fn() }
   const context = {
-    state: 'running', onstatechange: null,
+    state: 'running', onstatechange: null, destination: { id: 'speaker' },
     createAnalyser: () => analyser,
+    createGain: () => sink,
     createMediaStreamSource: vi.fn(() => source),
     resume: vi.fn(async () => { context.state = 'running' }),
     close: vi.fn(async () => { context.state = 'closed' }),
@@ -17,7 +19,7 @@ function harness({ getUserMedia } = {}) {
   function AudioContext() { return context }
   const media = getUserMedia || vi.fn(async () => stream)
   const host = { isSecureContext: true, AudioContext, navigator: { mediaDevices: { getUserMedia: media } } }
-  return { host, track, stream, context, source, media, setLevel: value => { level = value } }
+  return { host, track, stream, context, source, sink, analyser, media, setLevel: value => { level = value } }
 }
 
 beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(Date.parse('2026-11-07T10:00:00Z')) })
@@ -31,13 +33,15 @@ describe('web microphone noise sessions', () => {
     expect(microphoneSupport(host).supported).toBe(true)
   })
   it('measures on device, completes with a power-averaged summary and releases the microphone', async () => {
-    const { host, track, context, source, media } = harness()
+    const { host, track, context, source, sink, media } = harness()
     const onStatus = vi.fn(), onSample = vi.fn()
     createNoiseSession({ host, onStatus, onSample })
     expect(media).toHaveBeenCalledWith({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false })
     await vi.advanceTimersByTimeAsync(0)
     expect(onStatus).toHaveBeenLastCalledWith({ status: 'measuring', startedAt: '2026-11-07T10:00:00.000Z' })
     expect(source.connect).toHaveBeenCalled()
+    expect(sink.gain.value).toBe(0)
+    expect(sink.connect).toHaveBeenCalledWith(context.destination)
     await vi.advanceTimersByTimeAsync(15_000)
     expect(onSample).toHaveBeenCalledTimes(60)
     expect(onSample.mock.calls[0][0]).toEqual({ averageDbfs: -20, peakDbfs: -20, elapsedMs: 250 })
@@ -63,6 +67,7 @@ describe('web microphone noise sessions', () => {
     createNoiseSession({ host: denied.host, onStatus })
     await vi.advanceTimersByTimeAsync(0)
     expect(onStatus.mock.lastCall[0]).toMatchObject({ status: 'denied', summary: null })
+    expect(onStatus.mock.lastCall[0].message).toContain('NotAllowedError')
     expect(denied.context.close).toHaveBeenCalled()
     const pending = harness({ getUserMedia: () => new Promise(() => {}) })
     createNoiseSession({ host: pending.host, onStatus })
@@ -91,6 +96,21 @@ describe('web microphone noise sessions', () => {
     expect(onStatus.mock.lastCall[0]).toMatchObject({ status: 'error', summary: null })
     await vi.advanceTimersByTimeAsync(15_000)
     expect(onStatus.mock.lastCall[0].status).toBe('error')
+  })
+  it('resumes a briefly suspended iOS audio context and stops if it stays suspended', async () => {
+    const { host, context } = harness()
+    const onStatus = vi.fn()
+    createNoiseSession({ host, onStatus })
+    await vi.advanceTimersByTimeAsync(1_000)
+    context.resume.mockImplementationOnce(async () => { context.state = 'running'; context.onstatechange() })
+    context.state = 'suspended'; context.onstatechange()
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(onStatus.mock.lastCall[0].status).toBe('measuring')
+    context.resume.mockImplementationOnce(async () => {})
+    context.state = 'interrupted'; context.onstatechange()
+    await vi.advanceTimersByTimeAsync(1_600)
+    expect(onStatus.mock.lastCall[0]).toMatchObject({ status: 'error', summary: null })
+    expect(onStatus.mock.lastCall[0].message).toContain('interrupted')
   })
   it('keeps silence as a valid -160 dBFS sample', async () => {
     const { host, setLevel } = harness()

@@ -51,13 +51,15 @@ export function microphoneSupport(host = globalThis) {
   return { supported: true, message: '' }
 }
 
+// 訊息附上錯誤名稱，方便在手機 WebView 上判斷是權限、裝置還是系統中斷。
 function permissionFailure(error) {
+  const code = `（${error?.name || 'Error'}）`
   if (['NotAllowedError', 'SecurityError', 'PermissionDeniedError'].includes(error?.name)) {
-    return { status: 'denied', message: '麥克風權限未允許。若在城市通 App 內，請至系統設定允許 App 使用麥克風後再試。' }
+    return { status: 'denied', message: `麥克風權限未允許。若在城市通 App 內，請確認 App 已允許麥克風且 WebView 有處理權限請求。${code}` }
   }
-  if (['NotFoundError', 'OverconstrainedError'].includes(error?.name)) return { status: 'unsupported', message: '找不到可用的麥克風。' }
-  if (error?.name === 'NotReadableError') return { status: 'error', message: '麥克風正被其他程式使用或遭系統中斷。' }
-  return { status: 'error', message: '無法啟動麥克風，請稍後再試。' }
+  if (['NotFoundError', 'OverconstrainedError'].includes(error?.name)) return { status: 'unsupported', message: `找不到可用的麥克風。${code}` }
+  if (error?.name === 'NotReadableError') return { status: 'error', message: `麥克風正被其他程式使用或遭系統中斷。${code}` }
+  return { status: 'error', message: `無法啟動麥克風，請稍後再試。${code}` }
 }
 
 export function createNoiseSession({ host = globalThis, durationSeconds = 15, onStatus = () => {}, onSample = () => {}, now = () => Date.now() } = {}) {
@@ -73,6 +75,7 @@ export function createNoiseSession({ host = globalThis, durationSeconds = 15, on
   let source = null
   let poller
   let deadline
+  let resumeTimer
   let frames = []
   let nextWindowMs = NOISE_INTERVAL_MS
   const samples = []
@@ -82,11 +85,15 @@ export function createNoiseSession({ host = globalThis, durationSeconds = 15, on
   const analyser = context.createAnalyser()
   analyser.fftSize = 2048
   const buffer = new Float32Array(analyser.fftSize)
+  // 部分 WebKit 不處理沒有接到 destination 的節點，會讀到全零；以音量 0 的 gain 接上輸出，不會發出聲音。
+  const sink = context.createGain()
+  sink.gain.value = 0
 
   function release() {
     clearInterval(poller)
     clearTimeout(deadline)
-    try { source?.disconnect() } catch { /* 已斷開 */ }
+    clearTimeout(resumeTimer)
+    try { source?.disconnect(); analyser.disconnect(); sink.disconnect() } catch { /* 已斷開 */ }
     stream?.getTracks().forEach(track => { track.onended = null; track.stop() })
     stream = null
     context.onstatechange = null
@@ -134,7 +141,17 @@ export function createNoiseSession({ host = globalThis, durationSeconds = 15, on
       if (closed) return
       source = context.createMediaStreamSource(stream)
       source.connect(analyser)
-      context.onstatechange = () => { if (context.state !== 'running') finish('error', '音訊被系統中斷，量測停止。') }
+      analyser.connect(sink)
+      sink.connect(context.destination)
+      // iOS 開啟麥克風切換音訊工作階段時可能短暫 suspended／interrupted：先嘗試恢復，1.5 秒仍未恢復才停止。
+      context.onstatechange = () => {
+        if (closed) return
+        clearTimeout(resumeTimer)
+        if (context.state === 'running') return
+        if (context.state === 'closed') { finish('error', '音訊被系統中斷，量測停止。'); return }
+        context.resume().catch(() => {})
+        resumeTimer = setTimeout(() => { if (context.state !== 'running') finish('error', `音訊被系統中斷（${context.state}），量測停止。`) }, 1500)
+      }
       clearTimeout(deadline)
       startedClock = now()
       // observedAt 以實際開始量測為準，不含等待權限的時間。

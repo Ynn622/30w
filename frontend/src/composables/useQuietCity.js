@@ -5,6 +5,7 @@ import { getNativeChannel } from '../lib/webview.js'
 import { requestNative } from '../lib/nativeClient.js'
 import { assessSensory, rankPlaces } from '../lib/sensoryIndex.js'
 import { reverseGeocoder } from '../lib/reverseGeocode.js'
+import { readNoiseHistory, saveNoiseEntry } from '../lib/noiseHistory.js'
 
 function useRemote(query, fetcher) {
   // source 只在請求完成時更新，重新載入期間保留上一次結果，避免通知反覆跳出。
@@ -59,6 +60,13 @@ export function useQuietCity(notify) {
     } catch { notify('瀏覽器無法儲存設定，本次仍可使用；關閉後可能遺失。') }
   }
   watch(preferences, value => persist('quiet-city-preferences', value), { deep: true })
+  // 最近的環境音量量測（含使用者感受）保留在此裝置，關閉量測面板後仍可回顧。
+  const noiseHistory = ref(readNoiseHistory(storage))
+  function recordNoise(entry) {
+    const result = saveNoiseEntry(noiseHistory.value, entry, storage)
+    noiseHistory.value = result.history
+    if (!result.saved) notify('瀏覽器無法儲存量測紀錄，本次仍可查看；關閉後可能遺失。')
+  }
   // 只在定位成功且位於臺北市時查一次地址（不隨輪詢重查）；失敗時畫面退回顯示行政區。
   const address = ref(''), addressState = ref('idle')
   let addressController
@@ -170,5 +178,5 @@ export function useQuietCity(notify) {
   onScopeDispose(() => { disposed = true; locationController?.abort(); addressController?.abort(); clearInterval(refreshTimer); window.removeEventListener?.('focus', resume) })
   // 模擬模式下強度選項可完整操作；後端模式需後端宣告支援。
   const reportIntensityEnabled = computed(() => sensoryApi.supportsReportIntensity || usingMock.value)
-  return { mapCenter, searchArea, searchAvailable, searchingElsewhere, setMapCenter, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, map, places, locating, locate, reportLocation }
+  return { noiseHistory, recordNoise, mapCenter, searchArea, searchAvailable, searchingElsewhere, setMapCenter, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, map, places, locating, locate, reportLocation }
 }
