@@ -24,7 +24,11 @@
 VITE_API_BASE_URL=https://your-backend.example/api/v1
 # 後端確認 POST reports 支援 intensity 後才開啟
 VITE_REPORT_INTENSITY=false
+# true：鎖定在臺北市天母體育館（士林區）測試，不呼叫定位；false：維持裝置定位
+VITE_FAKE_LOCATION=false
 ```
+
+`VITE_FAKE_LOCATION=true` 時，`useQuietCity.locate()` 不呼叫城市通 `location` 或瀏覽器 Geolocation，直接使用 `frontend/src/config/locationConfig.js` 的天母體育館座標（取自 OpenStreetMap「天母運動公園」），第一次定位時跳通知「測試模式：已固定使用天母體育館位置，非實際定位。」。回報與量測仍照常帶這個座標，僅供展示與開發測試；正式上架請維持 `false`。
 
 SSI（環境感官刺激指數）與 SFS（個人適配分數）在前端以 `frontend/src/lib/sensoryIndex.js` 計算：只採 `sensoryIndex.scoreVersion=ssi-v0.1` 且 30 分鐘內有效的維度，缺值不當作低刺激並標示涵蓋率；後端未提供版本化指數時只顯示各維度，不自行推算 SSI。敏感度、排序與低刺激模式只存本機，不加入 API query。
 

@@ -8,8 +8,10 @@ import { AREAS, filterPlaces } from '../lib/sensoryDomain.js'
 // 地址查詢一律以 mock 取代，測試不連到 Nominatim。
 vi.mock('../lib/reverseGeocode.js', () => ({ reverseGeocoder: { lookup: vi.fn(async () => ({ address: '臺北市士林區中正路', inTaipei: true, district: '士林區' })) } }))
 import { reverseGeocoder } from '../lib/reverseGeocode.js'
+const fakeLocationMock = vi.hoisted(() => ({ enabled: false, lat: 25.1144737, lng: 121.5351923, name: '天母體育館' }))
+vi.mock('../config/locationConfig.js', () => ({ fakeLocation: fakeLocationMock }))
 vi.mock('../lib/sensoryApi.js', () => ({ MOCK_NOTICE: 'MOCK_NOTICE', sensoryApi: { supportsReportIntensity: false, getOverview: vi.fn(), getMap: vi.fn(), getPlaces: vi.fn() } }))
-afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); vi.useRealTimers() })
+afterEach(() => { fakeLocationMock.enabled = false; vi.unstubAllGlobals(); vi.clearAllMocks(); vi.useRealTimers() })
 // 服務只依目前定位提供：測試直接設定裝置位置。
 const at = (lat, lng) => ({ lat, lng, source: 'device', label: '目前位置' })
 const ZHONGZHENG = at(AREAS[0].lat, AREAS[0].lng)
@@ -149,6 +151,26 @@ describe('sensory queries', () => {
     expect(city.serviceAvailable.value).toBe(false)
     expect(city.overview.state.value).toBe('idle')
     expect(city.reportLocation.value).toBeNull()
+    scope.stop()
+  })
+  it('uses the fixed Tianmu stadium location without asking for permission when fake location is on', async () => {
+    fakeLocationMock.enabled = true
+    const notify = vi.fn()
+    const getCurrentPosition = vi.fn()
+    vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() }, flutterObject: { postMessage: vi.fn() } })
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } })
+    for (const fn of [sensoryApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
+    const scope = effectScope()
+    const city = scope.run(() => useQuietCity(notify))
+    await city.locate()
+    await city.locate()
+    expect(getCurrentPosition).not.toHaveBeenCalled()
+    expect(window.flutterObject.postMessage).not.toHaveBeenCalled()
+    expect(city.locationStatus.value).toBe('ready')
+    expect(city.deviceLocation.value).toMatchObject({ lat: 25.1144737, lng: 121.5351923, label: '目前位置' })
+    expect(city.reportLocation.value).toMatchObject({ areaId: 'shilin', label: '目前位置（士林區）' })
+    // 只在第一次定位時提示一次。
+    expect(notify.mock.calls.filter(([text]) => text.includes('天母體育館'))).toHaveLength(1)
     scope.stop()
   })
   it('reports a location failure without inventing a fallback area', async () => {
