@@ -36,9 +36,15 @@ describe('sensory assessment', () => {
     expect(assessSensory(insufficient, undefined, now).ssi).toBeNull()
     expect(assessSensory(record({ noise: null, light: null, crowd: null, odor: null }), undefined, now)).toMatchObject({ ssi: null, sfs: null, coverage: 0 })
   })
-  it('keeps legacy readings visible without inventing an unversioned SSI', () => {
+  it('scores quietness from plain place senses without inventing an unversioned SSI', () => {
     const legacy = { senses: { noise: 0, odor: null, air: 0 }, updatedAt: now, confidence: 'medium' }
-    expect(assessSensory(legacy, undefined, now)).toMatchObject({ ssi: null, sfs: null, dimensions: { noise: 0, odor: null } })
+    expect(assessSensory(legacy, undefined, now)).toMatchObject({ ssi: null, sfs: 100, dimensions: { noise: 0, odor: null } })
+    // 安靜程度依敏感度佔比加權：聲音 4、人潮 3 → (70×4 + 50×3) / 7 = 61.4 → 100 − 61.4 ≈ 39
+    const plain = { senses: { noise: 70, light: null, crowd: 50, odor: null }, updatedAt: now, confidence: 'low' }
+    expect(assessSensory(plain, { noise: 4, light: 2, crowd: 3, odor: 1 }, now)).toMatchObject({ ssi: null, sfs: 39, fitCoverage: 0.7 })
+    // 過期或資料不足不計分。
+    expect(assessSensory({ ...plain, confidence: 'insufficient' }, undefined, now).sfs).toBeNull()
+    expect(assessSensory({ ...plain, updatedAt: '2026-11-07T09:00:00+08:00' }, undefined, now).sfs).toBeNull()
   })
   it('accepts a sensory/map cell in the deployed backend schema (OpenAPI 2026-11-07)', () => {
     // 後端格網：TWD97 200m 格、UTC 時間、信心最高 low、未達門檻的維度 sampleCount 為 null。

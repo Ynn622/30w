@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createSensoryApi } from './sensoryApi.js'
-import { AREAS, aqiText, filterPlaces, googleMapsDirectionsUrl, isCoordinate, levelText, nearestArea, pickSearchRadius, readPreferences } from './sensoryDomain.js'
+import { AREAS, aqiText, filterPlaces, googleMapsDirectionsUrl, searchPlaces, isCoordinate, levelText, nearestArea, pickSearchRadius, readPreferences } from './sensoryDomain.js'
 import { mockCells, mockOverview, mockPlaces } from '../data/quietMock.js'
 import { assessSensory } from './sensoryIndex.js'
 afterEach(() => vi.useRealTimers())
@@ -214,5 +214,20 @@ describe('walking navigation link', () => {
     expect(url.origin + url.pathname).toBe('https://www.google.com/maps/dir/')
     expect(Object.fromEntries(url.searchParams)).toEqual({ api: '1', destination: '25.03926,121.51463', travelmode: 'walking' })
     expect(googleMapsDirectionsUrl({ lat: null, lng: 121 })).toBeNull()
+  })
+})
+describe('place text search', () => {
+  it('matches name, category, address or tag case-insensitively and keeps order', () => {
+    const places = [
+      { id: 'a', name: '介壽公園', category: '公園', address: '臺北市中正區凱達格蘭大道', tag: '感官資料不足' },
+      { id: 'b', name: 'Quiet Library', category: '圖書館', address: '重慶南路一段' },
+      { id: 'c', name: '大安區行政中心', category: '涼適點', address: '新生南路二段86號' },
+    ]
+    expect(searchPlaces(places, '公園').map(p => p.id)).toEqual(['a'])
+    expect(searchPlaces(places, ' library ').map(p => p.id)).toEqual(['b'])
+    expect(searchPlaces(places, '新生南路').map(p => p.id)).toEqual(['c'])
+    expect(searchPlaces(places, '資料不足').map(p => p.id)).toEqual(['a'])
+    expect(searchPlaces(places, '')).toBe(places)
+    expect(searchPlaces(places, '不存在')).toEqual([])
   })
 })

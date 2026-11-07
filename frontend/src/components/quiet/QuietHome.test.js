@@ -61,11 +61,13 @@ describe('home sensory presentation', () => {
   })
 })
 describe('place card index honesty', () => {
-  it('shows legacy readings without inventing an SSI', async () => {
+  it('shows a quiet score from plain senses without inventing an SSI', async () => {
     const { sensoryIndex, ...legacy } = samplePlaces()[0]
     const html = await renderToString(createSSRApp(PlaceCard, { place: { ...legacy, assessment: assessSensory(legacy, undefined, NOW) } }))
-    expect(html).toContain('尚無版本化指數')
+    expect(html).toContain('安靜程度')
     expect(html).not.toContain('SSI')
+    const unknown = await renderToString(createSSRApp(PlaceCard, { place: { ...legacy, assessment: assessSensory({ ...legacy, confidence: 'insufficient' }, undefined, NOW) } }))
+    expect(unknown).toContain('資料不足')
   })
 })
 describe('location-only service', () => {

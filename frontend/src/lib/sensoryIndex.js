@@ -39,11 +39,11 @@ export function sensoryValues(record, now = Date.now()) {
 }
 export function assessSensory(record, sensitivities = DEFAULT_SENSITIVITIES, now = Date.now()) {
   const dimensions = sensoryValues(record, now)
-  // Legacy readings remain useful, but do not establish a versioned scoring model.
+  // 環境指數 SSI 只在後端提供版本化 sensoryIndex 時計算；
+  // 安靜程度（SFS）依使用者敏感度佔比加權，可直接使用場所回傳的有效四維 senses（新鮮且信心足夠）。
   const scoreable = record?.sensoryIndex?.scoreVersion === 'ssi-v0.1'
-  const scores = scoreable ? dimensions : {}
-  const environmental = weightedScore(scores, SSI_WEIGHTS)
-  const personal = weightedScore(scores, sensitivities)
+  const environmental = weightedScore(scoreable ? dimensions : {}, SSI_WEIGHTS)
+  const personal = weightedScore(dimensions, sensitivities)
   const availableCount = SENSORY_KEYS.filter(key => dimensions[key] !== null).length
   return { dimensions, ssi: environmental.score === null ? null : roundScore(environmental.score),
     sfs: personal.score === null ? null : roundScore(100 - personal.score),

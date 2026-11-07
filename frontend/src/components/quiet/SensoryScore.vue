@@ -14,13 +14,11 @@ const unavailable = computed(() => props.assessment?.availableCount > 0 && !prop
 </script>
 
 <template>
-  <div v-if="compact" class="score-compact" :class="{ unknown: assessment?.ssi == null }">
-    <template v-if="assessment?.ssi != null">
-      <span class="score-chip" :class="`level-${levelText(assessment.ssi)}`"><b>SSI {{ assessment.ssi }}</b>{{ levelText(assessment.ssi) }}刺激</span>
-      <span class="score-chip fit"><b>適配 {{ assessment.sfs ?? '—' }}</b></span>
-      <span v-if="partial" class="score-partial">部分資料・缺{{ missing.join('、') }}</span>
-    </template>
-    <span v-else class="score-partial">刺激指數：{{ unavailable }}</span>
+  <div v-if="compact" class="score-compact" :class="{ unknown: assessment?.ssi == null && assessment?.sfs == null }">
+    <span v-if="assessment?.ssi != null" class="score-chip" :class="`level-${levelText(assessment.ssi)}`"><b>SSI {{ assessment.ssi }}</b>{{ levelText(assessment.ssi) }}刺激</span>
+    <span v-if="assessment?.sfs != null" class="score-chip fit"><b>安靜程度 {{ assessment.sfs }}</b></span>
+    <span v-if="assessment?.sfs != null && missing.length" class="score-partial">部分資料・缺{{ missing.join('、') }}</span>
+    <span v-if="assessment?.ssi == null && assessment?.sfs == null" class="score-partial">刺激指數：{{ unavailable }}</span>
   </div>
 
   <section v-else class="score-panel" aria-label="感官指數">

@@ -87,6 +87,12 @@ export function googleMapsDirectionsUrl(location) {
   const params = new URLSearchParams({ api: '1', destination: `${location.lat},${location.lng}`, travelmode: 'walking' })
   return `https://www.google.com/maps/dir/?${params}`
 }
+// 探索清單文字搜尋：不分大小寫比對名稱、類別、地址與標籤；空字串回傳原清單。
+export function searchPlaces(places, text) {
+  const query = String(text || '').trim().toLowerCase()
+  if (!query) return places
+  return places.filter(place => [place.name, place.category, place.address, place.tag].some(value => String(value || '').toLowerCase().includes(query)))
+}
 export function isCoordinate(value) {
   return Number.isFinite(value?.lat) && Number.isFinite(value?.lng)
     && Math.abs(value.lat) <= 90 && Math.abs(value.lng) <= 180
