@@ -64,26 +64,20 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
     <!-- 目前只依裝置定位提供服務，不開放手動選擇區域。 -->
     <LocationGate v-if="!city.serviceAvailable.value" :city="city" />
     <template v-else>
+    <!-- 地點前的定位圖示即「重新定位」按鈕（與分享感受的地址框相同）；右側為資料時間，點選可查看資料來源。 -->
     <div class="area-row">
       <span class="q-area-select" aria-live="polite">
-        <AppIcon name="pin" :size="17" />
-        <span class="area-city">臺北市・{{ city.area.value.name }}</span>
+        <button type="button" class="q-icon-button relocate-button" :class="{ locating: city.locating.value }" :disabled="city.locating.value" :aria-label="city.locating.value ? '定位中' : '重新定位'" :title="city.locating.value ? '定位中' : '重新定位'" @click="city.locate"><AppIcon name="locate" :size="20" /></button>
+        <span class="area-city">{{ city.village?.value?.name || city.area.value.name }}</span>
         <small class="area-source">目前位置</small>
       </span>
-      <button class="q-text-button" :disabled="city.locating.value" @click="city.locate">
-        <AppIcon name="locate" :size="17" />
-        {{ city.locating.value ? '定位中…' : '重新定位' }}
+      <button v-if="city.overview.state.value === 'ready'" class="q-text-button muted updated-button" :title="formatTime(city.overview.meta.value?.updatedAt)" :aria-label="`${city.overview.meta.value?.mock ? '模擬資料時間' : '資料更新時間'}：${formatTime(city.overview.meta.value?.updatedAt)}`" @click="$emit('sources')">
+        {{ city.overview.meta.value?.mock ? '模擬' : '更新' }}：{{ updatedClock }}
       </button>
     </div>
 
     <AsyncState v-if="city.overview.state.value !== 'ready'" :state="city.overview.state.value" :message="city.overview.error.value" retry @retry="city.overview.reload" />
-    <article v-else class="sensory-weather q-reveal">
-      <div class="section-heading weather-heading">
-        <h2>今日感官天氣・臺北市</h2>
-        <button class="q-text-button muted" :title="formatTime(city.overview.meta.value?.updatedAt)" :aria-label="`${city.overview.meta.value?.mock ? '模擬資料時間' : '資料更新時間'}：${formatTime(city.overview.meta.value?.updatedAt)}`" @click="$emit('sources')">
-          {{ city.overview.meta.value?.mock ? '模擬' : '更新' }}：{{ updatedClock }}
-        </button>
-      </div>
+    <article v-else class="sensory-weather q-reveal" aria-label="目前位置的感官概況">
       <div class="weather-main">
         <div class="weather-symbol">
           <AppIcon name="cloud" :size="78" :stroke-width="1.4" />
@@ -163,9 +157,12 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
 .sensory-weather { padding: 0 14px; border: 1px solid #dce8ed; border-radius: 15px; background: linear-gradient(120deg, #eaf8fc 0%, #f8fcfe 70%, #fff 100%); box-shadow: none; }
 .section-heading h2 { color: var(--q-ink, #222c33); font-size: 18px; font-weight: 700; }
 .section-heading > span { color: #5c6870; font-size: 13px; line-height: 1.4; }
-.weather-heading { gap: 4px 10px; min-height: 48px; flex-wrap: wrap; }
-.weather-heading h2 { font-size: 17px; }
-.weather-heading .q-text-button { color: #68747c; font-size: 12px; font-weight: 400; }
+.updated-button { flex-shrink: 0; min-height: 44px; color: #68747c; font-size: 12px; font-weight: 400; white-space: nowrap; }
+/* 地點前的定位圖示即「重新定位」按鈕，觸控區 44px（同分享感受的地址框）。 */
+.relocate-button { flex-shrink: 0; width: 44px; min-height: 44px; margin: -6px -6px -6px -10px; padding: 0; border-radius: 50%; color: var(--q-brand, #0391a7); }
+.relocate-button:hover:not(:disabled) { background: var(--q-mint, #edf8fc); }
+.relocate-button.locating svg { animation: q-relocate-spin 1.2s linear infinite; }
+@keyframes q-relocate-spin { to { transform: rotate(360deg); } }
 .weather-main { position: relative; gap: 14px; padding: 16px 0 20px; }
 .weather-symbol { flex-shrink: 0; width: 82px; height: 76px; color: #61adbf; }
 .weather-symbol > svg { margin-top: -4px; }
@@ -218,9 +215,6 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
   .home-title { gap: 8px; }
   .area-row .q-text-button { font-size: 12px; }
   .sensory-weather { padding-inline: 10px; }
-  .weather-heading { min-height: 49px; padding-top: 6px; }
-  .weather-heading h2 { font-size: 16px; }
-  .weather-heading .q-text-button { min-height: 44px; }
   .weather-main { gap: 10px; padding-top: 12px; }
   .weather-symbol { width: 72px; }
   .weather-symbol > svg { width: 72px; }

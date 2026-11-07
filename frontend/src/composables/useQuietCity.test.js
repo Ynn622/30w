@@ -126,6 +126,19 @@ describe('sensory queries', () => {
     expect(notify).toHaveBeenLastCalledWith('已連上後端，改為顯示後端資料。')
     scope.stop()
   })
+  it('resolves the village on the device and takes the district from the village boundary', async () => {
+    vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
+    for (const fn of [sensoryApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
+    // 這個點最近的區代表點是大同區，但實際位於中山區圓山里；里界載入後行政區應改為中山區。
+    const { scope, city } = located(vi.fn(), at(25.07445, 121.52224))
+    await vi.waitFor(() => expect(city.village.value).not.toBeNull())
+    expect(city.village.value).toMatchObject({ district: '中山區', village: '圓山里', name: '中山區圓山里' })
+    expect(city.areaId.value).toBe('zhongshan')
+    city.deviceLocation.value = null
+    await nextTick()
+    expect(city.village.value).toBeNull()
+    scope.stop()
+  })
   it('uses only the device location: districts follow it and outside Taipei pauses the service', async () => {
     const notify = vi.fn()
     let position = { latitude: 25.0935, longitude: 121.526 } // 士林

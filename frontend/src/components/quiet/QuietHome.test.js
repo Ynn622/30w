@@ -23,6 +23,18 @@ function cityFor(data, places = [], meta = mockMeta(NOW), status = 'ready') {
   }
 }
 describe('home sensory presentation', () => {
+  it('shows the village once resolved and falls back to the district before that', async () => {
+    const before = await renderToString(createSSRApp(QuietHome, { city: { ...cityFor(sampleOverview()), village: ref(null) } }))
+    expect(before).toContain('中正區')
+    expect(before).not.toContain('臺北市')
+    const after = await renderToString(createSSRApp(QuietHome, { city: { ...cityFor(sampleOverview()), village: ref({ district: '中正區', village: '黎明里', name: '中正區黎明里' }) } }))
+    expect(after).toContain('中正區黎明里')
+    expect(after).not.toContain('臺北市')
+    expect(after).not.toContain('今日感官天氣')
+    expect(after).toContain('sensory-weather')
+    // 重新定位為地點前的圖示按鈕；資料時間移到地點列右側（在感官卡片之前）。
+    expect(after).toMatch(/class="area-row"[\s\S]*aria-label="重新定位"[\s\S]*中正區黎明里[\s\S]*模擬：[\s\S]*sensory-weather/)
+  })
   it('renders the product and labels mock data only when the fallback is active', async () => {
     const html = await renderToString(createSSRApp(QuietHome, { city: cityFor(sampleOverview()) }))
     expect(html).toContain('聆靜')
@@ -34,7 +46,7 @@ describe('home sensory presentation', () => {
     expect(live).toContain('更新：')
     expect(html).toContain('聆靜標誌')
     // 區域只依目前定位決定，不提供手動選單。
-    expect(html).toMatch(/臺北市・中正區/)
+    expect(html).toContain('中正區')
     expect(html).toContain('目前位置')
     expect(html).toContain('重新定位')
     expect(html).not.toContain('<select')
@@ -76,7 +88,7 @@ describe('location-only service', () => {
     const html = await renderToString(createSSRApp(QuietHome, { city: cityFor(sampleOverview(), [], mockMeta(NOW), 'outside') }))
     expect(html).toContain('此區域非台北市內，無法提供服務')
     expect(html).toContain('重新定位')
-    expect(html).not.toContain('今日感官天氣')
+    expect(html).not.toContain('sensory-weather')
     expect(html).not.toContain('快速回報')
   })
   it('disables quick reports and measurement in remote-mock mode and shows the synthetic label', async () => {
@@ -90,7 +102,7 @@ describe('location-only service', () => {
     const html = await renderToString(createSSRApp(QuietHome, { city: cityFor(null, [], null, 'idle') }))
     expect(html).toContain('需要使用目前位置')
     expect(html).toContain('使用目前位置')
-    expect(html).not.toContain('今日感官天氣')
+    expect(html).not.toContain('sensory-weather')
   })
 })
 describe('sense info dialog', () => {

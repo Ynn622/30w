@@ -12,7 +12,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "mock:cells": "node scripts/generate-mock-cells.mjs"
+    "mock:cells": "node scripts/generate-mock-cells.mjs",
+    "geo:villages": "node scripts/build-villages.mjs"
   },
   "dependencies": {
     "maplibre-gl": "6.16.0",

@@ -1,6 +1,7 @@
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { MOCK_NOTICE, sensoryApi } from '../lib/sensoryApi.js'
-import { PLACES_MAX, SEARCH_RADIUS, distanceMeters, isCoordinate, nearestArea, pickSearchRadius, placesRadius, placesRadiusCap, readPreferences } from '../lib/sensoryDomain.js'
+import { findVillage } from '../lib/villages.js'
+import { AREAS, PLACES_MAX, SEARCH_RADIUS, distanceMeters, isCoordinate, nearestArea, pickSearchRadius, placesRadius, placesRadiusCap, readPreferences } from '../lib/sensoryDomain.js'
 import { getNativeChannel } from '../lib/webview.js'
 import { requestNative } from '../lib/nativeClient.js'
 import { assessSensory, rankPlaces } from '../lib/sensoryIndex.js'
@@ -35,9 +36,23 @@ function useRemote(query, fetcher) {
   return { data, meta, state, error, source, reload }
 }
 export function useQuietCity(notify) {
-  // 目前只開放使用裝置定位，不提供手動選區；行政區由定位座標推估。
+  // 目前只開放使用裝置定位，不提供手動選區。
   const deviceLocation = ref(null), locating = ref(false), locationError = ref('')
-  const area = computed(() => deviceLocation.value ? nearestArea(deviceLocation.value) : null)
+  // 所在的里：以臺北市里界在裝置端判斷（里界第一次需要時才載入）；載入前或找不到時為 null。
+  const village = ref(null)
+  let villageRequest = 0
+  watch(deviceLocation, async location => {
+    const request = ++villageRequest
+    village.value = null
+    if (!location) return
+    const found = await findVillage(location).catch(() => null)
+    if (request === villageRequest) village.value = found
+  })
+  // 行政區：有里時以里界所屬的區為準（區界判斷精確）；里界尚未載入或找不到時，退回最近區代表點推估。
+  const area = computed(() => {
+    if (!deviceLocation.value) return null
+    return AREAS.find(item => item.name === village.value?.district) || nearestArea(deviceLocation.value)
+  })
   const areaId = computed(() => area.value?.id ?? null)
   const center = computed(() => deviceLocation.value)
   // idle：尚未定位；locating：第一次定位中；ready：在臺北市內；outside：不在臺北市；error：定位失敗。
@@ -213,5 +228,5 @@ export function useQuietCity(notify) {
   const reportIntensityEnabled = computed(() => sensoryApi.supportsReportIntensity || usingMock.value)
   // 測試情境禁止正式寫入（回報、量測），畫面需明確停用。
   const writesEnabled = computed(() => !remoteMock.value)
-  return { remoteMock, mock, writesEnabled, noiseHistory, recordNoise, mapCenter, mapView, searchRadius, placesSearchRadius, searchCap, viewTruncated, searchArea, searchAvailable, searchingElsewhere, setMapView, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, map, places, locating, locate, reportLocation }
+  return { village, remoteMock, mock, writesEnabled, noiseHistory, recordNoise, mapCenter, mapView, searchRadius, placesSearchRadius, searchCap, viewTruncated, searchArea, searchAvailable, searchingElsewhere, setMapView, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, map, places, locating, locate, reportLocation }
 }
