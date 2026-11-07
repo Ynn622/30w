@@ -9,6 +9,7 @@ import { reverseGeocoder } from '../lib/reverseGeocode.js'
 import { readNoiseHistory, saveNoiseEntry } from '../lib/noiseHistory.js'
 import { fakeLocation } from '../config/locationConfig.js'
 import { cropGrid, hourlyApi } from '../lib/hourlyApi.js'
+import { tianmuApi } from '../lib/tianmuApi.js'
 
 function useRemote(query, fetcher) {
   // source 只在請求完成時更新，重新載入期間保留上一次結果，避免通知反覆跳出。
@@ -113,7 +114,10 @@ export function useQuietCity(notify) {
   const mapCenter = computed(() => mapView.value ? { lat: mapView.value.lat, lng: mapView.value.lng } : null)
   const searchCenter = computed(() => serviceAvailable.value ? (mapCenter.value || center.value) : null)
   // places 依地圖長邊半徑，後端支援時送精確值（searchRadius 為舊的 300／500／1000 級距，僅用來判斷是否需重查）。
-  const freeRadius = { free: Boolean(sensoryApi.supportsFreeRadius) }
+  // 場所清單與詳情的資料來源：目前先以天母場所接口（test/mock/tianmu/places）當正式資料使用（開發者 2026-11-08 決定）。
+  // 之後改接正式 places 時，只要把 placesApi 換成 sensoryApi（getPlaces／getPlace／supportsFreeRadius 介面相同）即可。
+  const placesApi = tianmuApi
+  const freeRadius = { free: Boolean(placesApi.supportsFreeRadius) }
   const searchRadius = computed(() => pickSearchRadius(mapView.value?.radius))
   const placesSearchRadius = computed(() => placesRadius(mapView.value?.radius, freeRadius))
   const searchCap = placesRadiusCap(freeRadius)
@@ -135,8 +139,9 @@ export function useQuietCity(notify) {
   }
   // 敏感圖層（熱力圖）一律使用後端逐小時模擬網格 test/mock/hourly（Ynn622/30w#5），不再呼叫 sensory/map：
   // 平常自動取臺北當下的平日／週末與小時；開啟「模擬環境」時改用使用者在探索頁選的時段。
-  // 只影響地圖的敏感圖層；具名推薦仍從正式 places 取得（網格沒有名稱與照片），首頁概況、回報與量測照常。
+  // 只影響地圖的敏感圖層；具名推薦從 placesApi 取得（網格沒有名稱與照片），首頁概況、回報與量測照常。
   const remoteMock = computed(() => preferences.value.dataMode === 'remote-hourly')
+  const getPlace = (id, options) => placesApi.getPlace(id, options)
   const currentSlot = computed(() => taipeiSlot(now.value))
   const fieldSlot = computed(() => remoteMock.value ? { dayType: preferences.value.dayType, hour: preferences.value.hour } : currentSlot.value)
   const searchQuery = computed(() => searchArea.value
@@ -147,7 +152,7 @@ export function useQuietCity(notify) {
   // 只送 lat／lng，失敗時顯示錯誤並可重試，不改用內建模擬資料。
   const overviewQuery = computed(() => query.value && { lat: query.value.lat, lng: query.value.lng })
   const overview = useRemote(overviewQuery, hourlyApi.getOverview)
-  const places = useRemote(placeQuery, sensoryApi.getPlaces)
+  const places = useRemote(placeQuery, placesApi.getPlaces)
   // 每個時段一次取回全臺北 30,000 點（gzip 約 0.5 MB，避開每分鐘 100 次限流），再依地圖範圍在前端裁切。
   // 查詢只在時段改變時才變（當下時段每到整點才換），切換時段會取消舊請求。
   const hourlyQuery = computed(() => serviceAvailable.value ? { dayType: fieldSlot.value.dayType, hour: fieldSlot.value.hour } : null)
@@ -238,5 +243,5 @@ export function useQuietCity(notify) {
   onScopeDispose(() => { disposed = true; locationController?.abort(); addressController?.abort(); clearInterval(refreshTimer); window.removeEventListener?.('focus', resume) })
   // 模擬模式下強度選項可完整操作；後端模式需後端宣告支援。
   const reportIntensityEnabled = computed(() => sensoryApi.supportsReportIntensity || usingMock.value)
-  return { village, remoteMock, hourly, fieldCells, fieldNow, fieldSource, noiseHistory, recordNoise, mapCenter, mapView, searchRadius, placesSearchRadius, searchCap, viewTruncated, searchArea, searchAvailable, searchingElsewhere, setMapView, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, places, locating, locate, reportLocation }
+  return { village, remoteMock, getPlace, hourly, fieldCells, fieldNow, fieldSource, noiseHistory, recordNoise, mapCenter, mapView, searchRadius, placesSearchRadius, searchCap, viewTruncated, searchArea, searchAvailable, searchingElsewhere, setMapView, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, places, locating, locate, reportLocation }
 }

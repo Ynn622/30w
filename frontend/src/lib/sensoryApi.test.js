@@ -258,3 +258,14 @@ describe('long-side places radius', () => {
     expect([placesRadiusCap(), placesRadiusCap({ free: true })]).toEqual([1000, 20000])
   })
 })
+
+describe('deduplicated places and old UUIDs (issue #7)', () => {
+  it('opens an old UUID detail that keeps the requested id and adds canonicalId', async () => {
+    const place = { id: 'old-uuid', canonicalId: 'main-uuid', name: '大安森林公園', location: { lat: 25.0333, lng: 121.5358 }, sources: [{ name: '臺北市公園基本資料' }] }
+    const request = vi.fn().mockResolvedValue({ data: { data: place, meta: { sources: [] } } })
+    const result = await createSensoryApi({ request }).getPlace('old-uuid')
+    expect(request).toHaveBeenCalledWith('places/old-uuid', expect.anything())
+    expect(result.data).toMatchObject({ id: 'old-uuid', canonicalId: 'main-uuid' })
+    expect(result.meta.mock).toBeFalsy()
+  })
+})

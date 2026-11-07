@@ -47,6 +47,8 @@ function remindLayer() {
 watch(showLayer, on => { if (on) remindLayer() })
 onMounted(() => { if (showLayer.value && !layerReminded) { layerReminded = true; remindLayer() } })
 // 排序：距離優先，或依使用者敏感度佔比加權的安靜程度優先（無感官資料的地點排在後面）。
+// 只有內建模擬備援才標示模擬；後端 test-only 接口（目前的場所資料）當正式資料呈現。
+const builtinMock = computed(() => Boolean(props.city.places.meta.value?.mock) && props.city.places.meta.value?.mode !== 'test-only')
 const SORTS = [{ id: 'distance', label: '距離優先' }, { id: 'fit', label: '安靜程度優先' }]
 const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlaces.value.every(place => place.assessment?.sfs == null))
 </script>
@@ -75,14 +77,14 @@ const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlac
           <p v-else-if="city.preferences.value.sort === 'fit'" class="q-helper sort-note">依你在「我的」設定的感官敏感度佔比，計算各地點的安靜程度。</p>
         </div>
         <AsyncState v-if="fieldSource.state.value === 'error'" state="error" :message="fieldSource.error.value" retry @retry="fieldSource.reload" />
-        <p v-if="city.places.meta.value?.mock" class="mock-inline">{{ MOCK_LABEL }}</p>
+        <p v-if="builtinMock" class="mock-inline">{{ MOCK_LABEL }}</p>
         <p v-if="city.searchAvailable.value && city.viewTruncated.value" class="truncated-search" role="status">地圖範圍較大，只列出地圖中心 {{ city.searchCap / 1000 }} 公里內的地點；放大地圖可查看完整範圍。</p>
         <p v-if="!city.searchAvailable.value" class="outside-search" role="status">地圖中心不在臺北市內，無法提供此區域的地點；請把地圖移回臺北市。</p>
         <AsyncState v-else-if="city.places.state.value !== 'ready'" :state="city.places.state.value" :message="city.places.error.value" retry @retry="city.places.reload" />
         <AsyncState v-else-if="!city.recommendations.value.length" title="還沒有符合條件的場所" message="試著移動或放大地圖；資料不足不代表環境安靜。" />
         <AsyncState v-else-if="!visiblePlaces.length" :title="`找不到符合「${searchText.trim()}」的地點`" message="試試其他關鍵字，或清除搜尋。" />
         <AsyncState v-else-if="!listPlaces.length" title="目前範圍內沒有位於綠區的地點" message="關閉敏感圖層可查看全部地點，或移動地圖、調整「我的」感官敏感度。" />
-        <PlaceCard v-for="place in listPlaces" v-else :key="place.id" :place="place" :mock="Boolean(city.places.meta.value?.mock)" @select="$emit('select', $event)" />
+        <PlaceCard v-for="place in listPlaces" v-else :key="place.id" :place="place" :mock="builtinMock" @select="$emit('select', $event)" />
         <p class="q-helper list-footnote"><AppIcon name="shield" :size="15"/>開放與無障礙狀況以現場為準。</p>
       </BottomSheet>
     </div>

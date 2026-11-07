@@ -52,3 +52,10 @@ describe('explore 模擬環境 panel', () => {
     expect(html).not.toContain('模擬環境')
   })
 })
+
+describe('panel without a place source switch', () => {
+  it('no longer offers the 天母場所資料 switch', async () => {
+    const html = await render(TestDataPanel, { city: cityFor({ remote: false }) })
+    expect(html).not.toContain('天母場所')
+  })
+})

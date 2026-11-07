@@ -42,6 +42,13 @@ Vue 3 + JavaScript + Vite 的行動版城市感官服務。首頁、探索、我
 - 圖例不另加模擬標籤（以上方「模擬環境」按鈕為準），展開說明註明資料為後端模擬網格的典型時段推估、非即時觀測，並說明載入中／失敗／無資料；面板只放開關與時段設定，並顯示載入中、錯誤與重試（不列說明文字與資料來源清單，開發者 2026-11-08 決定）。切換時段會取消舊請求並先清空舊網格。
 - 後端 CORS 只允許 `http://localhost:5173` 與 GitHub Pages，其他埠開發時敏感圖層會顯示讀取錯誤。
 
+### 場所照片與資料來源（Ynn622/30w#7）
+
+- **正式場所照片**：`GET places` 與 `places/{id}` 內嵌 `image`（後端依序選 reviewed 同場所照片 → linked 同主體照片 → nearby 1 公里內參考照片 → illustration）。`src/lib/placeImage.js` 只接受同場所的 `/api/v1/places/{id}/image?v=…` 路徑並以 API origin 解析（不重複 `/api/v1`、不連到 Pages origin），版本參數照後端提供；插畫、格式不符或缺作者／授權時改用前端原創插畫，不多打一次 API。`PlacePhoto.vue` 以 `crossorigin="anonymous"`、`referrerpolicy="no-referrer"`、`loading="lazy"` 載入，固定比例避免版面跳動；載入失敗（404／429／網路）只換回插畫、不重試，換新網址才重新嘗試。（目前場所資料暫用天母接口，天母資料沒有照片，所以畫面上都是插畫；改回正式 places 後照片才會出現。）
+- 卡片縮圖不顯示小標，只列純文字署名「照片／參考照片：作者・授權」；詳情照片右下角顯示小標（reviewed 為「歷史照片・年份・非即時」，其他為「參考照片・非即時」，插畫為「原創示意插畫・非實景」）與完整署名（作者、credit、授權連結、原始來源、修改說明、後端 notice），nearby 另註明「附近參考照片：來源名稱（約 N 公尺），非此場所實景」。依開發者決定照片優先、允許附近圖，不因 `verified=false` 拒圖、不加「未人工核對」警語；清單不逐卡查 `image-info`。低刺激模式隱藏照片。
+- **排重與舊 UUID**：清單已由後端排重，前端不再以距離合併；詳情保留請求 id 相等檢查，舊 UUID 回應的 `canonicalId` 照常顯示，圖片直接用後端提供的網址。
+- **場所資料來源（目前為天母接口）**：開發者決定先把 `test/mock/tianmu/places`（`src/lib/tianmuApi.js`，天母體育館周邊 2 公里公開場所靜態快照）當正式資料使用，推薦清單與詳情一律走這個接口，不另加標示、也沒有切換開關；之後改接正式 places 時，把 `useQuietCity.js` 的 `placesApi` 換成 `sensoryApi` 即可（`getPlaces`／`getPlace`／`supportsFreeRadius` 介面相同）。清單只送 `areaId`／`lat`／`lng`／`radius`／`max`，驗證 `mode: test-only`、`datasetVersion: tianmu-places-mock-v1`、`dataBasis: reviewed_public_place_snapshot`；400／404／429／503 顯示錯誤，不改用內建虛構資料。天母資料沒有照片與感官值，卡片與詳情顯示插畫、感官未知；天母 2 公里以外的地圖範圍清單為空。
+
 ### SSI、SFS 與低刺激模式
 
 - `src/lib/sensoryIndex.js`：`assessSensory(record, sensitivities, now)` 只採 `sensoryIndex.scoreVersion=ssi-v0.1`、信心非 insufficient、`sourceType=subjective_report`、有樣本且 30 分鐘內有效的維度；回傳 SSI、SFS、`coverage`（環境權重）、`fitCoverage`（個人權重）與 `dimensionCoverage`。缺值、過期與不支援版本不當作低刺激；舊版只有 `senses` 的回應仍顯示各維，但不推造 SSI。

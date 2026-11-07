@@ -274,6 +274,12 @@ VITE_REPORT_INTENSITY=false
 
 `distanceM` 由前端根據座標重新計算。尚無路由服務，不可把直線距離寫成「步行 X 分鐘」。若之後要提供真實步行距離，須先另訂路由結果契約與開源服務來源。
 
+### 3.1 場所照片、排重與天母資料（Ynn622/30w#7，前端已串接）
+
+- 清單與詳情內嵌 `image`（`kind: reviewed|linked|nearby|illustration`）；前端只用 `image.url`（同場所 `/api/v1/places/{id}/image?v=…`，以 API origin 解析）與 `image.photo` 署名，不逐卡查 `image-info`、不自行換 `v`。illustration 或失敗時改用前端原創插畫，不重試。
+- 清單已排重；舊 UUID 詳情 `data.id` 為請求 id、另附 `canonicalId`，前端保留 id 相等檢查。
+- 天母 `test/mock/tianmu/places` 與 `/{id}` 走獨立介接（不經正式 `sensoryApi`），目前是探索頁推薦清單與詳情的唯一來源（先當正式資料使用，之後改回正式 `places`）；清單只送 `areaId`／`lat`／`lng`／`radius`／`max`，詳情不帶 query。
+
 ## 4 場所詳情
 
 `GET places/{id}`，id 經 URL encoding。不存在回 404，不能回另一個場所。

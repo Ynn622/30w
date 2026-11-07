@@ -2,9 +2,9 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import AppIcon from '../AppIcon.vue'
 import AsyncState from '../AsyncState.vue'
-import PlaceArtwork from './PlaceArtwork.vue'
+import PlacePhoto from './PlacePhoto.vue'
 import SensoryScore from './SensoryScore.vue'
-import { MOCK_NOTICE, sensoryApi } from '../../lib/sensoryApi.js'
+import { MOCK_NOTICE } from '../../lib/sensoryApi.js'
 import { MOCK_LABEL, distanceMeters, formatTime, googleMapsDirectionsUrl, isFresh, levelText } from '../../lib/sensoryDomain.js'
 import { sendToNative } from '../../lib/webview.js'
 const props = defineProps({ id: { type: String, required: true }, city: { type: Object, required: true } })
@@ -17,6 +17,8 @@ const distanceText = computed(() => distance.value === null ? '距離未知' : `
 // 長條與指數只採有效觀測；過期、不足或未知維度不畫長條。
 const assessment = computed(() => place.value ? props.city.assess(place.value, meta.value) : null)
 const fresh = computed(() => isFresh(place.value?.updatedAt, Date.now()))
+// 只有內建模擬備援才是虛構場所；後端 test-only 接口（目前的場所資料）當正式資料呈現。
+const builtinMock = computed(() => Boolean(meta.value?.mock) && meta.value?.mode !== 'test-only')
 // 基本資訊的設施：依開放資料標示 true／false；null 為未知，不顯示（不把未知當成沒有）。
 const FACILITY_LABELS = { airConditioning: '冷氣', seating: '座位', toilet: '廁所', drinkingWater: '飲水', accessibleSeating: '無障礙座位' }
 const facilities = computed(() => Object.entries(FACILITY_LABELS)
@@ -26,13 +28,13 @@ const facilities = computed(() => Object.entries(FACILITY_LABELS)
 async function load() {
   controller?.abort(); controller = new AbortController(); const current = ++serial
   state.value = 'loading'; error.value = ''; place.value = null
-  try { const result = await sensoryApi.getPlace(props.id, { signal: controller.signal }); if (current !== serial) return; place.value = result.data; meta.value = result.meta; state.value = 'ready'; if (result.meta?.mock && !props.city.usingMock.value) emit('notify', MOCK_NOTICE) }
+  try { const result = await props.city.getPlace(props.id, { signal: controller.signal }); if (current !== serial) return; place.value = result.data; meta.value = result.meta; state.value = 'ready'; if (result.meta?.mock && result.meta.mode !== 'test-only' && !props.city.usingMock.value) emit('notify', MOCK_NOTICE) }
   catch (reason) { if (current === serial) { error.value = reason.message; state.value = 'error' } }
 }
 watch(() => props.id, load, { immediate: true })
 onUnmounted(() => { serial++; controller?.abort() })
 function navigate() {
-  if (meta.value?.mock) { emit('notify', '模擬場所沒有實際位置，不提供導航。'); return }
+  if (builtinMock.value) { emit('notify', '模擬場所沒有實際位置，不提供導航。'); return }
   const url = googleMapsDirectionsUrl(place.value.location)
   if (!url) { emit('notify', '此場所缺少有效座標，無法導航。'); return }
   const result = sendToNative('launch_map', url, window)
@@ -41,7 +43,7 @@ function navigate() {
 }
 async function share() {
   try {
-    const text = `${place.value.name}｜聆靜${meta.value?.mock ? '（模擬資料）' : ''}`
+    const text = `${place.value.name}｜聆靜${builtinMock.value ? '（模擬資料）' : ''}`
     if (navigator.share) await navigator.share({ title: '聆靜場所', text })
     else if (navigator.clipboard) { await navigator.clipboard.writeText(text); emit('notify', '已複製場所名稱，可分享給朋友。') }
     else emit('notify', '此瀏覽器不支援分享，請手動複製場所名稱。')
@@ -58,13 +60,14 @@ async function share() {
     </header>
     <AsyncState v-if="state !== 'ready'" :state="state" :message="error" retry @retry="load" />
     <template v-else-if="place">
-      <div class="detail-art"><PlaceArtwork :kind="place.artwork"/><span>原創示意插畫・非實景</span></div>
+      <!-- 有後端照片時顯示照片與完整署名，否則為原創示意插畫（Ynn622/30w#7）。 -->
+      <PlacePhoto :place="place" large />
       <div class="detail-title">
         <div class="detail-title-copy"><h2>{{ place.name }}</h2><div class="detail-tags"><span><AppIcon :name="place.indoor ? 'book' : 'leaf'" :size="17"/>{{ place.category }}</span><span class="q-tag">{{ place.tag || '候選休息點' }}</span></div></div>
         <!-- 距離與導航放在名稱右側：距離一行，下方為導航按鈕。 -->
         <div class="detail-nav"><span class="detail-distance">{{ distanceText }}</span><button type="button" class="detail-nav-button" @click="navigate"><span><AppIcon name="route" :size="15"/>導航</span></button></div>
       </div>
-      <p v-if="meta.mock" class="mock-inline">{{ MOCK_LABEL }}，場所與地址為虛構。</p>
+      <p v-if="builtinMock" class="mock-inline">{{ MOCK_LABEL }}，場所與地址為虛構。</p>
       <div class="q-segment detail-tabs" role="group" aria-label="場所資訊分頁"><button v-for="item in [{ id: 'sensory', label: '感官資訊' }, { id: 'info', label: '基本資訊' }, { id: 'reviews', label: '回報摘要' }]" :key="item.id" type="button" :class="{ selected: tab === item.id }" :aria-pressed="tab === item.id" @click="tab = item.id">{{ item.label }}</button></div>
       <Transition name="quiet-fade" mode="out-in">
         <div :key="tab" class="detail-content">
@@ -75,7 +78,7 @@ async function share() {
             <div class="sense-bars">
               <div v-for="sense in [{ key: 'noise', label: '聲音刺激', icon: 'sound' }, { key: 'light', label: '光線刺激', icon: 'sun' }, { key: 'crowd', label: '人潮密度', icon: 'people' }, { key: 'odor', label: '氣味刺激', icon: 'wind' }]" :key="sense.key"><AppIcon :name="sense.icon" :size="23"/><span>{{ sense.label }}</span><div class="sense-track"><i v-if="Number.isFinite(assessment?.dimensions[sense.key])" :style="{ width: `${assessment.dimensions[sense.key]}%` }"></i></div><strong>{{ levelText(assessment?.dimensions[sense.key]) }}</strong></div>
             </div>
-            <SensoryScore :assessment="assessment" :mock="Boolean(meta.mock)" />
+            <SensoryScore :assessment="assessment" :mock="builtinMock" />
             <p class="q-helper">刺激指數為 0–100 相對尺度，非分貝、照度或人數。</p>
           </template>
           <template v-else-if="tab === 'info'">

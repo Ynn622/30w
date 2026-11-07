@@ -10,10 +10,12 @@ vi.mock('../lib/reverseGeocode.js', () => ({ reverseGeocoder: { lookup: vi.fn(as
 import { reverseGeocoder } from '../lib/reverseGeocode.js'
 const fakeLocationMock = vi.hoisted(() => ({ enabled: false, lat: 25.1144737, lng: 121.5351923, name: '天母體育館' }))
 vi.mock('../config/locationConfig.js', () => ({ fakeLocation: fakeLocationMock }))
-vi.mock('../lib/sensoryApi.js', () => ({ MOCK_NOTICE: 'MOCK_NOTICE', sensoryApi: { supportsReportIntensity: false, supportsFreeRadius: false, getOverview: vi.fn(), getMap: vi.fn(), getPlaces: vi.fn() } }))
+vi.mock('../lib/sensoryApi.js', () => ({ MOCK_NOTICE: 'MOCK_NOTICE', sensoryApi: { supportsReportIntensity: false, supportsFreeRadius: false, getOverview: vi.fn(), getMap: vi.fn(), getPlaces: vi.fn(), getPlace: vi.fn() } }))
 // hourly 模擬網格與首頁 150 公尺平均：保留真實的裁切與標示工具，只替換網路呼叫。
 vi.mock('../lib/hourlyApi.js', async importOriginal => ({ ...(await importOriginal()), hourlyApi: { getGrid: vi.fn(), getOverview: vi.fn() } }))
 import { hourlyApi } from '../lib/hourlyApi.js'
+vi.mock('../lib/tianmuApi.js', async importOriginal => ({ ...(await importOriginal()), tianmuApi: { supportsFreeRadius: false, getPlaces: vi.fn(), getPlace: vi.fn() } }))
+import { tianmuApi } from '../lib/tianmuApi.js'
 import { SIMULATED_AT, hourlyOverviewFor, hourlyPayloadFor } from '../lib/hourlyApi.fixture.js'
 import { buildSensoryField } from '../lib/sensoryField.js'
 afterEach(() => { fakeLocationMock.enabled = false; vi.unstubAllGlobals(); vi.clearAllMocks(); vi.useRealTimers() })
@@ -33,7 +35,7 @@ describe('sensory queries', () => {
     const pending = []
     hourlyApi.getOverview.mockImplementation((query, { signal }) => new Promise(resolve => pending.push({ query, signal, resolve })))
     sensoryApi.getMap.mockResolvedValue({ data: { cells: [] }, meta: {} })
-    sensoryApi.getPlaces.mockResolvedValue({ data: { places: [] }, meta: {} })
+    tianmuApi.getPlaces.mockResolvedValue({ data: { places: [] }, meta: {} })
     const { scope, city } = located()
     await nextTick()
     expect(pending).toHaveLength(1)
@@ -54,7 +56,7 @@ describe('sensory queries', () => {
     vi.stubGlobal('window', { localStorage: { getItem: () => null } })
     hourlyApi.getOverview.mockResolvedValueOnce({ data: { area: '中正區' }, meta: {} }).mockRejectedValueOnce(new Error('offline'))
     sensoryApi.getMap.mockResolvedValue({ data: { cells: [] }, meta: {} })
-    sensoryApi.getPlaces.mockResolvedValue({ data: { places: [] }, meta: {} })
+    tianmuApi.getPlaces.mockResolvedValue({ data: { places: [] }, meta: {} })
     const { scope, city } = located()
     await nextTick(); await Promise.resolve()
     await city.overview.reload()
@@ -69,7 +71,7 @@ describe('sensory queries', () => {
     vi.stubGlobal('document', { visibilityState: 'visible' })
     hourlyApi.getOverview.mockResolvedValue({ data: {}, meta: {} })
     sensoryApi.getMap.mockResolvedValue({ data: { cells: [] }, meta: {} })
-    sensoryApi.getPlaces.mockResolvedValue({ data: { places: [] }, meta: {} })
+    tianmuApi.getPlaces.mockResolvedValue({ data: { places: [] }, meta: {} })
     const { scope } = located()
     // 2 分鐘前不重取，滿 2 分鐘才重取一次。
     await vi.advanceTimersByTimeAsync(REFRESH_INTERVAL_MS - 1000)
@@ -88,7 +90,7 @@ describe('sensory queries', () => {
     vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem } })
     hourlyApi.getOverview.mockResolvedValue({ data: {}, meta: {} })
     sensoryApi.getMap.mockResolvedValue({ data: { cells: [] }, meta: {} })
-    sensoryApi.getPlaces.mockResolvedValue({ data: { places: filterPlaces(mockPlaces('zhongzheng', NOW).slice(0, 3), { ...AREAS[0], radius: 500 }, NOW) }, meta: {} })
+    tianmuApi.getPlaces.mockResolvedValue({ data: { places: filterPlaces(mockPlaces('zhongzheng', NOW).slice(0, 3), { ...AREAS[0], radius: 500 }, NOW) }, meta: {} })
     const { scope, city } = located()
     await vi.advanceTimersByTimeAsync(0)
     expect(city.recommendations.value.map(place => place.id)).toEqual(['zhongzheng-reading', 'zhongzheng-park', 'zhongzheng-hall'])
@@ -99,11 +101,11 @@ describe('sensory queries', () => {
     city.preferences.value.sort = 'distance'
     await nextTick()
     expect(city.recommendations.value.map(place => place.id)).toEqual(['zhongzheng-reading', 'zhongzheng-park', 'zhongzheng-hall'])
-    expect(sensoryApi.getPlaces).toHaveBeenCalledTimes(1)
+    expect(tianmuApi.getPlaces).toHaveBeenCalledTimes(1)
     // 已移除感官篩選：查詢只帶區域、座標與固定 500 公尺範圍。
-    expect(Object.keys(sensoryApi.getPlaces.mock.calls[0][0]).sort()).toEqual(['areaId', 'lat', 'lng', 'max', 'radius'])
-    expect(sensoryApi.getPlaces.mock.calls[0][0].max).toBe(100)
-    expect(sensoryApi.getPlaces.mock.calls[0][0].radius).toBe(500)
+    expect(Object.keys(tianmuApi.getPlaces.mock.calls[0][0]).sort()).toEqual(['areaId', 'lat', 'lng', 'max', 'radius'])
+    expect(tianmuApi.getPlaces.mock.calls[0][0].max).toBe(100)
+    expect(tianmuApi.getPlaces.mock.calls[0][0].radius).toBe(500)
     expect(JSON.parse(setItem.mock.calls.at(-1)[1])).toMatchObject({ sort: 'distance', sensitivities: { light: 5 } })
     scope.stop()
   })
@@ -113,7 +115,7 @@ describe('sensory queries', () => {
     vi.stubGlobal('document', { visibilityState: 'visible' })
     const mock = { data: { places: [], cells: [] }, meta: { mock: true, fallbackReason: 'HTTP 404：Route not found', sources: [] } }
     const live = { data: { places: [], cells: [] }, meta: { sources: [] } }
-    for (const fn of [hourlyApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue(mock)
+    for (const fn of [hourlyApi.getOverview, sensoryApi.getMap, tianmuApi.getPlaces]) fn.mockResolvedValue(mock)
     const notify = vi.fn()
     const { scope, city } = located(notify)
     await vi.advanceTimersByTimeAsync(0)
@@ -123,7 +125,7 @@ describe('sensory queries', () => {
     await vi.advanceTimersByTimeAsync(2 * REFRESH_INTERVAL_MS)
     expect(hourlyApi.getOverview).toHaveBeenCalledTimes(3)
     expect(notify.mock.calls.filter(([message]) => message === 'MOCK_NOTICE')).toHaveLength(1)
-    for (const fn of [hourlyApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue(live)
+    for (const fn of [hourlyApi.getOverview, sensoryApi.getMap, tianmuApi.getPlaces]) fn.mockResolvedValue(live)
     await vi.advanceTimersByTimeAsync(REFRESH_INTERVAL_MS)
     expect(city.dataSource.value).toBe('api')
     expect(city.reportIntensityEnabled.value).toBe(false)
@@ -132,7 +134,7 @@ describe('sensory queries', () => {
   })
   it('resolves the village on the device and takes the district from the village boundary', async () => {
     vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
-    for (const fn of [hourlyApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
+    for (const fn of [hourlyApi.getOverview, sensoryApi.getMap, tianmuApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
     // 這個點最近的區代表點是大同區，但實際位於中山區圓山里；里界載入後行政區應改為中山區。
     const { scope, city } = located(vi.fn(), at(25.07445, 121.52224))
     await vi.waitFor(() => expect(city.village.value).not.toBeNull())
@@ -148,7 +150,7 @@ describe('sensory queries', () => {
     let position = { latitude: 25.0935, longitude: 121.526 } // 士林
     vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
     vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: success => success({ coords: position }) } })
-    for (const fn of [hourlyApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
+    for (const fn of [hourlyApi.getOverview, sensoryApi.getMap, tianmuApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
     const scope = effectScope()
     const city = scope.run(() => useQuietCity(notify))
     expect(city.locationStatus.value).toBe('idle')
@@ -182,7 +184,7 @@ describe('sensory queries', () => {
     const getCurrentPosition = vi.fn()
     vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() }, flutterObject: { postMessage: vi.fn() } })
     vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } })
-    for (const fn of [hourlyApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
+    for (const fn of [hourlyApi.getOverview, sensoryApi.getMap, tianmuApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
     const scope = effectScope()
     const city = scope.run(() => useQuietCity(notify))
     await city.locate()
@@ -214,7 +216,7 @@ describe('sensory queries', () => {
     // 首頁概況與敏感圖層沒有本機模擬：失敗只顯示錯誤；場所清單仍可改用內建模擬並通知。
     hourlyApi.getOverview.mockRejectedValue(new Error('HTTP 503'))
     hourlyApi.getGrid.mockRejectedValue(new Error('HTTP 503'))
-    sensoryApi.getPlaces.mockResolvedValue({ data: { places: [] }, meta: { mock: true, fallbackReason: 'HTTP 404：Route not found', sources: [] } })
+    tianmuApi.getPlaces.mockResolvedValue({ data: { places: [] }, meta: { mock: true, fallbackReason: 'HTTP 404：Route not found', sources: [] } })
     const notify = vi.fn()
     const { scope, city } = located(notify)
     await vi.advanceTimersByTimeAsync(0)
@@ -228,7 +230,7 @@ describe('sensory queries', () => {
     vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
     for (const fn of [hourlyApi.getOverview, sensoryApi.getMap]) fn.mockResolvedValue({ data: { cells: [] }, meta: {} })
     const farPlace = { id: 'p1', name: '遠處場所', location: { lat: 25.0275, lng: 121.5360 } }
-    sensoryApi.getPlaces.mockResolvedValue({ data: { places: [farPlace] }, meta: {} })
+    tianmuApi.getPlaces.mockResolvedValue({ data: { places: [farPlace] }, meta: {} })
     const { scope, city } = located()
     await nextTick(); await Promise.resolve()
     const overviewCalls = hourlyApi.getOverview.mock.calls.length
@@ -237,7 +239,7 @@ describe('sensory queries', () => {
     expect(city.mapCenter.value).toBeNull()
     city.setMapView({ lat: 25.0270, lng: 121.5355 }) // 移到大安區
     await nextTick(); await Promise.resolve()
-    expect(sensoryApi.getPlaces).toHaveBeenLastCalledWith(expect.objectContaining({ areaId: 'daan', lat: 25.0270, lng: 121.5355 }), expect.anything())
+    expect(tianmuApi.getPlaces).toHaveBeenLastCalledWith(expect.objectContaining({ areaId: 'daan', lat: 25.0270, lng: 121.5355 }), expect.anything())
     // 敏感圖層不再呼叫 sensory/map（一律使用模擬網格，移動地圖不重抓）。
     expect(sensoryApi.getMap).not.toHaveBeenCalled()
     expect(hourlyApi.getOverview).toHaveBeenCalledTimes(overviewCalls)
@@ -254,7 +256,7 @@ describe('sensory queries', () => {
   it('returns the search to the device location after relocating', async () => {
     vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
     vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: success => success({ coords: { latitude: AREAS[0].lat, longitude: AREAS[0].lng } }) } })
-    for (const fn of [hourlyApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
+    for (const fn of [hourlyApi.getOverview, sensoryApi.getMap, tianmuApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
     const { scope, city } = located()
     city.setMapView({ lat: 25.0270, lng: 121.5355 })
     expect(city.mapCenter.value).not.toBeNull()
@@ -275,25 +277,25 @@ describe('sensory queries', () => {
   })
   it('sizes the places query to the visible map using the backend radius steps', async () => {
     vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
-    for (const fn of [hourlyApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
+    for (const fn of [hourlyApi.getOverview, sensoryApi.getMap, tianmuApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
     const { scope, city } = located()
     await nextTick()
-    expect(sensoryApi.getPlaces).toHaveBeenLastCalledWith(expect.objectContaining({ radius: 500 }), expect.anything())
+    expect(tianmuApi.getPlaces).toHaveBeenLastCalledWith(expect.objectContaining({ radius: 500 }), expect.anything())
     city.setMapView({ lat: ZHONGZHENG.lat, lng: ZHONGZHENG.lng, radius: 240 }) // 放大：只需 300 公尺
     await nextTick()
-    expect(sensoryApi.getPlaces).toHaveBeenLastCalledWith(expect.objectContaining({ radius: 300 }), expect.anything())
+    expect(tianmuApi.getPlaces).toHaveBeenLastCalledWith(expect.objectContaining({ radius: 300 }), expect.anything())
     city.setMapView({ lat: ZHONGZHENG.lat, lng: ZHONGZHENG.lng, radius: 780 })
     await nextTick()
-    expect(sensoryApi.getPlaces).toHaveBeenLastCalledWith(expect.objectContaining({ radius: 1000 }), expect.anything())
+    expect(tianmuApi.getPlaces).toHaveBeenLastCalledWith(expect.objectContaining({ radius: 1000 }), expect.anything())
     expect(city.viewTruncated.value).toBe(false)
     city.setMapView({ lat: ZHONGZHENG.lat, lng: ZHONGZHENG.lng, radius: 2600 }) // 縮小超過後端上限
     await nextTick()
-    expect(sensoryApi.getPlaces.mock.calls.at(-1)[0].radius).toBe(1000)
+    expect(tianmuApi.getPlaces.mock.calls.at(-1)[0].radius).toBe(1000)
     expect(city.viewTruncated.value).toBe(true)
-    const calls = sensoryApi.getPlaces.mock.calls.length
+    const calls = tianmuApi.getPlaces.mock.calls.length
     city.setMapView({ lat: ZHONGZHENG.lat, lng: ZHONGZHENG.lng, radius: 2700 }) // 同級距、沒移動：不重查
     await nextTick()
-    expect(sensoryApi.getPlaces.mock.calls.length).toBe(calls)
+    expect(tianmuApi.getPlaces.mock.calls.length).toBe(calls)
     // 首頁概況仍用目前位置與固定 500 公尺。
     expect(Object.keys(hourlyApi.getOverview.mock.calls.at(-1)[0]).sort()).toEqual(['lat', 'lng'])
     scope.stop()
@@ -303,39 +305,39 @@ describe('sensory queries', () => {
     hourlyApi.getOverview.mockResolvedValue({ data: {}, meta: {} })
     sensoryApi.getMap.mockResolvedValue({ data: { cells: [] }, meta: {} })
     const near = { lat: AREAS[0].lat, lng: AREAS[0].lng }
-    sensoryApi.getPlaces.mockResolvedValue({ data: { places: [{ id: 'a', name: 'A', location: near }, { id: 'b', name: 'B', location: near }] }, meta: {} })
+    tianmuApi.getPlaces.mockResolvedValue({ data: { places: [{ id: 'a', name: 'A', location: near }, { id: 'b', name: 'B', location: near }] }, meta: {} })
     const { scope, city } = located()
     await nextTick(); await Promise.resolve(); await Promise.resolve()
     const order = city.recommendations.value.map(place => place.id)
-    const calls = [sensoryApi.getMap, sensoryApi.getPlaces].map(fn => fn.mock.calls.length)
+    const calls = [sensoryApi.getMap, tianmuApi.getPlaces].map(fn => fn.mock.calls.length)
     city.preferences.value.lowStimulus = true
     await nextTick()
     expect(city.recommendations.value.map(place => place.id)).toEqual(order)
-    expect([sensoryApi.getMap, sensoryApi.getPlaces].map(fn => fn.mock.calls.length)).toEqual(calls)
+    expect([sensoryApi.getMap, tianmuApi.getPlaces].map(fn => fn.mock.calls.length)).toEqual(calls)
     expect(city).not.toHaveProperty('lowZones')
     scope.stop()
   })
   it('sends the exact long-side radius to places when the backend supports it', async () => {
     vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
-    for (const fn of [hourlyApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
-    sensoryApi.supportsFreeRadius = true
+    for (const fn of [hourlyApi.getOverview, sensoryApi.getMap, tianmuApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
+    tianmuApi.supportsFreeRadius = true
     try {
       const { scope, city } = located()
       await nextTick()
       city.setMapView({ lat: ZHONGZHENG.lat, lng: ZHONGZHENG.lng, radius: 1234 })
       await nextTick()
-      expect(sensoryApi.getPlaces.mock.calls.at(-1)[0].radius).toBe(1240)
+      expect(tianmuApi.getPlaces.mock.calls.at(-1)[0].radius).toBe(1240)
       expect(city.viewTruncated.value).toBe(false)
       city.setMapView({ lat: ZHONGZHENG.lat, lng: ZHONGZHENG.lng, radius: 26200 })
       await nextTick()
-      expect(sensoryApi.getPlaces.mock.calls.at(-1)[0].radius).toBe(20000)
+      expect(tianmuApi.getPlaces.mock.calls.at(-1)[0].radius).toBe(20000)
       // max 只送給正式 places；敏感圖層不呼叫 sensory/map。
-      expect(sensoryApi.getPlaces.mock.calls.at(-1)[0].max).toBe(100)
+      expect(tianmuApi.getPlaces.mock.calls.at(-1)[0].max).toBe(100)
       expect(sensoryApi.getMap).not.toHaveBeenCalled()
       expect(city.viewTruncated.value).toBe(true)
       expect(city.searchCap).toBe(20000)
       scope.stop()
-    } finally { sensoryApi.supportsFreeRadius = false }
+    } finally { tianmuApi.supportsFreeRadius = false }
   })
 })
 
@@ -343,7 +345,7 @@ describe('hourly grid layer and simulated environment (issue #5)', () => {
   const flush = async () => { await nextTick(); await Promise.resolve(); await Promise.resolve() }
   function setup() {
     vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
-    for (const fn of [hourlyApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
+    for (const fn of [hourlyApi.getOverview, sensoryApi.getMap, tianmuApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
     // 樣本網格在大安區附近，另有一點在天母。
     return located(vi.fn(), at(25.0336, 121.5363))
   }
@@ -365,7 +367,7 @@ describe('hourly grid layer and simulated environment (issue #5)', () => {
     // 具名推薦仍來自正式 places（radius 與 max 規則不變）。
     city.setMapView({ lat: 25.0336, lng: 121.5363, radius: 1234 })
     await nextTick()
-    expect(sensoryApi.getPlaces.mock.calls.at(-1)[0]).toMatchObject({ max: 100 })
+    expect(tianmuApi.getPlaces.mock.calls.at(-1)[0]).toMatchObject({ max: 100 })
     scope.stop()
   })
   it('refetches the current slot only when the Taipei hour changes, not on every refresh', async () => {
@@ -459,7 +461,7 @@ describe('hourly grid layer and simulated environment (issue #5)', () => {
     hourlyApi.getOverview.mockResolvedValue(hourlyOverviewFor())
     const notify = vi.fn()
     vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
-    for (const fn of [sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
+    for (const fn of [sensoryApi.getMap, tianmuApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
     const { scope, city } = located(notify, at(25.0336, 121.5363))
     await flush()
     expect(hourlyApi.getOverview.mock.calls.at(-1)[0]).toEqual({ lat: 25.0336, lng: 121.5363 })
@@ -481,6 +483,28 @@ describe('hourly grid layer and simulated environment (issue #5)', () => {
     const { scope, city } = located()
     expect(city.preferences.value).toMatchObject({ dataMode: 'live', dayType: 'weekend', hour: 21 })
     expect(city.preferences.value).not.toHaveProperty('scenario')
+    scope.stop()
+  })
+})
+
+describe('places come from the Tianmu endpoint for now (issue #7)', () => {
+  it('lists and opens places through the Tianmu adapter as live data, without touching sensoryApi places', async () => {
+    vi.stubGlobal('window', { localStorage: { getItem: () => JSON.stringify({ placeSource: 'live' }), setItem: vi.fn() } })
+    const meta = { mock: true, demo: true, mode: 'test-only', datasetVersion: 'tianmu-places-mock-v1', dataBasis: 'reviewed_public_place_snapshot' }
+    tianmuApi.getPlaces.mockResolvedValue({ data: { places: [{ id: 'tm-1', name: '天福綠地', location: { lat: 25.1185, lng: 121.5329 } }] }, meta })
+    tianmuApi.getPlace.mockResolvedValue({ data: { id: 'tm-1' }, meta })
+    const notify = vi.fn()
+    const { scope, city } = located(notify, at(25.1145, 121.5352))
+    await nextTick(); await Promise.resolve(); await Promise.resolve()
+    expect(tianmuApi.getPlaces.mock.calls[0][0]).toMatchObject({ lat: 25.1145, lng: 121.5352, max: 100 })
+    expect(city.recommendations.value.map(place => place.id)).toEqual(['tm-1'])
+    await city.getPlace('tm-1')
+    expect(tianmuApi.getPlace).toHaveBeenCalledWith('tm-1', undefined)
+    expect(sensoryApi.getPlace).not.toHaveBeenCalled()
+    // 當正式資料對待：不是內建模擬備援，不跳模擬通知；舊的 placeSource 偏好讀取時略過。
+    expect(city.places.source.value).toBe('api')
+    expect(notify).not.toHaveBeenCalledWith('MOCK_NOTICE')
+    expect(city.preferences.value).not.toHaveProperty('placeSource')
     scope.stop()
   })
 })
