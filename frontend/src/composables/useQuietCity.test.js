@@ -2,8 +2,21 @@ import { effectScope, nextTick } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { sensoryApi } from '../lib/sensoryApi.js'
 import { useQuietCity } from './useQuietCity.js'
-vi.mock('../lib/sensoryApi.js', () => ({ sensoryApi: { mode: 'api', getOverview: vi.fn(), getMap: vi.fn(), getPlaces: vi.fn() } }))
+import { mockPlaces } from '../data/quietMock.js'
+const NOW = '2026-11-07T10:30:00+08:00'
+import { AREAS, filterPlaces } from '../lib/sensoryDomain.js'
+vi.mock('../lib/sensoryApi.js', () => ({ MOCK_NOTICE: 'MOCK_NOTICE', sensoryApi: { supportsReportIntensity: false, getOverview: vi.fn(), getMap: vi.fn(), getPlaces: vi.fn() } }))
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); vi.useRealTimers() })
+// 服務只依目前定位提供：測試直接設定裝置位置。
+const at = (lat, lng) => ({ lat, lng, source: 'device', label: '目前位置' })
+const ZHONGZHENG = at(AREAS[0].lat, AREAS[0].lng)
+const DAAN = at(25.0267, 121.5354)
+function located(notify = vi.fn(), point = ZHONGZHENG) {
+  const scope = effectScope()
+  const city = scope.run(() => useQuietCity(notify))
+  city.deviceLocation.value = point
+  return { scope, city }
+}
 describe('sensory queries', () => {
   it('cancels obsolete queries and does not let a late reply replace the new region', async () => {
     vi.stubGlobal('window', { localStorage: { getItem: () => null } })
@@ -11,10 +24,10 @@ describe('sensory queries', () => {
     sensoryApi.getOverview.mockImplementation((query, { signal }) => new Promise(resolve => pending.push({ query, signal, resolve })))
     sensoryApi.getMap.mockResolvedValue({ data: { cells: [] }, meta: {} })
     sensoryApi.getPlaces.mockResolvedValue({ data: { places: [] }, meta: {} })
-    const scope = effectScope()
-    const city = scope.run(() => useQuietCity(vi.fn()))
+    const { scope, city } = located()
+    await nextTick()
     expect(pending).toHaveLength(1)
-    city.areaId.value = 'daan'
+    city.deviceLocation.value = DAAN
     await nextTick()
     expect(pending).toHaveLength(2)
     expect(pending[0].signal.aborted).toBe(true)
@@ -32,9 +45,8 @@ describe('sensory queries', () => {
     sensoryApi.getOverview.mockResolvedValueOnce({ data: { area: '中正區' }, meta: {} }).mockRejectedValueOnce(new Error('offline'))
     sensoryApi.getMap.mockResolvedValue({ data: { cells: [] }, meta: {} })
     sensoryApi.getPlaces.mockResolvedValue({ data: { places: [] }, meta: {} })
-    const scope = effectScope()
-    const city = scope.run(() => useQuietCity(vi.fn()))
-    await Promise.resolve()
+    const { scope, city } = located()
+    await nextTick(); await Promise.resolve()
     await city.overview.reload()
     expect(city.overview.state.value).toBe('error')
     expect(city.overview.data.value).toBeNull()
@@ -48,8 +60,7 @@ describe('sensory queries', () => {
     sensoryApi.getOverview.mockResolvedValue({ data: {}, meta: {} })
     sensoryApi.getMap.mockResolvedValue({ data: { cells: [] }, meta: {} })
     sensoryApi.getPlaces.mockResolvedValue({ data: { places: [] }, meta: {} })
-    const scope = effectScope()
-    scope.run(() => useQuietCity(vi.fn()))
+    const { scope } = located()
     await vi.advanceTimersByTimeAsync(60_000)
     expect(sensoryApi.getOverview).toHaveBeenCalledTimes(2)
     document.visibilityState = 'hidden'
@@ -57,5 +68,89 @@ describe('sensory queries', () => {
     expect(sensoryApi.getOverview).toHaveBeenCalledTimes(2)
     scope.stop()
     expect(vi.getTimerCount()).toBe(0)
+  })
+  it('re-ranks by local sensitivities and odor without sending personal settings to the backend', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date(NOW))
+    const setItem = vi.fn()
+    vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem } })
+    sensoryApi.getOverview.mockResolvedValue({ data: {}, meta: {} })
+    sensoryApi.getMap.mockResolvedValue({ data: { cells: [] }, meta: {} })
+    sensoryApi.getPlaces.mockResolvedValue({ data: { places: filterPlaces(mockPlaces('zhongzheng', NOW).slice(0, 3), { ...AREAS[0], radius: 500 }, NOW) }, meta: {} })
+    const { scope, city } = located()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(city.recommendations.value.map(place => place.id)).toEqual(['zhongzheng-reading', 'zhongzheng-park', 'zhongzheng-hall'])
+    expect(city.recommendations.value[0].assessment).toMatchObject({ ssi: 27, sfs: 74, fitCoverage: 1 })
+    city.preferences.value.sensitivities = { noise: 1, light: 5, crowd: 1, odor: 1 }
+    await nextTick()
+    expect(city.recommendations.value.map(place => place.id)).toEqual(['zhongzheng-park', 'zhongzheng-reading', 'zhongzheng-hall'])
+    city.preferences.value.odor = true
+    city.preferences.value.sort = 'distance'
+    await nextTick()
+    expect(city.recommendations.value.map(place => place.id)).not.toContain('zhongzheng-hall')
+    expect(sensoryApi.getPlaces).toHaveBeenCalledTimes(1)
+    for (const key of ['sensitivities', 'odor', 'sort', 'lowStimulus']) expect(sensoryApi.getPlaces.mock.calls[0][0]).not.toHaveProperty(key)
+    expect(JSON.parse(setItem.mock.calls.at(-1)[1])).toMatchObject({ odor: true, sort: 'distance', sensitivities: { light: 5 } })
+    scope.stop()
+  })
+  it('announces the mock fallback once, keeps retrying the backend and announces recovery', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
+    vi.stubGlobal('document', { visibilityState: 'visible' })
+    const mock = { data: { places: [], cells: [] }, meta: { mock: true, fallbackReason: 'HTTP 404：Route not found', sources: [] } }
+    const live = { data: { places: [], cells: [] }, meta: { sources: [] } }
+    for (const fn of [sensoryApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue(mock)
+    const notify = vi.fn()
+    const { scope, city } = located(notify)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(city.usingMock.value).toBe(true)
+    expect(city.reportIntensityEnabled.value).toBe(true)
+    expect(city.fallbackReason.value).toContain('404')
+    await vi.advanceTimersByTimeAsync(120_000)
+    expect(sensoryApi.getOverview).toHaveBeenCalledTimes(3)
+    expect(notify.mock.calls.filter(([message]) => message === 'MOCK_NOTICE')).toHaveLength(1)
+    for (const fn of [sensoryApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue(live)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(city.dataSource.value).toBe('api')
+    expect(city.reportIntensityEnabled.value).toBe(false)
+    expect(notify).toHaveBeenLastCalledWith('已連上後端，改為顯示後端資料。')
+    scope.stop()
+  })
+  it('uses only the device location: districts follow it and outside Taipei pauses the service', async () => {
+    const notify = vi.fn()
+    let position = { latitude: 25.0935, longitude: 121.526 } // 士林
+    vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: success => success({ coords: position }) } })
+    for (const fn of [sensoryApi.getOverview, sensoryApi.getMap, sensoryApi.getPlaces]) fn.mockResolvedValue({ data: { places: [], cells: [] }, meta: {} })
+    const scope = effectScope()
+    const city = scope.run(() => useQuietCity(notify))
+    expect(city.locationStatus.value).toBe('idle')
+    expect(city.reportLocation.value).toBeNull()
+    expect(sensoryApi.getOverview).not.toHaveBeenCalled()
+    await city.locate()
+    await nextTick()
+    expect(city.locationStatus.value).toBe('ready')
+    expect(city.areaId.value).toBe('shilin')
+    expect(city.reportLocation.value).toMatchObject({ source: 'device', areaId: 'shilin', label: '目前位置（士林區）' })
+    expect(sensoryApi.getOverview).toHaveBeenLastCalledWith(expect.objectContaining({ areaId: 'shilin', lat: 25.0935 }), expect.anything())
+    position = { latitude: 25.0136, longitude: 121.4628 } // 新北市板橋
+    await city.locate()
+    await nextTick()
+    expect(city.locationStatus.value).toBe('outside')
+    expect(city.serviceAvailable.value).toBe(false)
+    expect(city.overview.state.value).toBe('idle')
+    expect(city.reportLocation.value).toBeNull()
+    scope.stop()
+  })
+  it('reports a location failure without inventing a fallback area', async () => {
+    vi.stubGlobal('window', { localStorage: { getItem: () => null, setItem: vi.fn() } })
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: (success, failure) => failure(new Error('denied')) } })
+    const scope = effectScope()
+    const city = scope.run(() => useQuietCity(vi.fn()))
+    await city.locate()
+    expect(city.locationStatus.value).toBe('error')
+    expect(city.locationError.value).toContain('定位權限')
+    expect(city.areaId.value).toBeNull()
+    expect(sensoryApi.getOverview).not.toHaveBeenCalled()
+    scope.stop()
   })
 })

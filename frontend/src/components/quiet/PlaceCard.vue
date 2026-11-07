@@ -1,9 +1,10 @@
 <script setup>
 import AppIcon from '../AppIcon.vue'
 import PlaceArtwork from './PlaceArtwork.vue'
-import { levelText } from '../../lib/sensoryDomain.js'
+import SensoryScore from './SensoryScore.vue'
+import { SENSES, levelText } from '../../lib/sensoryDomain.js'
 
-defineProps({ place: { type: Object, required: true }, demo: Boolean })
+defineProps({ place: { type: Object, required: true }, mock: Boolean })
 defineEmits(['select'])
 </script>
 
@@ -13,7 +14,8 @@ defineEmits(['select'])
     <div class="place-card-copy">
       <div class="place-card-title"><h3>{{ place.name }}</h3><span class="q-tag">{{ place.tag || '候選休息點' }}</span></div>
       <p class="place-card-meta"><span class="place-category"><AppIcon :name="place.indoor ? 'book' : 'leaf'" :size="15" />{{ place.category }}</span><span class="place-distance">{{ place.distanceM == null ? '距離待確認' : `${place.distanceM} 公尺直線` }}</span></p>
-      <div class="mini-senses"><span v-for="sense in [{ key: 'noise', icon: 'sound', label: '聲音' }, { key: 'light', icon: 'sun', label: '光線' }, { key: 'crowd', icon: 'people', label: '人潮' }]" :key="sense.key"><AppIcon :name="sense.icon" :size="17" /><span class="sr-only">{{ sense.label }}</span>{{ levelText(place.senses?.[sense.key]) }}</span></div>
+      <div class="mini-senses"><span v-for="sense in SENSES" :key="sense.key"><AppIcon :name="sense.icon" :size="17" /><span class="sr-only">{{ sense.label }}</span>{{ levelText((place.assessment?.dimensions || place.senses)?.[sense.key]) }}</span></div>
+      <SensoryScore v-if="place.assessment" :assessment="place.assessment" :mock="mock" compact />
     </div>
     <AppIcon class="place-chevron" name="chevron" :size="19" />
   </button>
@@ -36,6 +38,7 @@ defineEmits(['select'])
 .mini-senses > span:nth-child(2) { color: #4b5f6d; }
 .mini-senses > span:nth-child(2) svg { color: #b38b2b; }
 .mini-senses > span:nth-child(3) { color: #48778a; }
+.mini-senses > span:nth-child(4) svg { color: #3c9f9d; }
 .place-chevron { flex-shrink: 0; color: #58646c; }
 @media (max-width: 359px) {
   .q-place-card { gap: 8px; padding: 9px; }
@@ -43,7 +46,7 @@ defineEmits(['select'])
   .place-card-title h3 { font-size: 15px; }
   .q-tag { font-size: 12px; }
   .place-card-copy .place-card-meta { font-size: 12px; column-gap: 6px; }
-  .mini-senses { column-gap: 9px; font-size: 13px; }
+  .mini-senses { column-gap: 8px; font-size: 13px; }
   .place-chevron { width: 15px; }
 }
 </style>

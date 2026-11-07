@@ -92,7 +92,6 @@ button:focus-visible, input:focus-visible {
 .eyebrow, .section-kicker { color: #5b7c7f; font: 700 10px/1.3 'DM Sans', sans-serif; letter-spacing: .16em; }
 .citizen-card .eyebrow { color: rgba(255,255,255,.63); }
 .citizen-card__top strong { margin-top: 7px; font-size: 21px; }
-.demo-badge { align-self: start; padding: 6px 9px; border: 1px solid rgba(255,255,255,.32); border-radius: 99px; font: 700 9px/1 'DM Sans', sans-serif; letter-spacing: .12em; }
 .citizen-card__bottom { align-items: end; margin-top: 50px; }
 .citizen-card__bottom span { color: rgba(255,255,255,.62); font-size: 10px; }
 .citizen-card__bottom strong { margin-top: 5px; font: 600 13px/1.2 system-ui, sans-serif; letter-spacing: .11em; }

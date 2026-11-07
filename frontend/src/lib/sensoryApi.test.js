@@ -1,49 +1,128 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createSensoryApi } from './sensoryApi.js'
-import { AREAS, filterPlaces, isCoordinate, levelText, readPreferences } from './sensoryDomain.js'
-import { demoPlaces, DEMO_TIME } from '../data/quietDemo.js'
+import { AREAS, aqiText, filterPlaces, isCoordinate, levelText, nearestArea, readPreferences } from './sensoryDomain.js'
+import { mockCells, mockOverview, mockPlaces } from '../data/quietMock.js'
+import { assessSensory } from './sensoryIndex.js'
 afterEach(() => vi.useRealTimers())
 
-describe('sensory data boundary', () => {
-  it('uses explicit demo mode without network and includes provenance', async () => {
-    const request = vi.fn()
-    const api = createSensoryApi({ mode: 'demo', request })
+const NOW = '2026-11-07T10:30:00+08:00'
+const now = () => new Date(NOW).getTime()
+const routeMissing = Object.assign(new Error('Route not found'), { status: 404, code: 'HTTP_ERROR' })
+const location = { ...AREAS[0], source: 'manual' }
+
+describe('API first with mock fallback', () => {
+  it('uses backend data whenever the backend answers with a valid envelope', async () => {
+    const request = vi.fn().mockResolvedValue({ data: { data: { senses: { noise: 40 } }, meta: { sources: [] } } })
+    const result = await createSensoryApi({ request, now }).getOverview({ areaId: 'zhongzheng' })
+    expect(request).toHaveBeenCalledWith('sensory/overview', expect.objectContaining({ query: { areaId: 'zhongzheng' } }))
+    expect(result.meta.mock).toBeUndefined()
+    expect(result.data.senses.noise).toBe(40)
+  })
+  it('falls back to complete mock data and records why when the route is missing', async () => {
+    const api = createSensoryApi({ request: vi.fn().mockRejectedValue(routeMissing), now })
     const result = await api.getPlaces({ ...AREAS[0], radius: 500, noise: 'low' })
-    expect(result.meta.demo).toBe(true)
-    expect(result.meta.updatedAt).toBe(DEMO_TIME)
-    expect(result.data.places).toHaveLength(3)
-    expect(request).not.toHaveBeenCalled()
+    expect(result.meta).toMatchObject({ mock: true, fallbackReason: 'HTTP 404：Route not found' })
+    expect(result.meta.sources[0].name).toBe('城市靜音鍵模擬資料')
+    expect(result.data.places.map(place => place.id)).toEqual(['zhongzheng-reading', 'zhongzheng-park', 'zhongzheng-study', 'zhongzheng-hall'])
+    await expect(api.getOverview({ areaId: 'daan' })).resolves.toMatchObject({ data: { area: '大安區' }, meta: { mock: true } })
+    await expect(api.getMap({ areaId: 'xinyi' })).resolves.toMatchObject({ meta: { mock: true } })
   })
-  it('never falls back to fake data on an API error', async () => {
-    const api = createSensoryApi({ mode: 'api', request: vi.fn().mockRejectedValue(new Error('offline')) })
-    await expect(api.getOverview({})).rejects.toThrow('offline')
+  it('falls back when a successful response is malformed or marked as test data', async () => {
+    for (const data of [{}, { data: { cells: [] }, meta: { mock: true, sources: [] } }]) {
+      const result = await createSensoryApi({ request: vi.fn().mockResolvedValue({ data }), now }).getMap({ areaId: 'zhongzheng' })
+      expect(result.meta.mock).toBe(true)
+      expect(result.meta.fallbackReason).toContain('格式不符')
+    }
   })
-  it('rejects malformed successful responses', async () => {
-    const api = createSensoryApi({ mode: 'api', request: vi.fn().mockResolvedValue({ data: {} }) })
-    await expect(api.getMap({})).rejects.toThrow('格式不符')
+  it('centers mock places on the user location and keeps the mock detail at the same coordinates', async () => {
+    const api = createSensoryApi({ request: vi.fn().mockRejectedValue(routeMissing), now })
+    const user = { areaId: 'shilin', lat: 25.0985, lng: 121.5301, radius: 500, noise: 'low' }
+    const { data } = await api.getPlaces(user)
+    expect(data.places.length).toBeGreaterThan(0)
+    expect(data.places.every(place => place.distanceM <= 500)).toBe(true)
+    const detail = await api.getPlace(data.places[0].id)
+    expect(detail.data.location).toEqual(data.places[0].location)
+  })
+  it('does not replace a cancelled request with mock data', async () => {
+    const api = createSensoryApi({ request: vi.fn().mockRejectedValue(Object.assign(new Error('請求已取消。'), { code: 'CANCELLED' })), now })
+    await expect(api.getOverview({})).rejects.toThrow('取消')
+  })
+  it('falls back to mock place detail but keeps the original error for unknown places', async () => {
+    const api = createSensoryApi({ request: vi.fn().mockRejectedValue(routeMissing), now })
+    await expect(api.getPlace('daan-tea')).resolves.toMatchObject({ data: { name: '巷內茶香休憩所' }, meta: { mock: true } })
+    await expect(api.getPlace('not-a-place')).rejects.toThrow('Route not found')
   })
   it('checks live places again so stale and out-of-range API results cannot pass low-stimulus filters', async () => {
-    vi.useFakeTimers(); vi.setSystemTime(new Date(DEMO_TIME))
-    const places = demoPlaces()
+    vi.useFakeTimers(); vi.setSystemTime(new Date(NOW))
+    // Current backend contract has no versioned sensoryIndex; legacy senses must still be rechecked.
+    const places = mockPlaces('zhongzheng', NOW).slice(0, 3).map(({ sensoryIndex, ...place }) => place)
     places[0].updatedAt = '2026-11-06T10:30:00+08:00'
     places[1].senses.noise = null
-    const api = createSensoryApi({ mode: 'api', request: vi.fn().mockResolvedValue({ data: { data: { places }, meta: { demo: false, sources: [] } } }) })
+    const api = createSensoryApi({ request: vi.fn().mockResolvedValue({ data: { data: { places }, meta: { sources: [] } } }), now })
     const result = await api.getPlaces({ ...AREAS[0], radius: 500, noise: 'low' })
+    expect(result.meta.mock).toBeUndefined()
     expect(result.data.places.map(place => place.id)).toEqual(['zhongzheng-hall'])
   })
+})
+describe('writes', () => {
   it('sends a report as POST only after valid location and kind', async () => {
     const request = vi.fn().mockResolvedValue({ data: { data: { accepted: true } } })
-    const api = createSensoryApi({ mode: 'api', request })
-    const body = { kind: 'noisy', location: { ...AREAS[0], source: 'manual' }, note: '' }
-    await api.createReport(body)
+    const api = createSensoryApi({ request, now })
+    const body = { kind: 'noisy', location, note: '' }
+    await expect(api.createReport(body)).resolves.toMatchObject({ data: { accepted: true } })
     expect(request).toHaveBeenCalledWith('reports', { method: 'POST', body })
     await expect(api.createReport({ ...body, location: null })).rejects.toThrow('位置')
   })
+  it('simulates writes only when the backend is unreachable or missing, not for validation errors', async () => {
+    const offline = createSensoryApi({ request: vi.fn().mockRejectedValue(Object.assign(new Error('無法連接後端'), { code: 'NETWORK_ERROR' })), now })
+    await expect(offline.createReport({ kind: 'other', location, note: '' })).resolves.toMatchObject({ data: { accepted: true }, meta: { mock: true } })
+    await expect(createSensoryApi({ request: vi.fn().mockRejectedValue(routeMissing), now }).createMeasurement({ location, consent: true })).resolves.toMatchObject({ meta: { mock: true } })
+    for (const status of [400, 429]) {
+      const api = createSensoryApi({ request: vi.fn().mockRejectedValue(Object.assign(new Error(`錯誤 ${status}`), { status })), now })
+      await expect(api.createReport({ kind: 'other', location, note: '' })).rejects.toThrow(`錯誤 ${status}`)
+    }
+  })
+  it('keeps the legacy report body until the backend declares intensity support', async () => {
+    const request = vi.fn().mockResolvedValue({ data: { data: { accepted: true } } })
+    const body = { kind: 'noisy', location, note: '', intensity: 'strong' }
+    const legacy = createSensoryApi({ request, now })
+    expect(legacy.supportsReportIntensity).toBe(false)
+    await legacy.createReport(body)
+    expect(request).toHaveBeenLastCalledWith('reports', { method: 'POST', body: { kind: 'noisy', location, note: '' } })
+    const enabled = createSensoryApi({ request, now, reportIntensity: true })
+    await enabled.createReport(body)
+    expect(request).toHaveBeenLastCalledWith('reports', { method: 'POST', body })
+    await expect(enabled.createReport({ ...body, intensity: undefined })).rejects.toThrow('強度')
+    await expect(enabled.createReport({ ...body, intensity: 'loud' })).rejects.toThrow('強度')
+    await expect(enabled.createReport({ ...body, kind: 'comfortable' })).rejects.toThrow('不需要')
+    await expect(enabled.createReport({ kind: 'other', location, note: '' })).resolves.toBeTruthy()
+    expect(request).toHaveBeenCalledTimes(3)
+  })
   it('does not upload measurements without separate sharing consent', async () => {
     const request = vi.fn()
-    const api = createSensoryApi({ mode: 'api', request })
-    await expect(api.createMeasurement({ location: { ...AREAS[0], source: 'manual' }, consent: false })).rejects.toThrow('同意')
+    const api = createSensoryApi({ request, now })
+    await expect(api.createMeasurement({ location, consent: false })).rejects.toThrow('同意')
     expect(request).not.toHaveBeenCalled()
+  })
+})
+describe('mock data set', () => {
+  it('covers every area and endpoint with fresh, versioned observations', () => {
+    for (const area of AREAS) {
+      const overview = mockOverview(area.id, NOW)
+      expect(overview).toMatchObject({ area: area.name, windowMinutes: 30, air: { aqi: expect.any(Number) } })
+      expect(Object.keys(overview.senses)).toEqual(expect.arrayContaining(['noise', 'light', 'crowd', 'odor']))
+      const places = mockPlaces(area.id, NOW)
+      expect(places.length).toBeGreaterThanOrEqual(6)
+      for (const place of places) {
+        expect(place).toMatchObject({ id: expect.stringMatching(new RegExp(`^${area.id}-`)), hours: expect.any(String), accessibility: expect.any(String), summary: expect.any(String), address: expect.stringContaining('模擬地址') })
+        expect(place.reviews).toHaveLength(place.reviewCount)
+        expect(isCoordinate(place.location)).toBe(true)
+      }
+      expect(mockCells(area.id, NOW).length).toBeGreaterThanOrEqual(8)
+    }
+    expect(assessSensory(mockPlaces('zhongzheng', NOW)[0], undefined, NOW)).toMatchObject({ ssi: 27, availableCount: 4 })
+    // 刻意保留一筆超過 30 分鐘的觀測，驗證過期資料不被當成低刺激。
+    expect(assessSensory(mockPlaces('zhongzheng', NOW).find(place => place.id === 'zhongzheng-arts'), undefined, NOW).ssi).toBeNull()
   })
 })
 describe('honest sensory values', () => {
@@ -51,24 +130,57 @@ describe('honest sensory values', () => {
     expect(levelText(0)).toBe('低')
     expect(levelText(null)).toBe('未知')
     expect(levelText(101)).toBe('未知')
+    expect([aqiText(50), aqiText(51), aqiText(151), aqiText(null)]).toEqual(['良好', '普通', '對所有族群不健康', '未知'])
     expect(isCoordinate({ lat: null, lng: 121 })).toBe(false)
     expect(isCoordinate({ lat: 91, lng: 121 })).toBe(false)
   })
   it('excludes unknown, stale and insufficient readings from low-stimulus filters', () => {
-    const places = demoPlaces()
-    places[0].senses.noise = null
-    places[1].updatedAt = '2026-11-06T10:30:00+08:00'
-    places[2].confidence = 'insufficient'
-    expect(filterPlaces(places, { ...AREAS[0], radius: 500, noise: 'low' }, DEMO_TIME)).toEqual([])
+    const places = mockPlaces('zhongzheng', NOW).slice(0, 3)
+    places[0].sensoryIndex.dimensions.noise = null
+    places[1].sensoryIndex.dimensionMeta.noise.observedAt = '2026-11-06T10:30:00+08:00'
+    places[2].sensoryIndex.dimensionMeta.noise.confidence = 'insufficient'
+    expect(filterPlaces(places, { ...AREAS[0], radius: 500, noise: 'low' }, NOW)).toEqual([])
+    const legacy = mockPlaces('zhongzheng', NOW).slice(0, 3).map(({ sensoryIndex, ...place }) => place)
+    legacy[0].senses.noise = null
+    legacy[1].updatedAt = '2026-11-06T10:30:00+08:00'
+    legacy[2].confidence = 'insufficient'
+    expect(filterPlaces(legacy, { ...AREAS[0], radius: 500, noise: 'low' }, NOW)).toEqual([])
+  })
+  it('filters odor locally only from valid odor observations', () => {
+    expect(filterPlaces(mockPlaces('zhongzheng', NOW), { ...AREAS[0], radius: 500, odor: 'low' }, NOW).map(place => place.id))
+      .toEqual(['zhongzheng-reading', 'zhongzheng-park', 'zhongzheng-study'])
   })
   it('respects radius, indoor and all selected preferences together', () => {
-    expect(filterPlaces(demoPlaces(), { ...AREAS[0], radius: 300, indoor: true, light: 'low' }, DEMO_TIME)).toEqual([])
-    expect(filterPlaces(demoPlaces(), { ...AREAS[0], radius: 500, indoor: true, light: 'low' }, DEMO_TIME)).toHaveLength(1)
+    expect(filterPlaces(mockPlaces('zhongzheng', NOW), { ...AREAS[0], radius: 300, indoor: true, light: 'low' }, NOW)).toEqual([])
+    expect(filterPlaces(mockPlaces('zhongzheng', NOW), { ...AREAS[0], radius: 500, indoor: true, light: 'low' }, NOW)).toHaveLength(1)
   })
   it('restores only supported preferences and tolerates unavailable storage', () => {
     const restored = readPreferences({ getItem: () => '{"radius":3,"noise":"yes","shareMeasurement":true}' })
     expect(restored).toMatchObject({ radius: 500, noise: true })
     expect(restored).not.toHaveProperty('shareMeasurement')
     expect(readPreferences({ getItem: () => { throw new Error('blocked') } })).toMatchObject({ radius: 500 })
+  })
+  it('restores sensitivities, sort and low-stimulus mode with independent defaults', () => {
+    const restored = readPreferences({ getItem: () => JSON.stringify({ sort: 'distance', lowStimulus: true, odor: true, sensitivities: { noise: 5, light: 0, crowd: 2.5, odor: 3 } }) })
+    expect(restored).toMatchObject({ sort: 'distance', lowStimulus: true, odor: true, sensitivities: { noise: 5, light: 2, crowd: 3, odor: 3 } })
+    const oldFormat = readPreferences({ getItem: () => '{"noise":false,"radius":1000}' })
+    expect(oldFormat).toMatchObject({ noise: false, radius: 1000, sort: 'fit', lowStimulus: false, sensitivities: { noise: 4, light: 2, crowd: 3, odor: 1 } })
+    oldFormat.sensitivities.noise = 1
+    expect(readPreferences({ getItem: () => 'null' }).sensitivities.noise).toBe(4)
+    expect(readPreferences({ getItem: () => '{"sort":"ssi","sensitivities":"bad"}' })).toMatchObject({ sort: 'fit', sensitivities: { noise: 4 } })
+  })
+})
+describe('Taipei districts', () => {
+  it('lists all 12 districts and estimates the nearest one only inside Taipei', () => {
+    expect(AREAS.map(area => area.name)).toEqual(['中正區', '大同區', '中山區', '松山區', '大安區', '萬華區', '信義區', '士林區', '北投區', '內湖區', '南港區', '文山區'])
+    expect(nearestArea({ lat: 25.0935, lng: 121.526 })?.id).toBe('shilin')
+    expect(nearestArea({ lat: 24.99, lng: 121.57 })?.id).toBe('wenshan')
+    expect(nearestArea({ lat: 25.0136, lng: 121.4628 })).toBeNull() // 新北市板橋
+    expect(nearestArea({ lat: 25.0615, lng: 121.4880 })).toBeNull() // 新北市三重
+    expect(nearestArea({ lat: 25.0080, lng: 121.5150 })).toBeNull() // 新北市永和
+    expect(nearestArea({ lat: 25.0478, lng: 121.5170 })?.id).toBe('zhongzheng') // 臺北車站
+    expect(nearestArea({ lat: 25.0340, lng: 121.5645 })?.id).toBe('xinyi') // 市府附近
+    expect(nearestArea({ lat: 25.1365, lng: 121.5065 })?.id).toBe('beitou') // 北投站附近
+    expect(nearestArea({ lat: null, lng: 121.5 })).toBeNull()
   })
 })

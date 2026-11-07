@@ -1,21 +1,31 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import AppIcon from '../AppIcon.vue'
-import { isCoordinate, isFresh } from '../../lib/sensoryDomain.js'
+import { isCoordinate } from '../../lib/sensoryDomain.js'
+import { sensoryValues } from '../../lib/sensoryIndex.js'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
-const props = defineProps({ places: { type: Array, default: () => [] }, cells: { type: Array, default: () => [] }, center: { type: Object, required: true }, layer: { type: String, default: 'noise' }, referenceTime: { type: String, default: '' }, deviceLocated: Boolean })
+const props = defineProps({ places: { type: Array, default: () => [] }, cells: { type: Array, default: () => [] }, center: { type: Object, required: true }, layer: { type: String, default: 'noise' }, deviceLocated: Boolean, lowStimulus: Boolean })
 const emit = defineEmits(['select', 'locate'])
 const container = ref(null), ready = ref(false), error = ref('')
 let map, maplibre, markers = [], centerMarker, observer, timer, disposed = false, generation = 0
-const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+const reduced = () => props.lowStimulus || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+const layerLabels = { noise: '聲音', light: '光線', crowd: '人潮', odor: '氣味' }
+function applyStimulus() {
+  if (!ready.value || !map) return
+  // 低刺激模式降低熱區飽和度與不透明度，但保留有觀測的圓點與文字圖例。
+  map.setPaintProperty('sensory-heat', 'heatmap-opacity', props.lowStimulus ? .22 : .43)
+  map.setPaintProperty('sensory-observed', 'circle-opacity', props.lowStimulus ? .5 : .65)
+}
 function clearMarkers() { markers.forEach(marker => marker.remove()); markers = [] }
 function sync() {
   if (!ready.value || !map) return
-  const now = props.referenceTime || Date.now()
-  const features = props.cells.filter(cell => isCoordinate(cell?.location) && isFresh(cell.updatedAt, now)
-    && cell.confidence !== 'insufficient' && Number.isFinite(cell.senses?.[props.layer]) && cell.senses[props.layer] >= 0 && cell.senses[props.layer] <= 100)
-    .map(cell => ({ type: 'Feature', properties: { intensity: cell.senses[props.layer] / 100 }, geometry: { type: 'Point', coordinates: [cell.location.lng, cell.location.lat] } }))
+  const now = Date.now()
+  // 與清單共用有效觀測規則：過期、不足、未知或版本不符的格網不繪製。
+  const features = props.cells.filter(cell => isCoordinate(cell?.location))
+    .map(cell => ({ cell, value: sensoryValues(cell, now)[props.layer] }))
+    .filter(({ value }) => value !== null)
+    .map(({ cell, value }) => ({ type: 'Feature', properties: { intensity: value / 100 }, geometry: { type: 'Point', coordinates: [cell.location.lng, cell.location.lat] } }))
   map.getSource('sensory')?.setData({ type: 'FeatureCollection', features })
   clearMarkers()
   props.places.filter(place => isCoordinate(place.location)).forEach(place => {
@@ -63,13 +73,14 @@ async function initialize() {
         'circle-radius': 7, 'circle-opacity': .65, 'circle-stroke-width': 2, 'circle-stroke-color': '#ffffff',
         'circle-color': ['interpolate', ['linear'], ['get', 'intensity'], 0, '#70b393', .5, '#d8c47e', 1, '#cf887b'],
       } })
-      ready.value = true; sync()
+      ready.value = true; applyStimulus(); sync()
     })
     map.on('error', () => { if (!ready.value) error.value = '底圖資源暫時無法取得，仍可使用下方場所清單。' })
     observer = new ResizeObserver(() => map?.resize()); observer.observe(container.value)
   } catch { error.value = '此裝置無法啟用地圖，請使用下方場所清單。' }
 }
 watch(() => [props.places, props.cells, props.layer, props.deviceLocated], sync, { deep: true })
+watch(() => props.lowStimulus, applyStimulus)
 watch(() => props.center, center => {
   if (map && isCoordinate(center)) map.flyTo({ center: [center.lng, center.lat], duration: reduced() ? 0 : 700 })
   sync()
@@ -81,7 +92,7 @@ onUnmounted(() => { disposed = true; generation++; clearTimeout(timer); observer
   <div class="sensory-map-wrap">
     <div ref="container" class="sensory-map" role="region" aria-label="城市感官互動地圖，可拖曳縮放"></div>
     <div v-if="!ready || error" class="q-map-state" role="status"><AppIcon :name="error ? 'map' : 'layers'" :size="28"/><strong>{{ error || '正在展開城市地圖…' }}</strong><button v-if="error" class="q-secondary" @click="initialize">重新載入地圖</button></div>
-    <div v-if="ready && !error" class="map-legend"><strong>{{ { noise: '聲音', light: '光線', crowd: '人潮' }[layer] }}刺激示意</strong><div></div><span>較低 <span>較高</span></span><small>圓點代表有觀測的格網<br>回報加權熱區，非實測等值線</small></div>
+    <div v-if="ready && !error" class="map-legend"><strong>{{ layerLabels[layer] }}刺激示意</strong><div></div><span>較低 <span>較高</span></span><small>圓點代表有觀測的格網<br>回報加權熱區，非實測等值線</small></div>
     <div class="map-tools"><button class="q-icon-button" aria-label="使用目前位置並移至地圖中心" @click="$emit('locate')"><AppIcon name="locate" :size="21"/></button><button class="q-icon-button" aria-label="放大地圖" @click="map?.zoomIn({ duration: reduced() ? 0 : 200 })"><AppIcon name="plus" :size="21"/></button><button class="q-icon-button" aria-label="縮小地圖" @click="map?.zoomOut({ duration: reduced() ? 0 : 200 })"><span class="minus-icon">−</span></button></div>
   </div>
 </template>

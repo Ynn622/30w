@@ -31,6 +31,18 @@ describe('native noise sessions', () => {
     session.stop()
     expect(onStatus).toHaveBeenCalledTimes(2)
   })
+  it('records observedAt when the App starts measuring, not while waiting for permission', () => {
+    let time = Date.parse('2026-11-07T10:00:00Z')
+    const { host, send } = harness()
+    const onStatus = vi.fn()
+    const session = createNoiseSession({ host, onStatus, now: () => time })
+    expect(session.getStartedAt()).toBeNull()
+    time += 8_000
+    send('noise_status', { sessionId: session.sessionId, status: 'measuring' })
+    expect(onStatus.mock.lastCall[0]).toEqual({ status: 'measuring', startedAt: '2026-11-07T10:00:08.000Z' })
+    expect(session.getStartedAt()).toBe('2026-11-07T10:00:08.000Z')
+    session.stop()
+  })
   it('stops on denied permission and acknowledgement timeout', () => {
     vi.useFakeTimers()
     const { host, send, listeners } = harness()

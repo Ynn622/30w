@@ -1,26 +1,29 @@
 # 鈴靜（城市靜音鍵）後端 API 交接
 
-前端已完成呼叫層與示範體驗。請依這份契約建立後端，不必沿用示範資料；真實運作需接上合法開放資料、匿名回報及場所資料。所有 JSON 欄位使用 camelCase，時間使用含時區的 ISO 8601，座標為 WGS84。
+前端已完成呼叫層，後端無法使用時以模擬資料備援。請依這份契約建立後端，不必沿用模擬資料；真實運作需接上合法開放資料、匿名回報及場所資料。所有 JSON 欄位使用 camelCase，時間使用含時區的 ISO 8601，座標為 WGS84。
 
 本次依新增需求補充 SSI（環境感官刺激指數）、SFS（個人感官適配分數）與資料可用性，文件調整日期為 2026-11-07。**六個既有接口是目前前端契約；下文「第二階段」是待實作擴充，不能因文件列出就宣稱已完成串接。** 本文 JSON 均為契約示例，不是當日實際觀測。
 
 | 階段 | 交付範圍 | 目前狀態 |
 | --- | --- | --- |
 | 第一階段 | 六個接口、四維缺值處理、來源／時間／信心揭露 | 前端已有呼叫層，後端與真實來源待整合 |
-| 第二階段 | 強度回報、逐維資料品質、SSI 與覆蓋率 | 本文新增規格，前後端需配合實作 |
-| 第三階段 | 1–5 敏感度、端側 SFS 排序、低刺激介面模式 | 待前端實作；不增加會員或偏好上傳接口 |
+| 第二階段 | 強度回報、逐維資料品質、SSI 與覆蓋率 | 前端已可讀取 `sensoryIndex`（ssi-v0.1）並送出強度（需 `VITE_REPORT_INTENSITY=true`）；後端待實作 |
+| 第三階段 | 1–5 敏感度、端側 SFS 排序、低刺激介面模式 | 前端已完成（2026-11-07）；不增加會員或偏好上傳接口 |
 
 ## 啟用與範圍
 
 ```dotenv
 # frontend/.env.local（修改後重新啟動或建置）
 VITE_API_BASE_URL=https://your-backend.example/api/v1
-VITE_SENSORY_MODE=api
+# 後端確認 POST reports 支援 intensity 後才開啟
+VITE_REPORT_INTENSITY=false
 ```
 
-預設為 `demo`，感官讀取與寫入皆不送網路請求。`api` 模式沒有失敗時自動使用假資料的機制。既有 debug 的 hello/health 測試獨立運作，不受此開關影響。
+前端每次都先呼叫以下接口；網路錯誤、逾時、404／405、5xx 或回應格式不符時，該次請求改用前端 `frontend/src/data/quietMock.js` 的模擬資料（`meta.mock=true`、`meta.fallbackReason` 記錄原因），畫面跳出通知並標示「模擬」，之後每 60 秒重試，後端恢復即自動切回。POST 只在無法連線或 404／405／5xx 時模擬完成且不上傳；400、409、429 等錯誤直接顯示。後端上線後請確認不會落入模擬（例如格式不符也會觸發備援）。既有 debug 的 hello/health 測試獨立運作。
 
-前端入口：`frontend/src/lib/sensoryApi.js`。以下路徑全部接在 base URL 後，不含開頭 `/`，確保 `/api/v1` 不被覆蓋。正式模式在頁面可見時每 60 秒重新讀取三種概況／地圖／清單資料，視窗重新取得焦點也更新；離開產品頁（含 debug）會清除 timer 與 listener。每次切區域／偏好會取消舊 GET，避免舊回覆覆蓋新查詢；POST 送出期間禁止重複點選。
+2026-11-07 查核 `https://30wbackend.idfc.dev/api/v1`：`GET hello` 200；`sensory/overview`、`sensory/map`、`places`、`places/{id}`、`POST reports`、`POST measurements` 皆回 404 `Route not found`。CORS 允許 `http://localhost:5173` 與 `https://ynn622.github.io`，**未允許** `http://localhost:7890`（前端 dev server 預設埠，回 403）。
+
+前端入口：`frontend/src/lib/sensoryApi.js`。以下路徑全部接在 base URL 後，不含開頭 `/`，確保 `/api/v1` 不被覆蓋。頁面可見時每 60 秒重新讀取三種概況／地圖／清單資料，視窗重新取得焦點也更新；離開產品頁（含 debug）會清除 timer 與 listener。每次切區域／偏好會取消舊 GET，避免舊回覆覆蓋新查詢；POST 送出期間禁止重複點選。
 
 ## 本次必須提供的六個接口
 
@@ -43,7 +46,6 @@ VITE_SENSORY_MODE=api
 {
   "data": {},
   "meta": {
-    "demo": false,
     "updatedAt": "2026-11-07T10:30:00+08:00",
     "sources": [
       {
@@ -57,10 +59,9 @@ VITE_SENSORY_MODE=api
 }
 ```
 
-- `meta.demo` 必須為 `false`；若後端只有測試資料，請使用前端 demo 模式，避免混淆。
+- 不需要 `meta.demo` 欄位；`meta.demo` 或 `meta.mock` 為 `true` 時前端視為測試資料而拒收並改用模擬資料，後端只有測試資料時請勿上線。
 - `updatedAt` 是實際資料整理時間；各來源的 `observedAt` 是觀測／發布時間，兩者不得混用。各感官資料另有 freshness 限制，後端不可只更新 meta 來掩蓋舊資料。
 - `sources` 逐筆提供名稱、原始網址、授權與時間。沒有資料可以是空陣列，UI 會顯示尚未取得來源；正式成果應補齊真實來源。
-- `referenceTime` 僅供前端固定 demo 情境，不應出現在正式 API。
 - 未知數值使用 `null`，不要用 `0`、空字串或猜測值代替。
 - 匿名回報不是政府開放資料，須以使用者同意、去識別與合法再利用政策處理；不得在來源欄位冒稱官方監測。若無可公開的來源 URL，可為 `null`，但仍須提供來源名稱與適用的使用條件。
 
@@ -81,8 +82,8 @@ VITE_SENSORY_MODE=api
 
 | query | 型別 | 說明 |
 | --- | --- | --- |
-| `areaId` | string | 目前選單：`zhongzheng`、`daan`、`xinyi`；臺北市行政區 |
-| `lat`, `lng` | number | 使用者手動選定的區域中心或另行授權的裝置位置 |
+| `areaId` | string | 依目前位置推估的臺北市行政區：`zhongzheng`、`datong`、`zhongshan`、`songshan`、`daan`、`wanhua`、`xinyi`、`shilin`、`beitou`、`neihu`、`nangang`、`wenshan`；不在臺北市時前端不呼叫 |
+| `lat`, `lng` | number | 使用者授權的裝置目前位置（前端已不提供手動選區） |
 | `radius` | number | 300、500、1000 公尺；前端目前皆使用直線距離 |
 
 `data` 範例：
@@ -105,12 +106,12 @@ VITE_SENSORY_MODE=api
 
 - `senses` 為 0–100 相對刺激尺度（越高越刺激）；**不是分貝、照度、人數或 AQI 原值**。空品 AQI 原值放在 `air.aqi`。請後端記錄轉換公式與版本；沒有合理資料就回 null。
 - SSI 的四維固定為 `noise`（聲音）、`light`（光線）、`crowd`（人潮感受）、`odor`（氣味）。沿用現有 `noise`，不另引入需求示意中的 `sound`；版本欄位使用 `scoreVersion`，不使用 `score_version`。
-- **`odor` 與 `air` 不可互換。** 目前首頁第四張卡顯示 `senses.air` 空品相對尺度，場所詳情第四維才是 `senses.odor`；首頁尚未改為 SSI 四維。可新增 `odor` 而保留 `air` 相容欄位；AQI 不能推算氣味，也不納入 SSI。未訂定空品映射規則前 `senses.air=null`，仍可回傳 `air.aqi` 原值。
+- **`odor` 與 `air` 不可互換。** 首頁已改為 SSI 四維（第四張卡為 `senses.odor`），空品改以 `air.aqi` 原值另列，不再讀取 `senses.air`。可新增 `odor` 而保留 `air` 相容欄位；AQI 不能推算氣味，也不納入 SSI。未訂定空品映射規則前 `senses.air=null`，仍可回傳 `air.aqi` 原值。
 - 前端顯示分段：0–33「低」、34–66「中等」、67–100「偏高」；空品相對尺度為「良好／普通／不佳」。目前沒有從 dBFS 推導刺激指數的演算法，後端不可混合不同手機 dBFS 做城市噪音比較。
 - `observedAt` 是此次感官判斷使用的有效觀測時間（多來源以最舊的仍採用時間為準），不得填 API 呼叫或整理時間。超過 30 分鐘或未知時前端顯示資料不足。過期的單項值須直接回 null；空品另依其來源更新週期揭露。
 - `reportCount` 只計主觀感受，`measurementCount` 只計有效裝置摘要；不得重複灌入同一計數。
 - `confidence`：`high | medium | low | insufficient`。後端應依有效樣本數、觀測年齡、來源涵蓋度與離散程度訂定版本化規則；尚未具備規則時用 `insufficient`，不要捏造高信心。
-- 資料不足時仍回 200，各感官維度為 null、confidence=insufficient、headline="資料不足，暫無法判斷"；計數保留實際已接受的有效事件／摘要筆數，只有確實沒有資料才填 0。有分類回報或 dBFS 摘要不代表已有可採用的刺激分數。上游錯誤回 503，或保留可用來源並明示不足，不能使用示範值補空。
+- 資料不足時仍回 200，各感官維度為 null、confidence=insufficient、headline="資料不足，暫無法判斷"；計數保留實際已接受的有效事件／摘要筆數，只有確實沒有資料才填 0。有分類回報或 dBFS 摘要不代表已有可採用的刺激分數。上游錯誤回 503，或保留可用來源並明示不足，不能以模擬值補空。
 - `weather` 和 `air` 可為 null；預報與測站時間應放來源，不宣稱全部是現在所在地即時觀測。
 - `weather.temperatureC` 僅在上游提供所選預報時段的對應溫度時填入；若只有最低／最高溫，不取中點冒充氣溫。預報應另保留 `issuedAt`、`validFrom`、`validTo`，空品應保留測站座標、距離與發布時間（可擴充原物件）；這些擴充欄位目前前端尚未呈現。
 
@@ -186,7 +187,7 @@ VITE_SENSORY_MODE=api
       { "name": "真實場所開放資料", "url": "https://example.org/dataset", "license": "實際授權", "observedAt": "2026-11-07T09:00:00+08:00" }
     ]
   },
-  "meta": { "demo": false, "updatedAt": "2026-11-07T10:30:00+08:00", "sources": [] }
+  "meta": { "updatedAt": "2026-11-07T10:30:00+08:00", "sources": [] }
 }
 ```
 
@@ -204,7 +205,7 @@ VITE_SENSORY_MODE=api
 {
   "kind": "noisy",
   "note": "靠近馬路的座位比較吵",
-  "location": { "lat": 25.0386, "lng": 121.5143, "source": "manual", "areaId": "zhongzheng", "label": "中正區手動區域中心" },
+  "location": { "lat": 25.0386, "lng": 121.5143, "source": "device", "areaId": "zhongzheng", "label": "目前位置（中正區）" },
   "observedAt": "2026-11-07T10:30:00+08:00"
 }
 ```
@@ -212,10 +213,11 @@ VITE_SENSORY_MODE=api
 - kind：`noisy | bright | crowded | odor | comfortable | other`。
 - **現有 body 沒有強度、逐維評分或 `placeId`。** `noisy` 只表示聲音刺激事件，不能自行當作 65 分或精準分貝；`comfortable` 不能讓四維一律變低，未回報的維度也不是零。第一階段可提供事件計數與文字提示，沒有可解釋的數值來源時 `senses` 保持 null。需要數值回報與場所關聯時，依第二階段擴充，不從自由文字猜測或把行政區中心回報掛到最近場所。
 - note 選填，最長 140 字；前後端都要驗證，後端需限制 payload 大小及儲存期限。
-- location.source：`manual`（區域中心）或 `device`（另行取得授權的裝置位置）。手動回報不能變成該格網的精確觀測；可只計區域統計，不加入街道熱點。
+- location.source：`manual`（區域中心）或 `device`（另行取得授權的裝置位置）。目前前端只開放目前定位，實際只會送出 `device`；`manual` 保留為相容值。手動回報不能變成該格網的精確觀測；可只計區域統計，不加入街道熱點。
 - 不傳疾病、診斷、會員個資。實際 body 只包含上列資料，使用者按「確認送出」才送。
 - 成功回 201 + 共用 envelope：`data: { "id": "report-001", "accepted": true }`。
 - 後端需做合法位置／時間範圍驗證、匿名濫用控制、去重及 rate limit。`observedAt` 不可任意相信客戶端時間。
+- 重送界線（issue #2）：前端在使用者按下確認時凍結 `kind`／`note`／`location`／`intensity`／`observedAt`；失敗後原樣重送會送出位元相同的 body，改了內容或位置才產生新的 `observedAt`，視為新事件。尚未加入 requestId／Idempotency-Key，若要新增須先共同約定，且不得改成必填。
 
 ## 6 環境音量摘要
 
@@ -226,7 +228,7 @@ VITE_SENSORY_MODE=api
   "protocolVersion": 1,
   "sessionId": "native-noise-session-id",
   "source": "native_microphone",
-  "location": { "lat": 25.0386, "lng": 121.5143, "source": "manual", "areaId": "zhongzheng", "label": "中正區手動區域中心" },
+  "location": { "lat": 25.0386, "lng": 121.5143, "source": "device", "areaId": "zhongzheng", "label": "目前位置（中正區）" },
   "observedAt": "2026-11-07T10:30:00+08:00",
   "consent": true,
   "sampleCount": 60,
@@ -240,6 +242,7 @@ VITE_SENSORY_MODE=api
 
 - 成功回 201 + `data: { "id": "measurement-001", "accepted": true }` 與共用 meta。
 - 拒絕 `consent !== true`；驗證 sessionId、durationMs、樣本數、數值及來源，sessionId 建議設唯一鍵；重試同一摘要應回原成功結果，避免重複統計。
+- `observedAt` 為 App 回覆 `noise_status: measuring`（開始量測）的時間，不含等待麥克風權限；`location` 為使用者按下開始時的位置快照。同一 session 重送沿用同一份 body；重新量測會產生新 sessionId。
 - `averageDbfs` 為每 250ms 平均功率資料再以功率平均計算，不是直接對分貝取算術平均。現版未處理不規則間隔的時間加權，原生端應按協定固定間隔回傳；這不是 IEC 等級 Leq。
 - dBFS 範圍 -160 到 0，peakDbfs >= averageDbfs，durationMs <=31000，sampleCount >0。本版不傳音訊、逐筆波形、裝置名稱或使用者識別。
 - dBFS 只可表達同裝置相對音量，**不得標成 dBA，不可跨不同手機直接平均、拿來判定噪音法規或直接餵入城市聲音指數**。若後續需要校準 dBA，必須另定 protocolVersion 與校正證據欄位。
@@ -286,14 +289,14 @@ VITE_SENSORY_MODE=api
 
 ### 回報擴充
 
-現有 `POST reports` 保持可接受原 body。第二階段可新增選填 `intensity` 與 `placeId`，前後端部署相容後才啟用；目前前端不會送出這兩欄。
+現有 `POST reports` 保持可接受原 body。第二階段可新增選填 `intensity` 與 `placeId`，前後端部署相容後才啟用。前端已實作 `intensity`：api 模式需設定 `VITE_REPORT_INTENSITY=true` 才會送出（未設定時維持舊 body、不顯示強度選項）；`placeId` 目前不送出。
 
 - `intensity`：`none | mild | noticeable | strong`，僅適用 `noisy | bright | crowded | odor` 所對應的單一維度。暫定映射為 10／35／65／90，屬產品假設，不是醫學或法規閾值。畫面須讓使用者明確選擇「沒有明顯刺激」，不能替使用者預填。
 - 缺少 `intensity` 的舊回報只列事件計數，不納入此強度平均；`comfortable | other` 不接受 `intensity`，不從備註自動生成評分。
 - `placeId` 若存在，後端驗證場所、位置來源與可接受範圍；手動行政區中心仍只計區域事件，不據此建立場所評分。未提供時，不以最近場所猜測歸屬。
 - 每一維只彙整同一空間範圍、30 分鐘內且通過去重／品質規則的有效回報。採算術平均或時間衰減平均均須固定公式、參數與版本；未訂規則或樣本不足時回 null。
 
-若未來取得經校正的 dB(A)，可研究 `clip((dBA - 35) / 45 × 100, 0, 100)` 作為聲音產品映射；35／80 只是示範端點，不代表安全或不適閾值。此公式**不適用現有 protocolVersion=1 的 dBFS**，不得直接開啟。
+若未來取得經校正的 dB(A)，可研究 `clip((dBA - 35) / 45 × 100, 0, 100)` 作為聲音產品映射；35／80 只是範例端點，不代表安全或不適閾值。此公式**不適用現有 protocolVersion=1 的 dBFS**，不得直接開啟。
 
 捷運歷史參考可採 `100 × clip((N - P10) / (P90 - P10), 0, 1)`，需記錄車站、歷史期間、平假日／時段分組、N 的定義與百分位計算方式；`P90 <= P10` 或樣本不足時回 null。結果標為「歷史繁忙程度」，另外揭露資料期間，不回填本版即時四維。
 
@@ -317,7 +320,7 @@ dimensionCoverage = 有效維度數 / 4
 
 ### 相容擴充物件
 
-第二階段可在 overview、Place 與地圖 cell 新增 `sensoryIndex`；目前前端會忽略它，舊 `senses`、`confidence`、時間欄位仍須提供。以下僅為假設已有有效數值與品質規則的計算示例，並非本專案已取得的資料：
+第二階段可在 overview、Place 與地圖 cell 新增 `sensoryIndex`；前端只接受 `scoreVersion=ssi-v0.1`、有 `confidenceVersion`、逐維 `confidence` 非 insufficient、`sourceType=subjective_report`、`sampleCount>0` 且 `observedAt`／`validUntil` 在 30 分鐘內的維度，並以本機時間重算 SSI 與覆蓋率（不採用後端的 `ssi`／`coverage` 數字）。不符合者視為缺值；沒有 `sensoryIndex` 時只顯示 `senses` 各維、不計算 SSI。舊 `senses`、`confidence`、時間欄位仍須提供。以下僅為假設已有有效數值與品質規則的計算示例，並非本專案已取得的資料：
 
 ```json
 {
@@ -350,8 +353,8 @@ dimensionCoverage = 有效維度數 / 4
 - 使用者於裝置端設定四維敏感度 1–5；以各敏感度除以總和得到個人權重。SSI 的預設環境權重不因個人偏好改變。
 - `sfs = round(100 - 個人加權刺激負擔)`，負擔沿用前節有效維度的重新正規化公式，以未四捨五入值計算；無有效維度則為 null。另算個人權重的 `fitCoverage`，不能直接沿用 SSI 的 `coverage`。
 - 完整四維為 70／20／50／10，敏感度 5／1／2／2（權重 50%／10%／20%／20%）時 SFS=51；2／5／1／2（20%／50%／10%／20%）時 SFS=69。這兩組可由 1–5 設定直接產生；需求示意中的 60%／10% 權重比為 6:1，超出此控制範圍，不能當成滑桿可產生的設定。缺值時顯示部分適配，不能用未知代替低刺激，也不能放寬使用者選定的必要篩選。
-- 優先在前端本機計算與排序，偏好不需送後端。**目前只有聲音／光線／人潮的布林篩選與距離排序，尚無 1–5 滑桿、氣味篩選或 SFS。** 後端不能擅自改成 SFS 排序並宣稱已生效，因為現有前端會重新依直線距離排序。
-- 低刺激模式由前端管理柔和配色、減少動畫、較大操作區與隱藏非必要資訊；警示保留文字，不只依賴顏色或聲音。現有 reduced-motion 支援不等於已完成此模式；不需新增後端接口。
+- 前端已在本機計算與排序，偏好不送後端：「我的」提供四維 1–5 敏感度，探索頁可選「個人適配優先」（完整資料優先，再依 SFS、距離）或「距離最近」；氣味低刺激篩選在本機套用，**不會**加入 `GET places` query（舊後端不認得 `odor`）。後端仍依直線距離回傳即可，不需也不應自行改成 SFS 排序。
+- 低刺激模式已由前端實作：柔和配色、停止動畫與地圖飛行、降低熱區不透明度、較大操作區並隱藏裝飾插畫；警示保留文字，不只依賴顏色或聲音。不需新增後端接口。
 
 ## HTTP 與部署
 

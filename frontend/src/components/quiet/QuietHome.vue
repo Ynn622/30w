@@ -3,14 +3,23 @@ import { computed } from 'vue'
 import AppIcon from '../AppIcon.vue'
 import AsyncState from '../AsyncState.vue'
 import PlaceCard from './PlaceCard.vue'
-import { AREAS, SENSES, REPORT_KINDS, formatTime, isFresh, levelText } from '../../lib/sensoryDomain.js'
+import SensoryScore from './SensoryScore.vue'
+import QuietLogo from './QuietLogo.vue'
+import LocationGate from './LocationGate.vue'
+import { MOCK_LABEL, SENSES, REPORT_KINDS, aqiText, formatTime, isFresh, levelText } from '../../lib/sensoryDomain.js'
 
 const props = defineProps({ city: { type: Object, required: true } })
+// 「附近的安靜角落」暫時隱藏；改回 true 即可恢復，推薦清單仍可在探索頁使用。
+const SHOW_NEARBY = false
 const canDescribe = computed(() => {
   const data = props.city.overview.data.value
   return data && data.confidence !== 'insufficient' && (data.reportCount > 0 || data.measurementCount > 0)
-    && isFresh(data.observedAt, props.city.mode === 'demo' ? props.city.overview.meta.value?.referenceTime : Date.now())
+    && isFresh(data.observedAt, Date.now())
 })
+// 首頁四維與 SSI 只採有效觀測；空品 AQI 另列，不代替氣味。
+const assessment = computed(() => props.city.overview.data.value ? props.city.assess(props.city.overview.data.value, props.city.overview.meta.value) : null)
+const senseValue = key => canDescribe.value ? assessment.value?.dimensions?.[key] ?? null : null
+const air = computed(() => props.city.overview.data.value?.air)
 const updatedClock = computed(() => {
   const value = props.city.overview.meta.value?.updatedAt
   if (!value || !Number.isFinite(new Date(value).getTime())) return '時間未知'
@@ -25,7 +34,7 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
   <section class="quiet-view quiet-home">
     <header class="home-heading">
       <div class="home-heading-copy">
-        <h1>城市靜音鍵</h1>
+        <div class="home-title"><QuietLogo :size="40" /><h1>城市靜音鍵</h1></div>
         <p>看見城市的感官環境，找到屬於你的安靜角落</p>
       </div>
       <svg class="city-illustration" viewBox="0 0 150 130" fill="none" aria-hidden="true">
@@ -38,16 +47,18 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
       </svg>
     </header>
 
+    <!-- 目前只依裝置定位提供服務，不開放手動選擇區域。 -->
+    <LocationGate v-if="!city.serviceAvailable.value" :city="city" />
+    <template v-else>
     <div class="area-row">
-      <label class="q-area-select">
+      <span class="q-area-select" aria-live="polite">
         <AppIcon name="pin" :size="17" />
-        <select v-model="city.areaId.value" aria-label="選擇探索區域">
-          <option v-for="area in AREAS" :key="area.id" :value="area.id">臺北市・{{ area.name }}</option>
-        </select>
-      </label>
+        <span class="area-city">臺北市・{{ city.area.value.name }}</span>
+        <small class="area-source">目前位置</small>
+      </span>
       <button class="q-text-button" :disabled="city.locating.value" @click="city.locate">
         <AppIcon name="locate" :size="17" />
-        {{ city.locating.value ? '定位中…' : city.deviceLocation.value ? '已使用目前位置' : '使用目前位置' }}
+        {{ city.locating.value ? '定位中…' : '重新定位' }}
       </button>
     </div>
 
@@ -55,8 +66,8 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
     <article v-else class="sensory-weather q-reveal">
       <div class="section-heading weather-heading">
         <h2>今日感官天氣・臺北市</h2>
-        <button class="q-text-button muted" :title="formatTime(city.overview.meta.value?.updatedAt)" :aria-label="`${city.mode === 'demo' ? '示範資料時間' : '資料更新時間'}：${formatTime(city.overview.meta.value?.updatedAt)}`" @click="$emit('sources')">
-          {{ city.mode === 'demo' ? '示範' : '更新' }}：{{ updatedClock }}
+        <button class="q-text-button muted" :title="formatTime(city.overview.meta.value?.updatedAt)" :aria-label="`${city.overview.meta.value?.mock ? '模擬資料時間' : '資料更新時間'}：${formatTime(city.overview.meta.value?.updatedAt)}`" @click="$emit('sources')">
+          {{ city.overview.meta.value?.mock ? '模擬' : '更新' }}：{{ updatedClock }}
         </button>
       </div>
       <div class="weather-main">
@@ -74,12 +85,14 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
         <div v-for="sense in SENSES" :key="sense.key" class="sense-tile" :class="sense.color">
           <AppIcon :name="sense.icon" :size="29" />
           <span>{{ sense.label }}</span>
-          <strong :class="{ 'high-stimulus': sense.key !== 'air' && canDescribe && city.overview.data.value.senses?.[sense.key] > 66, 'good-air': sense.key === 'air' && levelText(city.overview.data.value.senses?.air, true) === '良好' }">{{ levelText(canDescribe || sense.key === 'air' ? city.overview.data.value.senses?.[sense.key] : null, sense.key === 'air') }}</strong>
+          <strong :class="{ 'high-stimulus': senseValue(sense.key) > 66 }">{{ levelText(senseValue(sense.key)) }}<span v-if="senseValue(sense.key) > 66" class="sr-only">，刺激偏高</span></strong>
         </div>
       </div>
+      <SensoryScore v-if="canDescribe" class="home-score" :assessment="assessment" :mock="Boolean(city.overview.meta.value?.mock)" compact />
+      <p class="air-row"><AppIcon name="leaf" :size="16" /><span v-if="Number.isFinite(air?.aqi)">空氣品質 AQI <b>{{ air.aqi }}</b>（{{ aqiText(air.aqi) }}）· {{ air.station || '測站未提供' }}</span><span v-else>空氣品質：尚未取得測站資料</span><small>另列參考，不納入感官刺激指數</small></p>
       <button class="confidence-note" @click="$emit('sources')">
         <AppIcon name="shield" :size="17" />
-        <span>附近 {{ city.overview.data.value.windowMinutes }} 分鐘內 <b>{{ city.overview.data.value.reportCount }} 筆回報</b>・{{ city.overview.data.value.measurementCount }} 筆裝置量測<br><small>{{ city.mode === 'demo' ? '以上皆為示範數據，非官方即時監測' : '主觀感受與裝置音量分開統計' }} · {{ { high: '資料信心高', medium: '資料信心中等', low: '資料信心低', insufficient: '資料不足' }[city.overview.data.value.confidence] || '信心未知' }}</small></span>
+        <span>附近 {{ city.overview.data.value.windowMinutes }} 分鐘內 <b>{{ city.overview.data.value.reportCount }} 筆回報</b>・{{ city.overview.data.value.measurementCount }} 筆裝置量測<br><small>{{ city.overview.meta.value?.mock ? MOCK_LABEL : '主觀感受與裝置音量分開統計' }} · {{ { high: '資料信心高', medium: '資料信心中等', low: '資料信心低', insufficient: '資料不足' }[city.overview.data.value.confidence] || '信心未知' }}</small></span>
         <AppIcon name="chevron" :size="16" />
       </button>
       <div v-if="city.overview.data.value.weather" class="weather-foot">
@@ -103,13 +116,14 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
       </button>
       <p class="microcopy"><AppIcon name="shield" :size="14" />由你決定是否分享摘要，不儲存或上傳錄音。</p>
     </section>
+    </template>
 
-    <section class="nearby-section q-reveal">
+    <section v-if="SHOW_NEARBY && city.serviceAvailable.value" class="nearby-section q-reveal">
       <div class="section-heading"><h2>附近的安靜角落</h2><button class="q-text-button" @click="$emit('explore')">探索更多<AppIcon name="chevron" :size="17" /></button></div>
-      <p class="q-helper">{{ city.mode === 'demo' ? '虛構場所與直線距離示範，請勿據此前往。' : '依偏好篩選；直線距離不等於步行距離。' }}</p>
+      <p class="q-helper">{{ city.places.meta.value?.mock ? `${MOCK_LABEL}。` : '' }}依偏好篩選；直線距離不等於步行距離。{{ city.preferences.value.sort === 'fit' ? '依個人適配排序，完整資料優先。' : '依直線距離排序。' }}</p>
       <AsyncState v-if="city.places.state.value !== 'ready'" :state="city.places.state.value" :message="city.places.error.value" retry @retry="city.places.reload" />
-      <AsyncState v-else-if="!city.places.data.value?.places?.length" title="還沒找到符合偏好的角落" message="試著擴大探索距離，或在探索頁調整條件。" />
-      <PlaceCard v-for="place in city.places.data.value?.places || []" v-else :key="place.id" :place="place" @select="$emit('select', $event)" />
+      <AsyncState v-else-if="!city.recommendations.value.length" title="還沒找到符合偏好的角落" message="試著擴大探索距離，或在探索頁調整條件。" />
+      <PlaceCard v-for="place in city.recommendations.value" v-else :key="place.id" :place="place" :mock="Boolean(city.places.meta.value?.mock)" @select="$emit('select', $event)" />
     </section>
     <footer class="quiet-footer"><AppIcon name="leaf" :size="16" /><span>每一種感受，都值得被城市接住。</span></footer>
   </section>
@@ -122,12 +136,14 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
 }
 .home-heading { position: relative; display: flex; align-items: flex-start; min-height: 98px; padding: 0 96px 8px 4px; }
 .home-heading-copy { position: relative; z-index: 1; }
-.home-heading h1 { margin: 0 0 8px; color: var(--q-ink, #222c33); font-size: 28px; line-height: 1.3; letter-spacing: -.035em; font-weight: 750; }
+.home-title { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; }
+.home-heading h1 { margin: 0; color: var(--q-ink, #222c33); font-size: 28px; line-height: 1.3; letter-spacing: -.035em; font-weight: 750; }
 .home-heading p { max-width: 280px; margin: 0; color: #4c5961; font-size: 14px; line-height: 1.65; }
 .city-illustration { position: absolute; top: -10px; right: -8px; bottom: auto; width: 106px; height: 112px; opacity: 1; }
 .area-row { margin: 0 2px 8px; gap: 8px; }
 .q-area-select { color: var(--q-brand, #0391A7); }
-.q-area-select select { max-width: 170px; padding-inline: 2px; color: #4b5962; font-size: 13px; }
+.area-city { color: #34434c; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.area-source { margin-left: 4px; padding: 2px 6px; border-radius: 5px; color: #4d6a75; background: #edf6f8; font-size: 12px; white-space: nowrap; }
 .q-text-button { gap: 5px; font-size: 13px; }
 .sensory-weather { padding: 0 14px; border: 1px solid #dce8ed; border-radius: 15px; background: linear-gradient(120deg, #eaf8fc 0%, #f8fcfe 70%, #fff 100%); box-shadow: none; }
 .section-heading h2 { color: var(--q-ink, #222c33); font-size: 18px; font-weight: 700; }
@@ -152,7 +168,11 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
 .sense-tile > span { color: #29363f; font-size: 14px; line-height: 1.4; letter-spacing: -.03em; }
 .sense-tile strong { color: #26343c; font-size: 16px; line-height: 1.35; font-weight: 600; }
 .sense-tile.teal { color: var(--q-brand, #0391A7); }.sense-tile.amber { color: #e5b13e; }.sense-tile.blue { color: #3387a4; }.sense-tile.green { color: #2f7f39; }
-.sense-tile strong.high-stimulus { color: #b45761; }.sense-tile strong.good-air { color: #2f7f39; }
+.sense-tile strong.high-stimulus { color: #b45761; }
+.home-score { margin: 9px 0 0; }
+.air-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; margin: 9px 0 0; padding: 8px 10px; border-radius: 9px; background: #ffffffc4; color: #3f5560; font-size: 13px; line-height: 1.5; }
+.air-row > svg { color: #2f7f39; }
+.air-row small { flex-basis: 100%; color: var(--q-muted); font-size: 12px; }
 .confidence-note { align-items: flex-start; min-height: 62px; padding: 11px 0 9px; gap: 6px; color: #97a9b3; }
 .confidence-note > svg { flex-shrink: 0; margin-top: 3px; }
 .confidence-note > span { color: #6a7780; font-size: 12px; line-height: 1.7; }
@@ -183,7 +203,8 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
   .home-heading p { font-size: 13px; }
   .city-illustration { right: -4px; width: 88px; height: 100px; }
   .area-row { gap: 4px; }
-  .q-area-select select { max-width: 145px; font-size: 12px; }
+  .area-city { font-size: 12px; }
+  .home-title { gap: 8px; }
   .area-row .q-text-button { font-size: 12px; }
   .sensory-weather { padding-inline: 10px; }
   .weather-heading { min-height: 49px; padding-top: 6px; }

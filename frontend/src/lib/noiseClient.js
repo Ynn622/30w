@@ -15,12 +15,13 @@ export function noiseSummary(samples) {
     unit: 'dBFS', calibrated: false,
   }
 }
-export function createNoiseSession({ host = globalThis, durationSeconds = 15, onStatus = () => {}, onSample = () => {} } = {}) {
+export function createNoiseSession({ host = globalThis, durationSeconds = 15, onStatus = () => {}, onSample = () => {}, now = () => Date.now() } = {}) {
   if (getNativeChannel(host) !== 'town-pass') throw new Error('請由支援噪音感測的 Flutter App 開啟，瀏覽器不會模擬麥克風數值。')
   const sessionId = globalThis.crypto?.randomUUID?.() || `noise-${Date.now()}-${Math.random().toString(36).slice(2)}`
   const duration = Math.max(5, Math.min(30, durationSeconds))
   let closed = false
   let accepted = false
+  let startedAt = null
   let timer
   let unsubscribe = () => {}
   let lastElapsed = -1
@@ -31,7 +32,7 @@ export function createNoiseSession({ host = globalThis, durationSeconds = 15, on
     clearTimeout(timer)
     unsubscribe()
     try { stopNativeNoise(sessionId, host) } catch { /* 本地清理仍須完成。 */ }
-    onStatus({ status, message, summary: status === 'completed' ? noiseSummary(samples) : null })
+    onStatus({ status, message, startedAt, summary: status === 'completed' ? noiseSummary(samples) : null })
   }
   function deadline(ms, message) {
     clearTimeout(timer)
@@ -42,8 +43,10 @@ export function createNoiseSession({ host = globalThis, durationSeconds = 15, on
     if (name === 'noise_status') {
       if (data.status === 'measuring' && !accepted) {
         accepted = true
+        // observedAt 以 App 確認開始量測為準，不含等待權限的時間。
+        startedAt = new Date(now()).toISOString()
         deadline(duration * 1000 + 5000, '量測回覆逾時，已停止感測。')
-        onStatus({ status: 'measuring' })
+        onStatus({ status: 'measuring', startedAt })
       } else if (['denied', 'unsupported', 'error', 'stopped'].includes(data.status)) {
         finish(data.status, data.message || '量測未完成，請確認 App 支援及麥克風權限。')
       } else if (data.status === 'completed') {
@@ -59,5 +62,5 @@ export function createNoiseSession({ host = globalThis, durationSeconds = 15, on
   }, host)
   deadline(30_000, 'App 尚未開始量測，請確認 handler 與麥克風權限。')
   try { startNativeNoise(sessionId, duration, host) } catch (error) { finish('error', error.message) }
-  return { sessionId, stop: () => finish('stopped', '已停止量測。'), getSummary: () => noiseSummary(samples) }
+  return { sessionId, getStartedAt: () => startedAt, stop: () => finish('stopped', '已停止量測。'), getSummary: () => noiseSummary(samples) }
 }

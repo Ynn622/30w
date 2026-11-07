@@ -1,19 +1,47 @@
 import { apiRequest } from './apiClient.js'
-import { demoOverview, demoPlaces, demoCells, DEMO_META, DEMO_TIME } from '../data/quietDemo.js'
-import { AREAS, filterPlaces, isCoordinate, REPORT_KINDS } from './sensoryDomain.js'
+import { mockCells, mockMeta, mockOverview, mockPlace, mockPlaces } from '../data/quietMock.js'
+import { filterPlaces, INTENSITY_DIMENSIONS, isCoordinate, REPORT_INTENSITIES, REPORT_KINDS } from './sensoryDomain.js'
 
-export function createSensoryApi({ mode = import.meta.env.VITE_SENSORY_MODE || 'demo', request = apiRequest } = {}) {
-  if (!['demo', 'api'].includes(mode)) throw new Error('VITE_SENSORY_MODE 必須是 demo 或 api')
-  const copy = value => JSON.parse(JSON.stringify(value))
-  const wrap = data => ({ data: copy(data), meta: copy(DEMO_META) })
+export const MOCK_NOTICE = '後端感官服務暫時無法連線，已改用模擬資料顯示。'
+
+// 每次都先呼叫後端；連不上、路由不存在、伺服器錯誤或格式不符時才改用模擬資料，
+// 並以 meta.mock=true 標示，讓畫面跳出通知。取消請求不改用模擬資料。
+export function createSensoryApi({
+  request = apiRequest, now = () => Date.now(),
+  reportIntensity = import.meta.env.VITE_REPORT_INTENSITY === 'true',
+} = {}) {
+  // 後端確認支援 intensity 後再以環境變數開啟，否則維持舊 body。
+  const supportsReportIntensity = reportIntensity === true
+  // 模擬清單以查詢座標為中心；記住各區最近一次的中心，讓模擬詳情與清單座標一致。
+  const mockCenters = new Map()
+  const centerOf = query => {
+    const center = isCoordinate(query) ? { lat: query.lat, lng: query.lng } : null
+    if (center && query.areaId) mockCenters.set(query.areaId, center)
+    return center
+  }
   const validSources = sources => Array.isArray(sources) && sources.every(source => source && typeof source.name === 'string' && (source.url == null || typeof source.url === 'string'))
+  const cancelled = (error, signal) => signal?.aborted || error?.code === 'CANCELLED'
+  const reasonOf = error => error?.status ? `HTTP ${error.status}：${error.message}` : error?.message || '後端無回應'
+  // 寫入只在後端不存在或無法連線時模擬；驗證失敗、頻率限制等錯誤要讓使用者看到並可重試。
+  const writeFallback = error => ['NETWORK_ERROR', 'TIMEOUT'].includes(error?.code) || [404, 405, 501, 502, 503, 504].includes(error?.status) || error?.status >= 500
   async function get(path, query, { signal } = {}) {
     const response = await request(path, { query, signal })
     const payload = response.data
-    if (!payload || typeof payload !== 'object' || !payload.data || typeof payload.data !== 'object' || !payload.meta || payload.meta.demo !== false || !validSources(payload.meta.sources)) {
-      throw new Error('後端回應格式不符：需要 data、meta.demo=false 與 meta.sources。')
+    if (!payload || typeof payload !== 'object' || !payload.data || typeof payload.data !== 'object' || !payload.meta
+      || payload.meta.demo === true || payload.meta.mock === true || !validSources(payload.meta.sources)) {
+      throw new Error('後端回應格式不符：需要 data、meta 與 meta.sources。')
     }
     return payload
+  }
+  async function withFallback(load, fallback, signal) {
+    try { return await load() }
+    catch (error) {
+      if (cancelled(error, signal)) throw error
+      const time = now()
+      const data = fallback(time)
+      if (data == null) throw error
+      return { data: JSON.parse(JSON.stringify(data)), meta: mockMeta(time, reasonOf(error)) }
+    }
   }
   function checkPlace(place) {
     return place && typeof place.id === 'string' && typeof place.name === 'string' && isCoordinate(place.location)
@@ -21,51 +49,56 @@ export function createSensoryApi({ mode = import.meta.env.VITE_SENSORY_MODE || '
   function locationOf(body) {
     if (!isCoordinate(body?.location) || !['manual', 'device'].includes(body.location.source)) throw new Error('請選擇有效的回報位置。')
   }
+  async function write(path, body, label) {
+    try {
+      const response = await request(path, { method: 'POST', body })
+      if (!response.data?.data?.accepted) throw new Error(`後端尚未接受此${label}。`)
+      return response.data
+    } catch (error) {
+      if (!writeFallback(error)) throw error
+      const time = now()
+      return { data: { id: `mock-${path}-${time}`, accepted: true }, meta: mockMeta(time, reasonOf(error)) }
+    }
+  }
   return {
-    mode,
-    getOverview: async (query, options) => {
-      if (mode === 'demo') return wrap(demoOverview(query.areaId))
+    supportsReportIntensity,
+    getOverview: (query, options = {}) => withFallback(async () => {
       const result = await get('sensory/overview', query, options)
       if (!result.data.senses || typeof result.data.senses !== 'object') throw new Error('感官概況格式不符，缺少 senses。')
       return result
-    },
-    getMap: async (query, options) => {
-      if (mode === 'demo') return wrap({ cells: demoCells(query.areaId) })
+    }, time => mockOverview(query.areaId, time), options.signal),
+    getMap: (query, options = {}) => withFallback(async () => {
       const result = await get('sensory/map', query, options)
       if (!Array.isArray(result.data.cells)) throw new Error('地圖資料格式不符，缺少 cells 陣列。')
       return result
-    },
-    getPlaces: async (query, options) => {
-      if (mode === 'demo') return wrap({ places: filterPlaces(demoPlaces(query.areaId), query, DEMO_TIME) })
+    }, time => ({ cells: mockCells(query.areaId, time, centerOf(query)) }), options.signal),
+    getPlaces: (query, options = {}) => withFallback(async () => {
       const result = await get('places', query, options)
       if (!Array.isArray(result.data.places) || !result.data.places.every(checkPlace)) throw new Error('場所清單格式不符，請檢查名稱與座標。')
-      return { ...result, data: { ...result.data, places: filterPlaces(result.data.places, query) } }
-    },
-    getPlace: async (id, options) => {
-      if (mode === 'api') {
-        const result = await get(`places/${encodeURIComponent(id)}`, undefined, options)
-        if (!checkPlace(result.data) || result.data.id !== id || (result.data.sources && !validSources(result.data.sources))
-          || (result.data.reviews && (!Array.isArray(result.data.reviews) || !result.data.reviews.every(review => review && typeof review.text === 'string')))) throw new Error('場所詳情格式不符或場所編號不一致。')
-        return result
-      }
-      const place = AREAS.flatMap(area => demoPlaces(area.id)).find(item => item.id === id)
-      return place ? Promise.resolve(wrap(place)) : Promise.reject(new Error('找不到此場所。'))
-    },
+      // 前端再次檢查距離、觀測時間與低刺激條件，不完全信任後端篩選。
+      return { ...result, data: { ...result.data, places: filterPlaces(result.data.places, query, now()) } }
+    }, time => ({ places: filterPlaces(mockPlaces(query.areaId, time, centerOf(query)), query, time) }), options.signal),
+    getPlace: (id, options = {}) => withFallback(async () => {
+      const result = await get(`places/${encodeURIComponent(id)}`, undefined, options)
+      if (!checkPlace(result.data) || result.data.id !== id || (result.data.sources && !validSources(result.data.sources))
+        || (result.data.reviews && (!Array.isArray(result.data.reviews) || !result.data.reviews.every(review => review && typeof review.text === 'string')))) throw new Error('場所詳情格式不符或場所編號不一致。')
+      return result
+    }, time => mockPlace(id, time, areaId => mockCenters.get(areaId)), options.signal),
     async createReport(body) {
       locationOf(body)
       if (!REPORT_KINDS.some(kind => kind.id === body.kind) || (body.note?.length || 0) > 140) throw new Error('回報內容格式不正確。')
-      if (mode === 'demo') return wrap({ id: `demo-report-${Date.now()}`, accepted: true })
-      const response = await request('reports', { method: 'POST', body })
-      if (!response.data?.data?.accepted) throw new Error('後端尚未接受此回報。')
-      return response.data
+      const { intensity, ...payload } = body
+      if (intensity != null) {
+        if (!INTENSITY_DIMENSIONS[body.kind]) throw new Error('此感受不需要選擇強度。')
+        if (!REPORT_INTENSITIES.some(item => item.id === intensity)) throw new Error('請選擇有效的感受強度。')
+      } else if (supportsReportIntensity && INTENSITY_DIMENSIONS[body.kind]) throw new Error('請先選擇感受強度。')
+      if (supportsReportIntensity && intensity != null) payload.intensity = intensity
+      return write('reports', payload, '回報')
     },
     async createMeasurement(body) {
       locationOf(body)
       if (body.consent !== true) throw new Error('請先同意分享量測摘要。')
-      if (mode === 'demo') return wrap({ id: `demo-measurement-${Date.now()}`, accepted: true })
-      const response = await request('measurements', { method: 'POST', body })
-      if (!response.data?.data?.accepted) throw new Error('後端尚未接受此量測。')
-      return response.data
+      return write('measurements', body, '量測')
     },
   }
 }

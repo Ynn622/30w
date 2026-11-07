@@ -3,25 +3,28 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import AppIcon from '../AppIcon.vue'
 import AsyncState from '../AsyncState.vue'
 import PlaceArtwork from './PlaceArtwork.vue'
-import { sensoryApi } from '../../lib/sensoryApi.js'
-import { distanceMeters, formatTime, isFresh, levelText } from '../../lib/sensoryDomain.js'
+import SensoryScore from './SensoryScore.vue'
+import { MOCK_NOTICE, sensoryApi } from '../../lib/sensoryApi.js'
+import { MOCK_LABEL, distanceMeters, formatTime, isFresh, levelText } from '../../lib/sensoryDomain.js'
 import { sendToNative } from '../../lib/webview.js'
 const props = defineProps({ id: { type: String, required: true }, city: { type: Object, required: true } })
 const emit = defineEmits(['back', 'notify'])
 const place = ref(null), meta = ref(null), state = ref('loading'), error = ref(''), tab = ref('sensory')
 let controller, serial = 0
 const distance = computed(() => distanceMeters(props.city.center.value, place.value?.location))
-const fresh = computed(() => isFresh(place.value?.updatedAt, props.city.mode === 'demo' ? meta.value?.referenceTime : Date.now()))
+// 長條與指數只採有效觀測；過期、不足或未知維度不畫長條。
+const assessment = computed(() => place.value ? props.city.assess(place.value, meta.value) : null)
+const fresh = computed(() => isFresh(place.value?.updatedAt, Date.now()))
 async function load() {
   controller?.abort(); controller = new AbortController(); const current = ++serial
   state.value = 'loading'; error.value = ''; place.value = null
-  try { const result = await sensoryApi.getPlace(props.id, { signal: controller.signal }); if (current !== serial) return; place.value = result.data; meta.value = result.meta; state.value = 'ready' }
+  try { const result = await sensoryApi.getPlace(props.id, { signal: controller.signal }); if (current !== serial) return; place.value = result.data; meta.value = result.meta; state.value = 'ready'; if (result.meta?.mock && !props.city.usingMock.value) emit('notify', MOCK_NOTICE) }
   catch (reason) { if (current === serial) { error.value = reason.message; state.value = 'error' } }
 }
 watch(() => props.id, load, { immediate: true })
 onUnmounted(() => { serial++; controller?.abort() })
 function navigate() {
-  if (meta.value?.demo) { emit('notify', '這是虛構示例場所，不提供實際導航。'); return }
+  if (meta.value?.mock) { emit('notify', '模擬場所沒有實際位置，不提供導航。'); return }
   const url = `https://maps.apple.com/?daddr=${place.value.location.lat},${place.value.location.lng}&dirflg=w`
   const result = sendToNative('launch_map', url, window)
   if (result.delivered) emit('notify', '已請 App 開啟導航。')
@@ -29,7 +32,7 @@ function navigate() {
 }
 async function share() {
   try {
-    const text = `${place.value.name}｜城市靜音鍵${meta.value?.demo ? '（虛構示例場所）' : ''}`
+    const text = `${place.value.name}｜城市靜音鍵${meta.value?.mock ? '（模擬資料）' : ''}`
     if (navigator.share) await navigator.share({ title: '我的安靜角落', text })
     else if (navigator.clipboard) { await navigator.clipboard.writeText(text); emit('notify', '已複製場所名稱，可分享給朋友。') }
     else emit('notify', '此瀏覽器不支援分享，請手動複製場所名稱。')
@@ -51,17 +54,18 @@ async function share() {
         <div class="detail-title-copy"><h2>{{ place.name }}</h2><div class="detail-tags"><span><AppIcon :name="place.indoor ? 'book' : 'leaf'" :size="17"/>{{ place.category }}</span><span class="q-tag">{{ place.tag || '候選休息點' }}</span></div></div>
         <div class="detail-distance"><AppIcon name="pin" :size="21"/><strong>{{ distance ?? '—' }}<small>公尺直線</small></strong></div>
       </div>
-      <p v-if="meta.demo" class="demo-inline">示範資料・虛構場所，請勿據此前往。</p>
+      <p v-if="meta.mock" class="mock-inline">{{ MOCK_LABEL }}，場所與地址為虛構。</p>
       <div class="q-segment detail-tabs" role="group" aria-label="場所資訊分頁"><button v-for="item in [{ id: 'sensory', label: '感官資訊' }, { id: 'info', label: '基本資訊' }, { id: 'reviews', label: '回報摘要' }]" :key="item.id" type="button" :class="{ selected: tab === item.id }" :aria-pressed="tab === item.id" @click="tab = item.id">{{ item.label }}</button></div>
       <Transition name="quiet-fade" mode="out-in">
         <div :key="tab" class="detail-content">
           <template v-if="tab === 'sensory'">
-            <h3>感官概況 <small>{{ meta.demo ? '固定示範描述' : '資料整理摘要' }}</small></h3>
+            <h3>感官概況 <small>資料整理摘要</small></h3>
             <div class="sensory-summary"><AppIcon name="leaf" :size="30"/><p>{{ place.summary || '目前尚無足夠資料提供摘要。' }}</p></div>
             <p v-if="!fresh" class="q-error">感官資訊已超過 30 分鐘或時間未知，請勿視為目前狀況。</p>
             <div class="sense-bars">
-              <div v-for="sense in [{ key: 'noise', label: '聲音刺激', icon: 'sound' }, { key: 'light', label: '光線刺激', icon: 'sun' }, { key: 'crowd', label: '人潮密度', icon: 'people' }, { key: 'odor', label: '氣味刺激', icon: 'wind' }]" :key="sense.key"><AppIcon :name="sense.icon" :size="23"/><span>{{ sense.label }}</span><div class="sense-track"><i v-if="Number.isFinite(place.senses?.[sense.key])" :style="{ width: `${Math.max(0, Math.min(100, place.senses[sense.key]))}%` }"></i></div><strong>{{ levelText(place.senses?.[sense.key]) }}</strong></div>
+              <div v-for="sense in [{ key: 'noise', label: '聲音刺激', icon: 'sound' }, { key: 'light', label: '光線刺激', icon: 'sun' }, { key: 'crowd', label: '人潮密度', icon: 'people' }, { key: 'odor', label: '氣味刺激', icon: 'wind' }]" :key="sense.key"><AppIcon :name="sense.icon" :size="23"/><span>{{ sense.label }}</span><div class="sense-track"><i v-if="Number.isFinite(assessment?.dimensions[sense.key])" :style="{ width: `${assessment.dimensions[sense.key]}%` }"></i></div><strong>{{ levelText(assessment?.dimensions[sense.key]) }}</strong></div>
             </div>
+            <SensoryScore :assessment="assessment" :mock="Boolean(meta.mock)" />
             <p class="q-helper">刺激指數為 0–100 相對尺度，非分貝、照度或人數。</p>
           </template>
           <template v-else-if="tab === 'info'">
@@ -75,8 +79,8 @@ async function share() {
           </template>
         </div>
       </Transition>
-      <section class="detail-sources"><AppIcon name="shield" :size="19"/><div><strong>資料來源與時間</strong><p>{{ place.reportCount ?? 0 }} 筆主觀回報 · {{ { high: '信心高', medium: '信心中等', low: '信心低', insufficient: '資料不足' }[place.confidence] || '信心未知' }}<br>{{ formatTime(place.updatedAt) }} {{ meta.demo ? '固定示範情境' : '更新' }}</p><template v-for="(source, index) in place.sources || meta.sources" :key="index"><a v-if="source.url?.startsWith('https://')" :href="source.url" target="_blank" rel="noopener noreferrer">{{ source.name }}</a><span v-else>{{ source.name }}</span></template></div></section>
-      <div class="detail-actions"><button type="button" class="q-secondary" @click="navigate"><AppIcon name="route" :size="21"/>{{ meta.demo ? '導航說明' : '步行導航' }}</button><button type="button" class="q-primary" @click="city.toggleFavorite(id)"><AppIcon :name="city.favorites.value.includes(id) ? 'check' : 'leaf'" :size="21"/>{{ city.favorites.value.includes(id) ? '已在我的安靜角落' : '設為我的安靜角落' }}</button></div>
+      <section class="detail-sources"><AppIcon name="shield" :size="19"/><div><strong>資料來源與時間</strong><p>{{ place.reportCount ?? 0 }} 筆主觀回報 · {{ { high: '信心高', medium: '信心中等', low: '信心低', insufficient: '資料不足' }[place.confidence] || '信心未知' }}<br>{{ formatTime(place.updatedAt) }} {{ meta.mock ? '模擬資料' : '更新' }}</p><template v-for="(source, index) in place.sources || meta.sources" :key="index"><a v-if="source.url?.startsWith('https://')" :href="source.url" target="_blank" rel="noopener noreferrer">{{ source.name }}</a><span v-else>{{ source.name }}</span></template></div></section>
+      <div class="detail-actions"><button type="button" class="q-secondary" @click="navigate"><AppIcon name="route" :size="21"/>步行導航</button><button type="button" class="q-primary" @click="city.toggleFavorite(id)"><AppIcon :name="city.favorites.value.includes(id) ? 'check' : 'leaf'" :size="21"/>{{ city.favorites.value.includes(id) ? '已在我的安靜角落' : '設為我的安靜角落' }}</button></div>
     </template>
   </section>
 </template>
@@ -99,7 +103,7 @@ async function share() {
 .detail-distance { display: flex; align-items: flex-start; gap: 5px; color: var(--q-brand, #0391a7); }
 .detail-distance strong { padding-top: 1px; font-size: 17px; font-weight: 600; line-height: 1.2; color: #38454e; text-align: right; }
 .detail-distance small { margin-top: 6px; color: #66747d; font-size: 12px; line-height: 1.3; font-weight: 400; }
-.demo-inline { margin: 0 0 11px; padding: 7px 9px; background: #f4f7f9; color: #65747d; border-radius: 6px; font-size: 12px; line-height: 1.6; }
+.mock-inline { margin: 0 0 11px; padding: 7px 9px; background: #f4f7f9; color: #65747d; border-radius: 6px; font-size: 12px; line-height: 1.6; }
 .detail-tabs { gap: 0; padding: 0; margin: 0 0 19px; background: #f1f3f5; border-radius: 9px; overflow: hidden; }
 .detail-tabs button { position: relative; min-height: 47px; padding: 9px 4px; border: 0; border-radius: 0; color: #606d76; background: transparent; box-shadow: none; font-size: 15px; font-weight: 500; }
 .detail-tabs button.selected { color: var(--q-deep, #007a90); background: #fff; box-shadow: none; font-weight: 650; }

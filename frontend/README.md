@@ -11,15 +11,31 @@ Vue 3 + JavaScript + Vite 的行動版城市感官服務。首頁、探索、我
 - [Flutter iOS 環境噪音協定](../docs/flutter-noise-interface.md)
 - [地圖與資料來源、授權](../docs/data-sources.md)
 
-`VITE_SENSORY_MODE=demo`（預設）使用明示的固定示例，不呼叫感官 API；`api` 才呼叫既有 base URL。失敗不降級為假資料。請複製 `.env.example` 至 `.env.local` 設定，之後重新啟動或建置。正式模式前景每 60 秒及重新取得焦點時更新，元件卸載清除輪詢。API 模式目前待後端依契約實作，不代表現有 hello/health 後端已支援。
+感官資料一律先呼叫後端（`VITE_API_BASE_URL`）；連不上、路由不存在（404）、伺服器錯誤或回應格式不符時，該次請求改用 `frontend/src/data/quietMock.js` 的完整模擬資料，並跳出通知「後端感官服務暫時無法連線，已改用模擬資料顯示。」。模擬期間畫面以「模擬」小標與資料來源頁說明標示（競賽規則要求清楚標示模擬內容），每 60 秒持續重試後端，三種資料都取得後端回應時自動切回並通知。取消請求不改用模擬；回報／量測只有在無法連線或路由不存在時才模擬完成（不上傳），驗證錯誤與頻率限制仍顯示錯誤讓使用者重試。 請複製 `.env.example` 至 `.env.local` 設定，之後重新啟動或建置。元件卸載時清除輪詢。
 
-首頁展示聲音、光線、人潮與空品，主觀回報與手機音量分開統計。資料不足／感官觀測過期會顯示未知，推薦再次過濾過期與 null 值；所有距離皆為直線。偏好與收藏 ID 僅本機儲存，位置與量測只在記憶體。
+首頁展示聲音、光線、人潮、氣味四維與另列的空品 AQI（不納入 SSI），主觀回報與手機音量分開統計。資料不足／感官觀測過期會顯示未知，推薦再次過濾過期與 null 值；所有距離皆為直線。偏好與收藏 ID 僅本機儲存，位置與量測只在記憶體。
 
-地圖使用 `maplibre-gl@6.16.0`（BSD-3-Clause）與指定 Yuzen 地圖相同的 OpenFreeMap Liberty。地圖引擎與 worker 延遲載入，只有探索頁需要；底圖服務需連網，WebGL 不可用或載入錯誤時提供重試與清單。第三方授權原文隨 `public/third-party/` 交付。UI 插畫、圖示為原創 SVG，沒有下載額外字型或照片。
+### 首頁區域、定位與探索頁
+
+- **只依目前定位提供服務，不開放手動選擇區域。** App 開啟時即請求定位（城市通 `location` 或瀏覽器 geolocation）；尚未定位、定位失敗時，首頁與探索頁顯示定位提示與「使用目前位置」按鈕，不呼叫感官接口。
+- 取得座標後以 `nearestArea()` 判斷行政區（臺北市 12 區，`AREAS`）：先用手繪的臺北市概略外框排除市外位置，再取最近的行政區代表點。**這是近似判斷**，靠近區界可能判到鄰區或誤判市內外。MapLibre 沒有反向地理編碼功能；若要精確判斷，需另外加入官方行政區界資料（例如內政部國土測繪中心開放資料）做點在多邊形判斷，加入前須確認授權。
+- 不在臺北市時，首頁與探索頁顯示「此區域非台北市內，無法提供服務」並提供重新定位，停止呼叫感官接口；回報只會帶目前定位座標（`location.source=device`）。
+- 首頁「附近的安靜角落」以 `QuietHome.vue` 的 `SHOW_NEARBY` 暫時隱藏。改用模擬資料時，模擬場所與格網以使用者目前位置為中心產生。
+- 探索頁的 h1 只保留給螢幕閱讀器；地圖填滿畫面，推薦清單放在可拖曳的底部抽屜（`BottomSheet.vue`，收合／半開／全開三段，點把手或上下方向鍵也可切換）。收合時地圖底緣留在抽屜上方，確保 OpenStreetMap 等授權標示可見。
+
+### SSI、SFS 與低刺激模式
+
+- `src/lib/sensoryIndex.js`：`assessSensory(record, sensitivities, now)` 只採 `sensoryIndex.scoreVersion=ssi-v0.1`、信心非 insufficient、`sourceType=subjective_report`、有樣本且 30 分鐘內有效的維度；回傳 SSI、SFS、`coverage`（環境權重）、`fitCoverage`（個人權重）與 `dimensionCoverage`。缺值、過期與不支援版本不當作低刺激；舊版只有 `senses` 的回應仍顯示各維，但不推造 SSI。
+- `useQuietCity` 的 `city.assess(record, meta)` 供各畫面使用；`city.recommendations` 在本機依 SFS（完整資料優先）或直線距離排序，並在本機套用氣味篩選。敏感度、排序、氣味與低刺激模式皆不加入 API query。
+- 「我的」提供四維 1–5 敏感度（預設 聲音 4／光線 2／人潮 3／氣味 1）與低刺激模式；舊版或損壞的 localStorage 會回到有效預設。
+- 低刺激模式在 `body` 加上 `q-low-stimulus`，讓 Teleport sheet 一併套用：柔和配色、停止動畫與地圖飛行、降低熱區不透明度、加大操作區並隱藏裝飾插畫；錯誤、模擬資料標示與資料不足仍以文字保留。
+- 快速回報的四種刺激感受提供未預選的強度（`none | mild | noticeable | strong`）；comfortable／other 不送強度。改用模擬資料時可完整操作但不上傳；後端模式需 `VITE_REPORT_INTENSITY=true` 才顯示並送出 `intensity`，否則維持舊 body。
+
+地圖使用 `maplibre-gl@6.16.0`（BSD-3-Clause）與 OpenFreeMap Liberty 底圖。地圖引擎與 worker 延遲載入，只有探索頁需要；底圖服務需連網，WebGL 不可用或載入錯誤時提供重試與清單。第三方授權原文隨 `public/third-party/` 交付。UI 插畫、圖示為原創 SVG，沒有下載額外字型或照片。
 
 噪音介接新增 `webview.js` 的 `startNativeNoise(sessionId, durationSeconds, host)`、`stopNativeNoise(sessionId, host)`；`noiseClient.js` 管理 session、逾時、樣本驗證及清理。自訂訊息 `noise_start`、`noise_stop`、`noise_status`、`noise_sample` 需 **Flutter 另行註冊 handler**。沒有原生支援不會產生假數字。僅支援未校準 **dBFS**，不宣稱環境 dBA。麥克風與定位分開取得權限，分享摘要還需另勾選並主動送出；不送原始音訊。
 
-Vue 頁面切換、卡片進場、sheet 與感官指示動畫支援 `prefers-reduced-motion`；按鈕或其標籤提供至少 44px 觸控區，支援 safe-area、320px 與對話框鍵盤 focus trap。
+Vue 頁面切換、卡片進場、sheet 與感官指示動畫支援 `prefers-reduced-motion` 與低刺激模式；按鈕或其標籤提供至少 44px 觸控區，支援 safe-area、320px 與對話框鍵盤 focus trap。
 
 ## 本機開發
 
@@ -80,7 +96,7 @@ App 回覆時，網頁透過 `window.flutterObject.addEventListener('message', c
 
 `frontend/src/lib/webview.js` 已封裝傳送、解析、監聽與清理。既有城市通方法包含 `userinfo`、`launch_map`、`phone_call`、`1999agree`、`location`、`deviceinfo`、`open_link`、`notify` 與 `qr_code_scan`。
 
-本專案的服務點擊暫時使用自訂 `open_service`，正式介接時需在 App 端建立同名 handler。一般瀏覽器沒有 bridge 時會進入示範模式。舊的 WebKit、Android 與 React Native bridge 僅保留為 fallback。
+本專案的服務點擊暫時使用自訂 `open_service`，正式介接時需在 App 端建立同名 handler。一般瀏覽器沒有 bridge 時不會送出原生訊息。舊的 WebKit、Android 與 React Native bridge 僅保留為 fallback。
 
 ## 介接測試面板
 

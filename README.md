@@ -11,25 +11,30 @@
 
 ## 本次功能
 
-城市感官 WebView：首頁感官天氣、兩步快速回報、感官地圖與靜音推薦、場所詳情、收藏與感官偏好。保留隱藏測試工作台與版本檢查，移除參考圖最上方的服務導覽列；底部分頁為首頁、探索、我的。
+城市感官 WebView：首頁感官天氣（聲音／光線／人潮／氣味四維與另列 AQI）、兩步快速回報（含強度）、感官地圖與靜音推薦、場所詳情、收藏、1–5 感官敏感度與低刺激模式。保留隱藏測試工作台與版本檢查，移除參考圖最上方的服務導覽列；底部分頁為首頁、探索、我的。
 
-- 先讀 [前端實作計畫](docs/superpowers/plans/2026-11-07-city-quiet.md)。
+- 先讀 [前端實作計畫](docs/superpowers/plans/2026-11-07-city-quiet.md) 與 [感官個人化計畫](docs/superpowers/plans/2026-11-07-sensory-personalization.md)。
 - 後端直接依 [API 接口與資料契約](docs/backend-api.md) 實作六個接口。
 - Flutter／iOS 團隊依 [環境噪音訊息協定](docs/flutter-noise-interface.md) 實作 native handler。
 - 地圖、素材與資料授權見 [來源紀錄](docs/data-sources.md)。
 
-預設為 **demo**，天氣、感官資料與虛構場所皆有示範標示；確認示範回報不會上傳。正式串接時在 `frontend/.env.local` 設定：
+切換後端時在 `frontend/.env.local` 設定：
 
 ```dotenv
 VITE_API_BASE_URL=https://your-backend.example/api/v1
-VITE_SENSORY_MODE=api
+# 後端確認 POST reports 支援 intensity 後才開啟
+VITE_REPORT_INTENSITY=false
 ```
 
-切換後重新啟動或建置。API 失敗會顯示可重試的錯誤，不會偷偷改用假資料。偏好與收藏 ID 僅存在此裝置；量測與精確位置不會持久化。
+SSI（環境感官刺激指數）與 SFS（個人適配分數）在前端以 `frontend/src/lib/sensoryIndex.js` 計算：只採 `sensoryIndex.scoreVersion=ssi-v0.1` 且 30 分鐘內有效的維度，缺值不當作低刺激並標示涵蓋率；後端未提供版本化指數時只顯示各維度，不自行推算 SSI。敏感度、排序與低刺激模式只存本機，不加入 API query。
+
+感官資料一律先呼叫後端（`VITE_API_BASE_URL`）；連不上、路由不存在（404）、伺服器錯誤或回應格式不符時，該次請求改用 `frontend/src/data/quietMock.js` 的完整模擬資料，並跳出通知「後端感官服務暫時無法連線，已改用模擬資料顯示。」。模擬期間畫面以「模擬」小標與資料來源頁說明標示（競賽規則要求清楚標示模擬內容），每 60 秒持續重試後端，三種資料都取得後端回應時自動切回並通知。取消請求不改用模擬；回報／量測只有在無法連線或路由不存在時才模擬完成（不上傳），驗證錯誤與頻率限制仍顯示錯誤讓使用者重試。
+
+2026-11-07 查核：`https://30wbackend.idfc.dev/api/v1` 只有 `GET hello`，六個感官接口皆回 404，因此目前會使用模擬資料；後端 CORS 允許 `localhost:5173` 與 `ynn622.github.io`，但不含本機 dev server 的 `localhost:7890`。修改後重新啟動或建置。偏好與收藏 ID 僅存在此裝置；量測與精確位置不會持久化。
 
 ## 地圖與噪音量測
 
-地圖採指定 [Yuzen 地圖](https://map.yuzen.dev/zh-TW/) 同樣的 **MapLibre GL JS + OpenFreeMap Liberty** 底圖，支援繁中標籤、拖曳縮放、聲音／光線／人潮圖層及場所選取。來源與 attribution 保留於地圖角落；不使用商用地圖 SDK。場所圖片是原創插畫，距離為直線估算，沒有假裝提供步行分鐘數。
+地圖採 **MapLibre GL JS + OpenFreeMap Liberty** 開源底圖，支援繁中標籤、拖曳縮放、聲音／光線／人潮圖層及場所選取。來源與 attribution 保留於地圖角落；不使用商用地圖 SDK。場所圖片是原創插畫，距離為直線估算，沒有假裝提供步行分鐘數。
 
 環境音量面板已接好自訂 `noise_start`／`noise_stop` 及 `noise_status`／`noise_sample` 串流協定。**Flutter handler 尚待 App 團隊實作與 iOS 實機驗證**。一般瀏覽器不模擬音量；未連接時顯示說明。未校準量測為 **dBFS，不能當 dBA**，使用者須主動開始並另行同意分享摘要，不會上傳錄音。
 
@@ -47,7 +52,7 @@ VITE_SENSORY_MODE=api
 
 前端依照[城市通雙向溝通規範](https://tpe-guideline.web.app/docs/two-way-connection/web.html)，透過 `window.flutterObject` 與 App 傳送及接收 `{ name, data }` 格式的 JSON 字串。
 
-感官資料是否使用示範由 `VITE_SENSORY_MODE` 明確決定，與是否在瀏覽器／App 中開啟無關；需要原生能力的功能會獨立檢查 bridge 支援。
+感官資料是否改用模擬資料只取決於後端是否可用，與是否在瀏覽器／App 中開啟無關；需要原生能力的功能會獨立檢查 bridge 支援。
 
 ## 本機啟動
 
