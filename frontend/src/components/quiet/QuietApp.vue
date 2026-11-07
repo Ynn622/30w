@@ -46,6 +46,7 @@ function reported(message) { report.value = null; emit('notify', message); refre
       <p v-if="!city.overview.meta.value?.sources?.length" class="q-helper">尚未取得來源資料，請稍後重試。</p>
       <h3 class="source-subtitle">感官指數 SSI 與個人適配 SFS</h3><p class="q-helper">SSI（0–100，越高越刺激）只採 30 分鐘內有效的聲音、光線、人潮、氣味四維，缺值不當作低刺激，並標示涵蓋維度；空氣品質 AQI 另列，不納入。SFS（越高越適合）依你在此裝置設定的敏感度計算與排序，不上傳。{{ city.usingMock.value ? '模擬資料的指數由模擬數值計算。' : '後端尚未提供版本化指數時，只顯示各維度，不自行推算 SSI。' }}</p>
       <h3 class="source-subtitle">如何看待資料信心</h3><p class="q-helper">依回報數、觀測新鮮度與資料涵蓋度由後端判定。主觀感受、手機音量及官方資料分別標示；超過 30 分鐘的感官資訊不列入低刺激推薦。手機 dBFS 不是校準的環境分貝。</p>
+      <h3 class="source-subtitle">地址查詢</h3><p class="q-helper">定位成功後，會把目前座標送到 OpenStreetMap Nominatim 查詢門牌地址（每次定位最多查一次，結果只存在記憶體）。地址為推估結果，資料 © OpenStreetMap contributors（ODbL）。</p>
       <h3 class="source-subtitle">地圖授權</h3><p class="source-map-links"><a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> · <a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">© OpenMapTiles</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a></p>
     </AppSheet>
   </div>

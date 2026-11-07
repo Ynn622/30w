@@ -1,12 +1,12 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import AppIcon from '../AppIcon.vue'
 import AsyncState from '../AsyncState.vue'
 import PlaceCard from './PlaceCard.vue'
-import SensoryScore from './SensoryScore.vue'
+import SenseInfoDialog from './SenseInfoDialog.vue'
 import QuietLogo from './QuietLogo.vue'
 import LocationGate from './LocationGate.vue'
-import { MOCK_LABEL, SENSES, REPORT_KINDS, aqiText, formatTime, isFresh, levelText } from '../../lib/sensoryDomain.js'
+import { MOCK_LABEL, SENSES, REPORT_KINDS, formatTime, isFresh, levelText } from '../../lib/sensoryDomain.js'
 
 const props = defineProps({ city: { type: Object, required: true } })
 // 「附近的安靜角落」暫時隱藏；改回 true 即可恢復，推薦清單仍可在探索頁使用。
@@ -19,7 +19,8 @@ const canDescribe = computed(() => {
 // 首頁四維與 SSI 只採有效觀測；空品 AQI 另列，不代替氣味。
 const assessment = computed(() => props.city.overview.data.value ? props.city.assess(props.city.overview.data.value, props.city.overview.meta.value) : null)
 const senseValue = key => canDescribe.value ? assessment.value?.dimensions?.[key] ?? null : null
-const air = computed(() => props.city.overview.data.value?.air)
+// 點選感官卡片時開啟的資料說明小視窗。
+const infoKey = ref(null)
 const updatedClock = computed(() => {
   const value = props.city.overview.meta.value?.updatedAt
   if (!value || !Number.isFinite(new Date(value).getTime())) return '時間未知'
@@ -82,24 +83,15 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
         <button class="weather-more q-icon-button" aria-label="查看感官資料來源" @click="$emit('sources')"><AppIcon name="chevron" :size="21" /></button>
       </div>
       <div class="sense-grid">
-        <div v-for="sense in SENSES" :key="sense.key" class="sense-tile" :class="sense.color">
+        <button v-for="sense in SENSES" :key="sense.key" type="button" class="sense-tile" :class="sense.color" :aria-label="`${sense.label}：${levelText(senseValue(sense.key))}，查看資料來源與計算方式`" @click="infoKey = sense.key">
           <AppIcon :name="sense.icon" :size="29" />
           <span>{{ sense.label }}</span>
-          <strong :class="{ 'high-stimulus': senseValue(sense.key) > 66 }">{{ levelText(senseValue(sense.key)) }}<span v-if="senseValue(sense.key) > 66" class="sr-only">，刺激偏高</span></strong>
-        </div>
+          <strong :class="{ 'high-stimulus': senseValue(sense.key) > 66 }">{{ levelText(senseValue(sense.key)) }}</strong>
+        </button>
       </div>
-      <SensoryScore v-if="canDescribe" class="home-score" :assessment="assessment" :mock="Boolean(city.overview.meta.value?.mock)" compact />
-      <p class="air-row"><AppIcon name="leaf" :size="16" /><span v-if="Number.isFinite(air?.aqi)">空氣品質 AQI <b>{{ air.aqi }}</b>（{{ aqiText(air.aqi) }}）· {{ air.station || '測站未提供' }}</span><span v-else>空氣品質：尚未取得測站資料</span><small>另列參考，不納入感官刺激指數</small></p>
-      <button class="confidence-note" @click="$emit('sources')">
-        <AppIcon name="shield" :size="17" />
-        <span>附近 {{ city.overview.data.value.windowMinutes }} 分鐘內 <b>{{ city.overview.data.value.reportCount }} 筆回報</b>・{{ city.overview.data.value.measurementCount }} 筆裝置量測<br><small>{{ city.overview.meta.value?.mock ? MOCK_LABEL : '主觀感受與裝置音量分開統計' }} · {{ { high: '資料信心高', medium: '資料信心中等', low: '資料信心低', insufficient: '資料不足' }[city.overview.data.value.confidence] || '信心未知' }}</small></span>
-        <AppIcon name="chevron" :size="16" />
-      </button>
-      <div v-if="city.overview.data.value.weather" class="weather-foot">
-        <span><AppIcon name="sun" :size="17" />{{ city.overview.data.value.weather.temperatureC ?? '—' }}°C · {{ city.overview.data.value.weather.description }}</span>
-        <span>降雨 {{ city.overview.data.value.weather.rainProbability ?? '—' }}%</span>
-      </div>
+      <p class="sense-hint">點選卡片可查看資料來源與計算方式</p>
     </article>
+    <SenseInfoDialog v-if="infoKey" :city="city" :sense-key="infoKey" :value="senseValue(infoKey)" :described="canDescribe" @close="infoKey = null" />
 
     <section class="quick-report-section q-reveal">
       <div class="section-heading"><h2>快速回報</h2><span>讓城市知道這裡的感受</span></div>
@@ -168,16 +160,10 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
 .sense-tile > span { color: #29363f; font-size: 14px; line-height: 1.4; letter-spacing: -.03em; }
 .sense-tile strong { color: #26343c; font-size: 16px; line-height: 1.35; font-weight: 600; }
 .sense-tile.teal { color: var(--q-brand, #0391A7); }.sense-tile.amber { color: #e5b13e; }.sense-tile.blue { color: #3387a4; }.sense-tile.green { color: #2f7f39; }
+.sense-tile { width: 100%; font: inherit; cursor: pointer; }
+.sense-tile:hover { border-color: #9fd2dc; background: #fff; }
 .sense-tile strong.high-stimulus { color: #b45761; }
-.home-score { margin: 9px 0 0; }
-.air-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; margin: 9px 0 0; padding: 8px 10px; border-radius: 9px; background: #ffffffc4; color: #3f5560; font-size: 13px; line-height: 1.5; }
-.air-row > svg { color: #2f7f39; }
-.air-row small { flex-basis: 100%; color: var(--q-muted); font-size: 12px; }
-.confidence-note { align-items: flex-start; min-height: 62px; padding: 11px 0 9px; gap: 6px; color: #97a9b3; }
-.confidence-note > svg { flex-shrink: 0; margin-top: 3px; }
-.confidence-note > span { color: #6a7780; font-size: 12px; line-height: 1.7; }
-.confidence-note small { color: var(--q-muted); font-size: 12px; }
-.weather-foot { border-color: #dce9ee; padding: 10px 0 11px; color: #657783; font-size: 13px; }
+.sense-hint { margin: 8px 0 12px; color: var(--q-muted); font-size: 12px; line-height: 1.5; text-align: center; }
 .quick-report-section { margin-top: 12px; padding: 12px 13px 0; border: 1px solid #e5eaee; border-radius: 15px; background: #fff; }
 .quick-report-section .section-heading { justify-content: flex-start; gap: 10px; margin-bottom: 11px; }
 .report-grid { gap: 9px; }
@@ -221,7 +207,6 @@ defineEmits(['report', 'measure', 'explore', 'select', 'sources'])
   .sense-grid { gap: 5px; }
   .sense-tile { padding-inline: 2px; }
   .sense-tile > span { font-size: 14px; }
-  .confidence-note > span, .confidence-note small { font-size: 12px; }
   .quick-report-section { padding-inline: 9px; }
   .quick-report-section .section-heading { gap: 7px; }
   .quick-report-section .section-heading h2 { font-size: 17px; }

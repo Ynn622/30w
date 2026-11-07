@@ -5,6 +5,9 @@ import { useQuietCity } from './useQuietCity.js'
 import { mockPlaces } from '../data/quietMock.js'
 const NOW = '2026-11-07T10:30:00+08:00'
 import { AREAS, filterPlaces } from '../lib/sensoryDomain.js'
+// 地址查詢一律以 mock 取代，測試不連到 Nominatim。
+vi.mock('../lib/reverseGeocode.js', () => ({ reverseGeocoder: { lookup: vi.fn(async () => ({ address: '臺北市士林區中正路', inTaipei: true, district: '士林區' })) } }))
+import { reverseGeocoder } from '../lib/reverseGeocode.js'
 vi.mock('../lib/sensoryApi.js', () => ({ MOCK_NOTICE: 'MOCK_NOTICE', sensoryApi: { supportsReportIntensity: false, getOverview: vi.fn(), getMap: vi.fn(), getPlaces: vi.fn() } }))
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); vi.useRealTimers() })
 // 服務只依目前定位提供：測試直接設定裝置位置。
@@ -132,10 +135,16 @@ describe('sensory queries', () => {
     expect(city.areaId.value).toBe('shilin')
     expect(city.reportLocation.value).toMatchObject({ source: 'device', areaId: 'shilin', label: '目前位置（士林區）' })
     expect(sensoryApi.getOverview).toHaveBeenLastCalledWith(expect.objectContaining({ areaId: 'shilin', lat: 25.0935 }), expect.anything())
+    await vi.waitFor(() => expect(city.addressState.value).toBe('ready'))
+    expect(city.address.value).toBe('臺北市士林區中正路')
+    expect(reverseGeocoder.lookup).toHaveBeenCalledTimes(1)
     position = { latitude: 25.0136, longitude: 121.4628 } // 新北市板橋
     await city.locate()
     await nextTick()
     expect(city.locationStatus.value).toBe('outside')
+    // 市外位置不查地址，也不保留先前的地址。
+    expect(reverseGeocoder.lookup).toHaveBeenCalledTimes(1)
+    expect(city.address.value).toBe('')
     expect(city.serviceAvailable.value).toBe(false)
     expect(city.overview.state.value).toBe('idle')
     expect(city.reportLocation.value).toBeNull()

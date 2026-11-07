@@ -4,6 +4,7 @@ import { isCoordinate, nearestArea, readPreferences } from '../lib/sensoryDomain
 import { getNativeChannel } from '../lib/webview.js'
 import { requestNative } from '../lib/nativeClient.js'
 import { assessSensory, rankPlaces } from '../lib/sensoryIndex.js'
+import { reverseGeocoder } from '../lib/reverseGeocode.js'
 
 function useRemote(query, fetcher) {
   // source 只在請求完成時更新，重新載入期間保留上一次結果，避免通知反覆跳出。
@@ -62,6 +63,22 @@ export function useQuietCity(notify) {
   }
   watch(preferences, value => persist('quiet-city-preferences', value), { deep: true })
   watch(favorites, value => persist('quiet-city-favorites', value), { deep: true })
+  // 只在定位成功且位於臺北市時查一次地址（不隨輪詢重查）；失敗時畫面退回顯示行政區。
+  const address = ref(''), addressState = ref('idle')
+  let addressController
+  watch(deviceLocation, async location => {
+    addressController?.abort(); address.value = ''
+    if (!location || !serviceAvailable.value) { addressState.value = 'idle'; return }
+    const controller = addressController = new AbortController()
+    addressState.value = 'loading'
+    try {
+      const result = await reverseGeocoder.lookup(location, { signal: controller.signal })
+      if (controller !== addressController) return
+      address.value = result.address; addressState.value = 'ready'
+    } catch {
+      if (controller === addressController) addressState.value = 'error'
+    }
+  })
   const query = computed(() => serviceAvailable.value
     ? { areaId: areaId.value, lat: center.value.lat, lng: center.value.lng, radius: preferences.value.radius } : null)
   const placeQuery = computed(() => query.value && ({ ...query.value,
@@ -137,8 +154,8 @@ export function useQuietCity(notify) {
   }
   const reportLocation = computed(() => serviceAvailable.value ? { lat: center.value.lat, lng: center.value.lng,
     source: 'device', areaId: areaId.value, label: `目前位置（${area.value.name}）` } : null)
-  onScopeDispose(() => { disposed = true; locationController?.abort(); clearInterval(refreshTimer); window.removeEventListener?.('focus', resume) })
+  onScopeDispose(() => { disposed = true; locationController?.abort(); addressController?.abort(); clearInterval(refreshTimer); window.removeEventListener?.('focus', resume) })
   // 模擬模式下強度選項可完整操作；後端模式需後端宣告支援。
   const reportIntensityEnabled = computed(() => sensoryApi.supportsReportIntensity || usingMock.value)
-  return { dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, preferences, favorites, overview, map, places, locating, locate, toggleFavorite, reportLocation }
+  return { dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, favorites, overview, map, places, locating, locate, toggleFavorite, reportLocation }
 }

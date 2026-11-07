@@ -6,6 +6,7 @@ import PlaceCard from './PlaceCard.vue'
 import { mockMeta, mockOverview, mockPlaces } from '../../data/quietMock.js'
 import { assessSensory } from '../../lib/sensoryIndex.js'
 import { DEFAULT_PREFERENCES, MOCK_LABEL } from '../../lib/sensoryDomain.js'
+import SenseInfoDialog from './SenseInfoDialog.vue'
 // 首頁以目前時間判斷新鮮度，模擬資料也以目前時間產生。
 const NOW = Date.now()
 const sampleOverview = () => mockOverview('zhongzheng', NOW)
@@ -25,11 +26,10 @@ describe('home sensory presentation', () => {
     const html = await renderToString(createSSRApp(QuietHome, { city: cityFor(sampleOverview()) }))
     expect(html).toContain('城市靜音鍵')
     expect(html).toContain('舒適偏吵')
-    expect(html).toContain(MOCK_LABEL)
     expect(html).toContain('模擬：')
     expect(html).not.toContain('示範')
     const live = await renderToString(createSSRApp(QuietHome, { city: cityFor(sampleOverview(), [], { updatedAt: new Date(NOW).toISOString(), sources: [] }) }))
-    expect(live).not.toContain(MOCK_LABEL)
+    expect(live).not.toContain('模擬：')
     expect(live).toContain('更新：')
     expect(html).toContain('城市靜音鍵標誌')
     // 區域只依目前定位決定，不提供手動選單。
@@ -42,13 +42,12 @@ describe('home sensory presentation', () => {
     expect(html).not.toContain('循環杯')
     expect(html).not.toContain('帳務')
   })
-  it('shows four SSI dimensions, a partial index and AQI as a separate reference', async () => {
+  it('shows only the four sense tiles as buttons, without AQI, report counts, SSI chip or weather', async () => {
     const html = await renderToString(createSSRApp(QuietHome, { city: cityFor(sampleOverview(), samplePlaces()) }))
     expect(html).toContain('氣味')
-    expect(html).toContain('SSI 56')
-    expect(html).toContain('部分資料・缺氣味')
-    expect(html).toMatch(/空氣品質 AQI <b[^>]*>32<\/b>.*（良好）/)
-    expect(html).toContain('不納入感官刺激指數')
+    expect((html.match(/<button[^>]*class="[^"]*sense-tile/g) || []).length).toBe(4)
+    expect(html).toContain('查看資料來源與計算方式')
+    for (const removed of ['空氣品質', 'AQI', '筆回報', 'SSI', '適配', '降雨', '°C']) expect(html).not.toContain(removed)
   })
   it.each([
     { reportCount: 0, measurementCount: 0 },
@@ -82,5 +81,28 @@ describe('location-only service', () => {
     expect(html).toContain('需要使用目前位置')
     expect(html).toContain('使用目前位置')
     expect(html).not.toContain('今日感官天氣')
+  })
+})
+describe('sense info dialog', () => {
+  async function renderDialog(props) {
+    const context = {}
+    await renderToString(createSSRApp(SenseInfoDialog, { city: cityFor(sampleOverview()), ...props }), context)
+    return context.teleports.body
+  }
+  it('explains the value, calculation and mock source for a dimension', async () => {
+    const html = await renderDialog({ senseKey: 'noise', value: 72, described: true })
+    expect(html).toContain('聲音資料說明')
+    expect(html).toContain('刺激指數 72／100')
+    expect(html).toContain('0–33 低')
+    expect(html).toContain('不是分貝')
+    expect(html).toContain('40%')
+    expect(html).toContain('城市靜音鍵模擬資料')
+    expect(html).toContain(MOCK_LABEL)
+  })
+  it('says why a dimension is unknown instead of treating it as quiet', async () => {
+    const html = await renderDialog({ senseKey: 'odor', value: null, described: true })
+    expect(html).toContain('未知')
+    expect(html).toContain('近 30 分鐘沒有這一項的回報')
+    expect(html).toContain('AQI 不能代替氣味')
   })
 })

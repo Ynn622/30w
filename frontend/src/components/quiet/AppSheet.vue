@@ -1,7 +1,8 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
 import AppIcon from '../AppIcon.vue'
-defineProps({ title: { type: String, required: true }, busy: Boolean })
+// dialog：置中小視窗；預設為底部 sheet。
+defineProps({ title: { type: String, required: true }, busy: Boolean, dialog: Boolean })
 const emit = defineEmits(['close'])
 const panel = ref(null)
 let previousFocus, previousOverflow
@@ -23,9 +24,9 @@ onUnmounted(() => { document.body.style.overflow = previousOverflow; previousFoc
 </script>
 <template>
   <Teleport to="body">
-    <div class="quiet-overlay" @click.self="!busy && emit('close')">
-      <section ref="panel" class="quiet-sheet" role="dialog" aria-modal="true" :aria-label="title" tabindex="-1" @keydown="trap">
-        <div class="sheet-handle" aria-hidden="true"></div>
+    <div class="quiet-overlay" :class="{ dialog }" @click.self="!busy && emit('close')">
+      <section ref="panel" class="quiet-sheet" :class="{ dialog }" role="dialog" aria-modal="true" :aria-label="title" tabindex="-1" @keydown="trap">
+        <div v-if="!dialog" class="sheet-handle" aria-hidden="true"></div>
         <header class="sheet-header"><h2>{{ title }}</h2><button type="button" class="q-icon-button" :disabled="busy" aria-label="關閉" @click="emit('close')"><AppIcon name="close" :size="20" /></button></header>
         <slot />
       </section>

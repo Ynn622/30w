@@ -494,3 +494,7 @@ body { background: #edf3f7; }
 .q-low-stimulus .quiet-app .q-map-pin { box-shadow: none; }
 .q-low-stimulus :is(.quiet-app, .quiet-overlay) :is(.q-primary, .q-secondary, .q-text-button, .report-grid button, .filter-select select, .explore-tabs button, .detail-tabs button) { min-height: 52px; }
 .q-low-stimulus :is(.quiet-app, .quiet-overlay) .q-icon-button { min-width: 52px; min-height: 52px; }
+
+/* AppSheet dialog：置中的小視窗（例如首頁感官卡片的資料說明）。 */
+.quiet-overlay.dialog { align-items: center; padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom)); }
+.quiet-sheet.dialog { width: min(100%, 360px); max-height: min(80dvh, 560px); padding: 6px 18px 18px; border-radius: 16px; box-shadow: 0 12px 40px #14344d33; }
