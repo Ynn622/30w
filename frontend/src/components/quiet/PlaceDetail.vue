@@ -5,7 +5,7 @@ import AsyncState from '../AsyncState.vue'
 import PlaceArtwork from './PlaceArtwork.vue'
 import SensoryScore from './SensoryScore.vue'
 import { MOCK_NOTICE, sensoryApi } from '../../lib/sensoryApi.js'
-import { MOCK_LABEL, distanceMeters, formatTime, isFresh, levelText } from '../../lib/sensoryDomain.js'
+import { MOCK_LABEL, distanceMeters, formatTime, googleMapsDirectionsUrl, isFresh, levelText } from '../../lib/sensoryDomain.js'
 import { sendToNative } from '../../lib/webview.js'
 const props = defineProps({ id: { type: String, required: true }, city: { type: Object, required: true } })
 const emit = defineEmits(['back', 'notify'])
@@ -25,7 +25,8 @@ watch(() => props.id, load, { immediate: true })
 onUnmounted(() => { serial++; controller?.abort() })
 function navigate() {
   if (meta.value?.mock) { emit('notify', '模擬場所沒有實際位置，不提供導航。'); return }
-  const url = `https://maps.apple.com/?daddr=${place.value.location.lat},${place.value.location.lng}&dirflg=w`
+  const url = googleMapsDirectionsUrl(place.value.location)
+  if (!url) { emit('notify', '此場所缺少有效座標，無法導航。'); return }
   const result = sendToNative('launch_map', url, window)
   if (result.delivered) emit('notify', '已請 App 開啟導航。')
   else window.open(url, '_blank', 'noopener,noreferrer')

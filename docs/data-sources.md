@@ -30,4 +30,4 @@ OpenFreeMap 提供完整開源與自架方式，公開 instance 不需 key，沒
 
 ## 外部導航
 
-`launch_map` 沿用官方 bridge 名稱，真實場所才可將公開 Apple Maps URL 交給原生 App；一般瀏覽器以新視窗開啟。不安裝 Apple／Google 商用地圖 SDK，不在本站依賴外部導航服務提供核心感官資料。若正式作品要依賴某個導航服務、SDK 或新增路由 API，須依 AGENTS.md 再核對授權與競賽適用性。
+`launch_map` 沿用官方 bridge 名稱，真實場所才可將 Google Maps 公開的步行路線連結（[Maps URLs](https://developers.google.com/maps/documentation/urls/get-started)，`https://www.google.com/maps/dir/?api=1&destination=lat,lng&travelmode=walking`）交給原生 App；一般瀏覽器以新視窗開啟。2026-11-07 依開發者要求由 Apple Maps 改為 Google Maps；只是把連結交給 Google 地圖 App／網站開啟，不嵌入地圖、不安裝 Apple／Google 商用地圖 SDK、不需 API key，不在本站依賴外部導航服務提供核心感官資料。若正式作品要依賴某個導航服務、SDK 或新增路由 API，須依 AGENTS.md 再核對授權與競賽適用性。

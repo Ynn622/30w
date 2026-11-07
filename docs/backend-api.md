@@ -195,7 +195,7 @@ VITE_REPORT_INTENSITY=false
 - `artwork`: `library | park | hall`，前端使用原創示意插畫，不代表實景。這版不接照片網址，避免未確認的照片授權。
 - `summary` 使用既有、規則整理或開發階段預先生成的固定文字；本版不呼叫雲端 LLM，也不把後端生成摘要宣稱為即時端側 AI。
 - `reviews` 每筆 `{ "text": "去識別化內容", "observedAt": "ISO 8601" }`。不傳會員識別碼、姓名或精確回報位置；後端應先去識別與檢查內容。
-- 前端提供分享場所名稱與 `launch_map` 導航（收藏功能已移除）。底圖不提供步行路線；導航以 Apple Maps 公開 URL 交給原生 handler／瀏覽器，沒有引入商用地圖 SDK。正式交付需實機確認 App 接受的 URL 格式。
+- 前端提供分享場所名稱與 `launch_map` 導航（收藏功能已移除）。底圖不提供步行路線；導航以 Google Maps 公開步行路線連結（`https://www.google.com/maps/dir/?api=1&destination=lat,lng&travelmode=walking`）交給原生 handler／瀏覽器，沒有引入商用地圖 SDK 或 API key。正式交付需實機確認 App 接受的 URL 格式。
 
 ## 5 主觀感受回報
 

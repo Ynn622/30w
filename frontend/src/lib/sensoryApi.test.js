@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createSensoryApi } from './sensoryApi.js'
-import { AREAS, aqiText, filterPlaces, isCoordinate, levelText, nearestArea, pickSearchRadius, readPreferences } from './sensoryDomain.js'
+import { AREAS, aqiText, filterPlaces, googleMapsDirectionsUrl, isCoordinate, levelText, nearestArea, pickSearchRadius, readPreferences } from './sensoryDomain.js'
 import { mockCells, mockOverview, mockPlaces } from '../data/quietMock.js'
 import { assessSensory } from './sensoryIndex.js'
 afterEach(() => vi.useRealTimers())
@@ -206,5 +206,13 @@ describe('search radius', () => {
   it('picks the smallest backend radius step that covers the map view', () => {
     expect([pickSearchRadius(120), pickSearchRadius(300), pickSearchRadius(301), pickSearchRadius(999), pickSearchRadius(4000)]).toEqual([300, 300, 500, 1000, 1000])
     expect(pickSearchRadius(undefined)).toBe(500)
+  })
+})
+describe('walking navigation link', () => {
+  it('builds a Google Maps walking directions URL and refuses invalid coordinates', () => {
+    const url = new URL(googleMapsDirectionsUrl({ lat: 25.03926, lng: 121.51463 }))
+    expect(url.origin + url.pathname).toBe('https://www.google.com/maps/dir/')
+    expect(Object.fromEntries(url.searchParams)).toEqual({ api: '1', destination: '25.03926,121.51463', travelmode: 'walking' })
+    expect(googleMapsDirectionsUrl({ lat: null, lng: 121 })).toBeNull()
   })
 })

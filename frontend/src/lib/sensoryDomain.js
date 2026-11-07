@@ -80,6 +80,13 @@ export const REPORT_SETTINGS = [
   { id: 'indoor', label: '室內' },
   { id: 'outdoor', label: '室外' },
 ]
+// 步行導航：Google Maps 公開的 Maps URLs 連結（不嵌入、不安裝 Google 地圖 SDK），交給 App 或瀏覽器開啟。
+// 格式見 https://developers.google.com/maps/documentation/urls/get-started
+export function googleMapsDirectionsUrl(location) {
+  if (!isCoordinate(location)) return null
+  const params = new URLSearchParams({ api: '1', destination: `${location.lat},${location.lng}`, travelmode: 'walking' })
+  return `https://www.google.com/maps/dir/?${params}`
+}
 export function isCoordinate(value) {
   return Number.isFinite(value?.lat) && Number.isFinite(value?.lng)
     && Math.abs(value.lat) <= 90 && Math.abs(value.lng) <= 180

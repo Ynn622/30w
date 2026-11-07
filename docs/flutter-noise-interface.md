@@ -84,7 +84,7 @@ InAppWebViewSettings(
 
 - 定位沿用官方 `location`，data=null；前端相容 `{latitude,longitude}` 或 `{lat,lng}` 的數值座標，無效回覆顯示手動區域。請依 App 真正回傳格式確認，不提供假的成功座標。
 - 主動按定位才呼叫；一般瀏覽器使用 Geolocation API，沒有 bridge 或拒絕不會偽裝成功。
-- `launch_map` data 為 Apple Maps 公開網址字串：`https://maps.apple.com/?daddr=lat,lng&dirflg=w`。請確認城市通 handler 是否接受此格式；模擬資料的場所不啟動導航。
+- `launch_map` data 為 Google Maps 公開步行路線網址字串：`https://www.google.com/maps/dir/?api=1&destination=lat,lng&travelmode=walking`（2026-11-07 起由 Apple Maps 改為 Google Maps）。請確認城市通 handler 是否接受此格式；模擬資料的場所不啟動導航。
 
 ## 實機驗收清單
 
