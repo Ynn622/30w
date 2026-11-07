@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { assessSensory, rankPlaces, weightedScore } from './sensoryIndex.js'
+import { assessSensory, rankPlaces, sensoryValues, weightedScore } from './sensoryIndex.js'
 
 const now = '2026-11-07T10:30:00+08:00'
 function record(scores = { noise: 70, light: 20, crowd: 50, odor: null }) {
@@ -39,6 +39,24 @@ describe('sensory assessment', () => {
   it('keeps legacy readings visible without inventing an unversioned SSI', () => {
     const legacy = { senses: { noise: 0, odor: null, air: 0 }, updatedAt: now, confidence: 'medium' }
     expect(assessSensory(legacy, undefined, now)).toMatchObject({ ssi: null, sfs: null, dimensions: { noise: 0, odor: null } })
+  })
+  it('accepts a sensory/map cell in the deployed backend schema (OpenAPI 2026-11-07)', () => {
+    // 後端格網：TWD97 200m 格、UTC 時間、信心最高 low、未達門檻的維度 sampleCount 為 null。
+    const missing = { observedAt: null, validUntil: null, sampleCount: null, confidence: 'insufficient', sourceType: null, missingReason: 'insufficient_samples' }
+    const cell = {
+      id: 'twd97-200:1512:12671', location: { lat: 25.0389, lng: 121.5147 },
+      senses: { noise: 28, light: null, crowd: null, odor: null }, reportCount: null, confidence: 'low', updatedAt: '2026-11-07T02:15:00.000Z',
+      sensoryIndex: {
+        ssi: 28, level: '低', dimensions: { noise: 28, light: null, crowd: null, odor: null }, weights: { noise: 0.4, light: 0.2, crowd: 0.3, odor: 0.1 },
+        coverage: 0.4, dimensionCoverage: 0.25, confidence: 'low', scoreVersion: 'ssi-v0.1', confidenceVersion: 'confidence-v0.1',
+        dimensionMeta: {
+          noise: { observedAt: '2026-11-07T02:15:00.000Z', validUntil: '2026-11-07T02:45:00.000Z', sampleCount: 5, confidence: 'low', sourceType: 'subjective_report', missingReason: null },
+          light: missing, crowd: missing, odor: missing,
+        },
+      },
+    }
+    expect(sensoryValues(cell, '2026-11-07T10:30:00+08:00')).toEqual({ noise: 28, light: null, crowd: null, odor: null })
+    expect(sensoryValues(cell, '2026-11-07T10:46:00+08:00').noise).toBeNull()
   })
   it('excludes an expired dimension and never substitutes AQI for odor', () => {
     const place = record()

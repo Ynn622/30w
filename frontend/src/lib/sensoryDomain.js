@@ -98,6 +98,24 @@ export function distanceMeters(a, b) {
     + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin((b.lng - a.lng) * rad / 2) ** 2
   return Math.round(6371000 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(Math.max(0, 1 - x))))
 }
+// 感官地圖格網：後端為 TWD97 200m 方格，cell.location 為格中心。
+export const CELL_SIZE_M = 200
+// 分段與 levelText 相同（0–33 低、34–66 中等、67–100 偏高）；非有效分數回 null，不畫格。
+export function stimulusLevel(value) {
+  if (!Number.isFinite(value) || value < 0 || value > 100) return null
+  return value <= 33 ? 'low' : value <= 66 ? 'mid' : 'high'
+}
+// 以格中心與邊長換算成 GeoJSON 外環（[lng, lat]、逆時針、首尾相同）。
+// 經緯方格與 TWD97 方格在臺北的旋轉差不到 1 度，200m 格的邊界誤差約 1–2m，作為示意已足夠。
+export function cellSquare(center, sizeM = CELL_SIZE_M) {
+  if (!isCoordinate(center) || !(sizeM > 0)) return null
+  const half = sizeM / 2
+  const dLat = half / 111320
+  const dLng = half / (111320 * Math.cos(center.lat * Math.PI / 180))
+  const round = value => Number(value.toFixed(6))
+  const [w, e, s, n] = [center.lng - dLng, center.lng + dLng, center.lat - dLat, center.lat + dLat].map(round)
+  return [[[w, s], [e, s], [e, n], [w, n], [w, s]]]
+}
 export function levelText(value, air = false) {
   if (!Number.isFinite(value) || value < 0 || value > 100) return '未知'
   return air ? (value <= 33 ? '良好' : value <= 66 ? '普通' : '不佳')

@@ -22,7 +22,7 @@ VITE_REPORT_INTENSITY=false
 
 前端每次都先呼叫以下接口；網路錯誤、逾時、404／405、5xx 或回應格式不符時，該次請求改用前端 `frontend/src/data/quietMock.js` 的模擬資料（`meta.mock=true`、`meta.fallbackReason` 記錄原因），畫面跳出通知並標示「模擬」，之後每 60 秒重試，後端恢復即自動切回。POST 只在無法連線或 404／405／5xx 時模擬完成且不上傳；400、409、429 等錯誤直接顯示。後端上線後請確認不會落入模擬（例如格式不符也會觸發備援）。既有 debug 的 hello/health 測試獨立運作。
 
-2026-11-07 晚間查核 `https://30wbackend.idfc.dev/api/v1`：`GET places`、`GET places/{id}` 200，符合本契約（前端已實測顯示真實場所與詳情；四維 senses 皆 null、confidence insufficient）；`sensory/overview`、`sensory/map`、`POST reports`、`POST measurements` 仍回 404 `Route not found`，前端這些部分維持模擬資料並以通知指出。後端 `/openapi.json` 另列 `resources`、`resources/sources`、`resources/{id}` 開放資料點位接口，不屬本契約，前端尚未使用。CORS 允許 `http://localhost:5173` 與 `https://ynn622.github.io`，**未允許** `http://localhost:7890`（前端 dev server 預設埠，回 403）。
+2026-11-07 晚間查核 `https://30wbackend.idfc.dev/api/v1`：`GET places`、`GET places/{id}` 200，符合本契約（前端已實測顯示真實場所與詳情；四維 senses 皆 null、confidence insufficient）。23:05 再查核：`GET sensory/overview`、`GET sensory/map` 已上線回 200，前端實測不再落入模擬；當時各區皆未達公開門檻（overview 全維 null、`cells: []`），探索地圖圖例顯示「暫無熱區」。另以後端 OpenAPI 的 `SensoryMapCell` 格式在瀏覽器注入測試格網，確認前端可解析並繪製（測試格網未寫入後端）；`zones`／`Place.zone` 後端尚未提供。`POST reports`、`POST measurements` 已列於後端 OpenAPI，本次未實測寫入。後端 `/openapi.json` 另列 `resources`、`resources/sources`、`resources/{id}` 開放資料點位接口，不屬本契約，前端尚未使用。CORS 允許 `http://localhost:5173` 與 `https://ynn622.github.io`，**未允許** `http://localhost:7890`（前端 dev server 預設埠，回 403）。
 
 前端入口：`frontend/src/lib/sensoryApi.js`。以下路徑全部接在 base URL 後，不含開頭 `/`，確保 `/api/v1` 不被覆蓋。頁面可見時每 60 秒重新讀取三種概況／地圖／清單資料，視窗重新取得焦點也更新；離開產品頁（含 debug）會清除 timer 與 listener。每次切區域／偏好會取消舊 GET，避免舊回覆覆蓋新查詢；POST 送出期間禁止重複點選。
 
@@ -135,10 +135,11 @@ VITE_REPORT_INTENSITY=false
 }
 ```
 
-- 無資料時 `cells: []`。前端仍可用底圖與場所清單，不憑空補點。
+- 無資料時 `cells: []`。前端仍可用底圖與場所清單，不憑空補點，圖例提示「附近 30 分鐘內回報尚未達公開門檻，暫無熱區」。
+- 已上線後端（OpenAPI 2026-11-07）：cell `id` 為 `twd97-200:x:y` 固定 200m 格，只回四角完全落在查詢圓內的格；每格每維至少 5 個網路桶才出分，信心最高 `low`。前端以格中心畫出 200m 方塊（`cellSquare`），顏色只依該格該維分數分三段（0–33 低／34–66 中等／67–100 偏高，`stimulusLevel`），不再使用會因點的疏密疊加而失真的熱圖。
 - location 為匿名格網中心，非個別回報者位置；後端自行設置最少樣本門檻、格網尺度與保留期間，避免還原個人位置。
 - 前端切聲音／光線／人潮不重建地圖；只使用對應的非 null、0–100、30 分鐘內資料。`insufficient` 及過期格網不繪製。
-- 熱圖為樣本位置與指數的加權視覺化，**不是官方噪音等值線，也不能解讀為道路即時 dBA**。低值與未觀測處以觀測格網圓點區分：0 指數仍顯示綠點，無觀測則沒有圓點。
+- 格網方塊為匿名主觀回報的彙整示意，**不是官方噪音等值線，也不能解讀為道路即時 dBA**。低值與未觀測處以有無方塊區分：0 指數仍顯示綠色方塊，無觀測則沒有方塊，不代表安靜。
 
 ### 2.1 低刺激綠區 `zones`（待實作）
 

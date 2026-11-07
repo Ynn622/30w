@@ -292,8 +292,11 @@ body { background: #edf3f7; }
 .q-map-state strong { font-size: 15px; line-height: 1.7; font-weight: 500; }
 .map-legend { position: absolute; pointer-events: none; top: 12px; left: 12px; width: 166px; background: #fffffff5; padding: 10px 12px; border-radius: 10px; box-shadow: 0 3px 10px #1f55611a; }
 .map-legend strong { font-size: 14px; font-weight: 600; }
-.map-legend > div { height: 7px; margin: 6px 0 4px; border-radius: 8px; background: linear-gradient(90deg, #3db4c5, #a3dca0, #f5e487, #ed8e80); }
-.map-legend > span { display: flex; justify-content: space-between; font-size: 12px; color: var(--q-muted); }
+.map-legend-scale { display: flex; justify-content: space-between; gap: 4px; margin: 7px 0 4px; padding: 0; list-style: none; font-size: 12px; }
+.map-legend-scale li { display: flex; flex-direction: column; align-items: center; gap: 2px; color: #33434c; }
+.map-legend-scale i { width: 22px; height: 12px; border: 1px solid; border-radius: 3px; opacity: .85; }
+.map-legend-scale small { color: var(--q-muted); font-size: 11px; }
+.map-legend-note { display: block; color: var(--q-muted); font-size: 11px; line-height: 1.5; }
 .map-tools { position: absolute; right: 12px; top: 12px; display: grid; gap: 7px; }
 .map-tools .q-icon-button { width: 44px; height: 44px; box-shadow: 0 2px 8px #2447561a; background: #fff; border: 1px solid #dce6ed; border-radius: 50%; color: #385c6e; }
 .minus-icon { font-size: 26px; line-height: 1; }

@@ -1,13 +1,21 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import AppIcon from '../AppIcon.vue'
-import { distanceMeters, isCoordinate } from '../../lib/sensoryDomain.js'
+import { cellSquare, distanceMeters, isCoordinate, stimulusLevel } from '../../lib/sensoryDomain.js'
 import { sensoryValues } from '../../lib/sensoryIndex.js'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 const props = defineProps({ places: { type: Array, default: () => [] }, cells: { type: Array, default: () => [] }, center: { type: Object, required: true }, layer: { type: String, default: 'noise' }, deviceLocated: Boolean, lowStimulus: Boolean, layerVisible: { type: Boolean, default: true }, mock: Boolean })
 const emit = defineEmits(['select', 'locate', 'viewchange'])
-const container = ref(null), ready = ref(false), error = ref('')
+const container = ref(null), ready = ref(false), error = ref(''), shownCells = ref(0)
+// 每個格網畫成 200m 方塊，顏色只看該格自己的分數（三段），不像熱圖會因點的疏密疊加而失真。
+const LEVELS = [
+  { id: 'low', label: '低', range: '0–33', fill: '#4fae84', line: '#2f8a62' },
+  { id: 'mid', label: '中等', range: '34–66', fill: '#e3c158', line: '#b8962c' },
+  { id: 'high', label: '偏高', range: '67–100', fill: '#da735f', line: '#b4513e' },
+]
+const byLevel = key => ['match', ['get', 'level'], ...LEVELS.flatMap(level => [level.id, level[key]]), '#9aa5ab']
+const CELL_LAYERS = ['sensory-cells', 'sensory-cells-outline']
 let map, maplibre, markers = [], centerMarker, observer, timer, moveTimer, disposed = false, generation = 0
 const reduced = () => props.lowStimulus || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 const layerLabels = { noise: '聲音', light: '光線', crowd: '人潮', odor: '氣味' }
@@ -15,7 +23,7 @@ const layerLabels = { noise: '聲音', light: '光線', crowd: '人潮', odor: '
 function applyVisibility() {
   if (!ready.value || !map) return
   const visibility = props.layerVisible ? 'visible' : 'none'
-  for (const id of ['sensory-heat', 'sensory-observed']) map.setLayoutProperty(id, 'visibility', visibility)
+  for (const id of CELL_LAYERS) map.setLayoutProperty(id, 'visibility', visibility)
 }
 // 場所標記：水滴形圖釘（依類型配色＋白底小圖示）與下方小字名稱。
 // 圖示是固定的 SVG 字串，不含 API 資料；名稱來自 API，一律用 textContent。
@@ -53,8 +61,11 @@ function sync() {
   const features = props.cells.filter(cell => isCoordinate(cell?.location))
     .map(cell => ({ cell, value: sensoryValues(cell, now)[props.layer] }))
     .filter(({ value }) => value !== null)
-    .map(({ cell, value }) => ({ type: 'Feature', properties: { intensity: value / 100 }, geometry: { type: 'Point', coordinates: [cell.location.lng, cell.location.lat] } }))
+    .map(({ cell, value }) => ({ cell, level: stimulusLevel(value), coordinates: cellSquare(cell.location) }))
+    .filter(({ level, coordinates }) => level && coordinates)
+    .map(({ cell, level, coordinates }) => ({ type: 'Feature', properties: { id: String(cell.id ?? ''), level }, geometry: { type: 'Polygon', coordinates } }))
   map.getSource('sensory')?.setData({ type: 'FeatureCollection', features })
+  shownCells.value = features.length
   clearMarkers()
   props.places.filter(place => isCoordinate(place.location)).forEach(place => {
     // 元素頂端為圖釘頂端，往上位移圖釘高度，讓尖端對準座標、名稱在下方。
@@ -86,16 +97,10 @@ async function initialize() {
         }
       }
       map.addSource('sensory', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-      map.addLayer({ id: 'sensory-heat', type: 'heatmap', source: 'sensory', paint: {
-        'heatmap-weight': 1, 'heatmap-intensity': .8, 'heatmap-radius': 78, 'heatmap-opacity': .43,
-        'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(0,0,0,0)', .15, '#73c5a6', .4, '#c5dea1', .6, '#f4df9b', .85, '#edb18e', 1, '#d47e78'],
-      } })
-      // 刺激強度由資料值影響熱圖權重，不將樣本密度誤稱音量。
-      map.setPaintProperty('sensory-heat', 'heatmap-weight', ['get', 'intensity'])
-      map.addLayer({ id: 'sensory-observed', type: 'circle', source: 'sensory', paint: {
-        'circle-radius': 4.5, 'circle-opacity': .65, 'circle-stroke-width': 1.5, 'circle-stroke-color': '#ffffff',
-        'circle-color': ['interpolate', ['linear'], ['get', 'intensity'], 0, '#70b393', .5, '#d8c47e', 1, '#cf887b'],
-      } })
+      // 方塊畫在底圖文字之下，街名與地標仍清楚可讀；無觀測處沒有方塊，不代表安靜。
+      const beforeId = map.getStyle().layers?.find(layer => layer.type === 'symbol')?.id
+      map.addLayer({ id: 'sensory-cells', type: 'fill', source: 'sensory', paint: { 'fill-color': byLevel('fill'), 'fill-opacity': .42 } }, beforeId)
+      map.addLayer({ id: 'sensory-cells-outline', type: 'line', source: 'sensory', paint: { 'line-color': byLevel('line'), 'line-width': 1, 'line-opacity': .7 } }, beforeId)
       ready.value = true; applyVisibility(); sync()
     })
     // 停止拖曳／縮放 0.5 秒後回報地圖中心，讓上層抓取該處附近的地點與熱區。
@@ -127,7 +132,7 @@ onUnmounted(() => { disposed = true; generation++; clearTimeout(timer); clearTim
   <div class="sensory-map-wrap">
     <div ref="container" class="sensory-map" role="region" aria-label="城市感官互動地圖，可拖曳縮放"></div>
     <div v-if="!ready || error" class="q-map-state" role="status"><AppIcon :name="error ? 'map' : 'layers'" :size="28"/><strong>{{ error || '正在展開城市地圖…' }}</strong><button v-if="error" class="q-secondary" @click="initialize">重新載入地圖</button></div>
-    <div v-if="ready && !error && layerVisible" class="map-legend"><strong>{{ layerLabels[layer] }}刺激示意</strong><em v-if="mock" class="map-legend-mock">模擬資料</em><div></div><span>較低 <span>較高</span></span></div>
+    <div v-if="ready && !error && layerVisible" class="map-legend"><strong>{{ layerLabels[layer] }}刺激示意</strong><em v-if="mock" class="map-legend-mock">模擬資料</em><ul class="map-legend-scale"><li v-for="level in LEVELS" :key="level.id"><i :style="{ background: level.fill, borderColor: level.line }"></i>{{ level.label }}<small>{{ level.range }}</small></li></ul><small class="map-legend-note">每格 200m，無色塊處為無資料</small><small v-if="!shownCells" class="map-legend-empty">附近 30 分鐘內回報尚未達公開門檻，暫無熱區</small></div>
     <div class="map-tools"><button class="q-icon-button" aria-label="使用目前位置並移至地圖中心" @click="$emit('locate')"><AppIcon name="locate" :size="21"/></button><button class="q-icon-button" aria-label="放大地圖" @click="map?.zoomIn({ duration: reduced() ? 0 : 200 })"><AppIcon name="plus" :size="21"/></button><button class="q-icon-button" aria-label="縮小地圖" @click="map?.zoomOut({ duration: reduced() ? 0 : 200 })"><span class="minus-icon">−</span></button></div>
   </div>
 </template>
@@ -136,6 +141,7 @@ onUnmounted(() => { disposed = true; generation++; clearTimeout(timer); clearTim
 /* MapLibre 的 CSS 會在探索頁延遲載入；此規則不可被其 position: relative 覆蓋。
    容器本身也需有尺寸，不能只依賴外層的高度或內部絕對定位的 canvas。 */
 .map-legend-mock { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px; background: #fff1e3; color: #8a4f1d; font-size: 11px; font-style: normal; vertical-align: 1px; }
+.map-legend-empty { display: block; margin-top: 6px; color: var(--q-muted); font-size: 12px; line-height: 1.5; }
 .sensory-map {
   position: absolute;
   inset: 0;
