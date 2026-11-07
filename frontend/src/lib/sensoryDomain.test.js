@@ -1,22 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { cellSquare, distanceMeters, levelText, stimulusLevel } from './sensoryDomain.js'
+import { personalStimulus } from './sensoryDomain.js'
 
-describe('sensory map cells', () => {
-  it('classifies each cell by its own score with the same bands as levelText', () => {
-    expect([0, 33, 33.5, 66, 67, 100].map(stimulusLevel)).toEqual(['low', 'low', 'mid', 'mid', 'high', 'high'])
-    expect([33, 33.5, 67].map(value => levelText(value))).toEqual(['低', '中等', '偏高'])
-    // 未知或超出範圍不畫格，不能被當成安靜。
-    expect([null, undefined, NaN, -1, 101].map(stimulusLevel)).toEqual([null, null, null, null, null])
-  })
-  it('builds a closed counter-clockwise 200m square around the cell centre', () => {
-    const center = { lat: 25.1145, lng: 121.5352 }
-    const [ring] = cellSquare(center)
-    expect(ring).toHaveLength(5)
-    expect(ring[0]).toEqual(ring[4])
-    const [[w, s], [e], [, n]] = ring
-    expect(e > w && n > s).toBe(true)
-    expect(distanceMeters({ lat: s, lng: w }, { lat: s, lng: e })).toBeCloseTo(200, -1)
-    expect(distanceMeters({ lat: s, lng: w }, { lat: n, lng: w })).toBeCloseTo(200, -1)
-    expect(cellSquare({ lat: 91, lng: 0 })).toBeNull()
+describe('personal stimulus per map point', () => {
+  it('weights each point by sensitivity share and ignores missing dimensions (lenient)', () => {
+    const now = '2026-11-08T10:00:00+08:00'
+    const cell = { senses: { noise: 20, light: null, crowd: 60, odor: null }, confidence: 'medium', updatedAt: now }
+    // 怕吵：(20×4 + 60×1) / 5 = 28；怕擠：(20×1 + 60×5) / 6 ≈ 53。同一點因人而異。
+    expect(personalStimulus(cell, { noise: 4, light: 2, crowd: 1, odor: 1 }, now)).toBe(28)
+    expect(personalStimulus(cell, { noise: 1, light: 2, crowd: 5, odor: 1 }, now)).toBe(53)
+    // 寬鬆：只有一維資料也會計算；四維全缺或過期回 null，不當成安靜。
+    expect(personalStimulus({ ...cell, senses: { noise: 20, light: null, crowd: null, odor: null } }, { noise: 1, light: 1, crowd: 5, odor: 1 }, now)).toBe(20)
+    expect(personalStimulus({ ...cell, senses: { noise: null, light: null, crowd: null, odor: null } }, undefined, now)).toBeNull()
+    expect(personalStimulus(cell, undefined, '2026-11-08T10:31:00+08:00')).toBeNull()
   })
 })

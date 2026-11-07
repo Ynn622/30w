@@ -9,6 +9,8 @@ export const MOCK_NOTICE = '後端感官服務暫時無法連線，已改用模�
 export function createSensoryApi({
   request = apiRequest, now = () => Date.now(),
   reportIntensity = import.meta.env.VITE_REPORT_INTENSITY === 'true',
+  // 展示用：VITE_MOCK_MAP=true 時感官地圖一律用模擬格網（不呼叫 sensory/map），仍以 meta.mock 標示並跳通知。
+  mockMap = import.meta.env.VITE_MOCK_MAP === 'true',
 } = {}) {
   // 後端確認支援 intensity 後再以環境變數開啟，否則維持舊 body。
   const supportsReportIntensity = reportIntensity === true
@@ -38,7 +40,8 @@ export function createSensoryApi({
     catch (error) {
       if (cancelled(error, signal)) throw error
       const time = now()
-      const data = fallback(time)
+      // 模擬地圖格網需非同步載入 JSON，其餘模擬資料為同步；一律 await。
+      const data = await fallback(time)
       if (data == null) throw error
       return { data: JSON.parse(JSON.stringify(data)), meta: mockMeta(time, reasonOf(error)) }
     }
@@ -68,10 +71,11 @@ export function createSensoryApi({
       return result
     }, time => mockOverview(query.areaId, time), options.signal),
     getMap: (query, options = {}) => withFallback(async () => {
+      if (mockMap) throw new Error('已設定 VITE_MOCK_MAP，感官地圖使用模擬資料。')
       const result = await get('sensory/map', query, options)
       if (!Array.isArray(result.data.cells)) throw new Error('地圖資料格式不符，缺少 cells 陣列。')
       return result
-    }, time => ({ cells: mockCells(query.areaId, time, centerOf(query)) }), options.signal),
+    }, async time => ({ cells: await mockCells(query.areaId, time, centerOf(query), query.radius) }), options.signal),
     getPlaces: (query, options = {}) => withFallback(async () => {
       const result = await get('places', query, options)
       if (!Array.isArray(result.data.places) || !result.data.places.every(checkPlace)) throw new Error('場所清單格式不符，請檢查名稱與座標。')

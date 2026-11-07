@@ -26,9 +26,13 @@ VITE_API_BASE_URL=https://your-backend.example/api/v1
 VITE_REPORT_INTENSITY=false
 # true：鎖定在臺北市天母體育館（士林區）測試，不呼叫定位；false：維持裝置定位
 VITE_FAKE_LOCATION=false
+# true：探索地圖感官格網一律用模擬資料（展示敏感圖層用）；false：先呼叫後端
+VITE_MOCK_MAP=false
 ```
 
 `VITE_FAKE_LOCATION=true` 時，`useQuietCity.locate()` 不呼叫城市通 `location` 或瀏覽器 Geolocation，直接使用 `frontend/src/config/locationConfig.js` 的天母體育館座標（取自 OpenStreetMap「天母運動公園」），第一次定位時跳通知「測試模式：已固定使用天母體育館位置，非實際定位。」。回報與量測仍照常帶這個座標，僅供展示與開發測試；正式上架請維持 `false`。GitHub Pages 部署由 repo 的 Actions Variable `VITE_FAKE_LOCATION` 控制（Settings → Secrets and variables → Actions → Variables），未設定等同 `false`；修改後需重跑部署流程。
+
+`VITE_MOCK_MAP=true` 時，`sensoryApi.getMap` 不呼叫 `sensory/map`，直接使用 `frontend/src/data/mock-sensory-cells.json` 的模擬格網（臺北市範圍內約 2.7 萬個不規則分布的模擬回報點：一般區域約 150m 一點、熱區密集到約 50m，數值由隨機熱點與雜訊產生；回傳查詢中心 2km 內的點，移動地圖不會改變數值）。這個 JSON 是敏感圖層的模擬資料來源，可手動修改，或執行 `npm run mock:cells`（`frontend/scripts/generate-mock-cells.mjs`）重新產生；只在需要模擬地圖時才動態載入，仍以 `meta.mock=true` 標示並跳通知；場所清單與首頁概況照常呼叫後端。用於後端尚無達門檻資料時展示敏感圖層，正式上架請維持 `false`。部署同樣由 Actions Variable `VITE_MOCK_MAP` 控制。
 
 SSI（環境感官刺激指數）與 SFS（個人適配分數）在前端以 `frontend/src/lib/sensoryIndex.js` 計算：只採 `sensoryIndex.scoreVersion=ssi-v0.1` 且 30 分鐘內有效的維度，缺值不當作低刺激並標示涵蓋率；後端未提供版本化指數時只顯示各維度，不自行推算 SSI。敏感度、排序與低刺激模式只存本機，不加入 API query。
 

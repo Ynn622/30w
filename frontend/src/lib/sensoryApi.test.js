@@ -29,10 +29,18 @@ describe('API first with mock fallback', () => {
   })
   it('falls back when a successful response is malformed or marked as test data', async () => {
     for (const data of [{}, { data: { cells: [] }, meta: { mock: true, sources: [] } }]) {
-      const result = await createSensoryApi({ request: vi.fn().mockResolvedValue({ data }), now }).getMap({ areaId: 'zhongzheng' })
+      // 明確關閉 mockMap，避免本機 .env 的 VITE_MOCK_MAP 影響測試。
+      const result = await createSensoryApi({ request: vi.fn().mockResolvedValue({ data }), now, mockMap: false }).getMap({ areaId: 'zhongzheng' })
       expect(result.meta.mock).toBe(true)
       expect(result.meta.fallbackReason).toContain('格式不符')
     }
+  })
+  it('uses labelled mock map cells without calling the backend when VITE_MOCK_MAP is on', async () => {
+    const request = vi.fn()
+    const result = await createSensoryApi({ request, now, mockMap: true }).getMap({ areaId: 'shilin', lat: 25.1145, lng: 121.5352, radius: 1000 })
+    expect(request).not.toHaveBeenCalled()
+    expect(result.meta).toMatchObject({ mock: true, fallbackReason: expect.stringContaining('VITE_MOCK_MAP') })
+    expect(result.data.cells.length).toBeGreaterThan(0)
   })
   it('centers mock places on the user location and keeps the mock detail at the same coordinates', async () => {
     const api = createSensoryApi({ request: vi.fn().mockRejectedValue(routeMissing), now })
@@ -123,7 +131,7 @@ describe('writes', () => {
   })
 })
 describe('mock data set', () => {
-  it('covers every area and endpoint with fresh, versioned observations', () => {
+  it('covers every area and endpoint with fresh, versioned observations', async () => {
     for (const area of AREAS) {
       const overview = mockOverview(area.id, NOW)
       expect(overview).toMatchObject({ area: area.name, windowMinutes: 30, air: { aqi: expect.any(Number) } })
@@ -135,8 +143,23 @@ describe('mock data set', () => {
         expect(place.reviews).toHaveLength(place.reviewCount)
         expect(isCoordinate(place.location)).toBe(true)
       }
-      expect(mockCells(area.id, NOW).length).toBeGreaterThanOrEqual(8)
+      expect((await mockCells(area.id, NOW)).length).toBeGreaterThanOrEqual(8)
     }
+    // 模擬格網固定在地面上：不同查詢中心取到的同一格，座標與四維完全相同（地圖移動時熱力圖不會跟著跑）。
+    const a = await mockCells('shilin', NOW, { lat: 25.1145, lng: 121.5352 }, 1000)
+    const b = await mockCells('shilin', NOW, { lat: 25.1180, lng: 121.5400 }, 1000)
+    // 渲染範圍為查詢中心 2km 內（不規則分布，天母附近約 1,500 點）。
+    expect(a.length).toBeGreaterThan(250)
+    const shared = a.filter(cell => b.some(other => other.id === cell.id))
+    expect(shared.length).toBeGreaterThan(10)
+    for (const cell of shared) {
+      const other = b.find(item => item.id === cell.id)
+      expect(other.location).toEqual(cell.location)
+      expect(other.senses).toEqual(cell.senses)
+    }
+    // 四維彼此分歧：至少有一格聲音低但人潮高、一格聲音高但人潮低。
+    expect(a.some(cell => cell.senses.noise <= 33 && cell.senses.crowd >= 67)).toBe(true)
+    expect(a.some(cell => cell.senses.noise >= 67 && cell.senses.crowd <= 33)).toBe(true)
     expect(assessSensory(mockPlaces('zhongzheng', NOW)[0], undefined, NOW)).toMatchObject({ ssi: 27, availableCount: 4 })
     // 刻意保留一筆超過 30 分鐘的觀測，驗證過期資料不被當成低刺激。
     expect(assessSensory(mockPlaces('zhongzheng', NOW).find(place => place.id === 'zhongzheng-arts'), undefined, NOW).ssi).toBeNull()
