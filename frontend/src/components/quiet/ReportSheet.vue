@@ -47,6 +47,11 @@ async function submit() {
 </script>
 <template>
   <AppSheet title="分享此刻的感受" :busy="busy" @close="!busy && $emit('close')">
+    <template v-if="city.reportLocation.value">
+      <MiniMap class="report-map" :location="city.reportLocation.value" />
+      <div class="q-location-box"><button type="button" class="q-icon-button relocate-button" :class="{ locating: city.locating.value }" :disabled="city.locating.value || busy" :aria-label="city.locating.value ? '定位中' : '重新定位'" :title="city.locating.value ? '定位中' : '重新定位'" @click="city.locate"><AppIcon name="locate" :size="20"/></button><div><strong>{{ addressText }}</strong></div></div>
+    </template>
+    <div v-else class="q-location-box"><button type="button" class="q-icon-button relocate-button" :class="{ locating: city.locating.value }" :disabled="city.locating.value || busy" :aria-label="city.locating.value ? '定位中' : '重新定位'" :title="city.locating.value ? '定位中' : '重新定位'" @click="city.locate"><AppIcon name="locate" :size="20"/></button><div><strong>尚未取得臺北市內的目前位置</strong><p>回報只能使用目前定位；請重新定位後再送出。</p></div></div>
     <button type="button" class="report-selection" :class="currentKind.color" :aria-expanded="pickerOpen" aria-controls="report-kind-picker" :disabled="busy" @click="pickerOpen = !pickerOpen">
       <AppIcon :name="currentKind.icon" :size="26"/>
       <div><span>你感受到什麼？</span><h3>{{ currentKind.label }}</h3></div>
@@ -55,11 +60,6 @@ async function submit() {
     <div v-if="pickerOpen" id="report-kind-picker" class="kind-picker" role="group" aria-label="選擇其他感受">
       <button v-for="item in REPORT_KINDS" :key="item.id" type="button" :class="[item.color, { selected: item.id === currentKind.id }]" :aria-pressed="item.id === currentKind.id" @click="chooseKind(item)"><AppIcon :name="item.icon" :size="20"/><span>{{ item.label }}</span></button>
     </div>
-    <template v-if="city.reportLocation.value">
-      <MiniMap class="report-map" :location="city.reportLocation.value" />
-      <div class="q-location-box"><button type="button" class="q-icon-button relocate-button" :class="{ locating: city.locating.value }" :disabled="city.locating.value || busy" :aria-label="city.locating.value ? '定位中' : '重新定位'" :title="city.locating.value ? '定位中' : '重新定位'" @click="city.locate"><AppIcon name="locate" :size="20"/></button><div><strong>{{ addressText }}</strong></div></div>
-    </template>
-    <div v-else class="q-location-box"><button type="button" class="q-icon-button relocate-button" :class="{ locating: city.locating.value }" :disabled="city.locating.value || busy" :aria-label="city.locating.value ? '定位中' : '重新定位'" :title="city.locating.value ? '定位中' : '重新定位'" @click="city.locate"><AppIcon name="locate" :size="20"/></button><div><strong>尚未取得臺北市內的目前位置</strong><p>回報只能使用目前定位；請重新定位後再送出。</p></div></div>
     <fieldset v-if="currentKind.tags.length" class="report-field" :disabled="busy">
       <legend>具體情況<span>可複選・選填</span></legend>
       <div class="choice-chips">
@@ -94,7 +94,7 @@ async function submit() {
 </template>
 <style scoped>
 /* 選擇的感受：較矮的一列，點擊展開其他種類。 */
-.report-selection { width: 100%; gap: 10px; padding: 9px 12px; margin-bottom: 12px; font: inherit; text-align: left; cursor: pointer; }
+.report-selection { width: 100%; gap: 10px; padding: 9px 12px; margin: 4px 0 12px; font: inherit; text-align: left; cursor: pointer; }
 .report-selection > svg { flex-shrink: 0; }
 .report-selection.teal > svg { color: #2197ac; }.report-selection.amber > svg { color: #dfad36; }.report-selection.blue > svg { color: #5c707e; }.report-selection.purple > svg { color: #83a3ae; }.report-selection.coral > svg { color: #cf6f55; }.report-selection.slate > svg { color: #5f7186; }.report-selection.green > svg { color: #3e8e49; }.report-selection.muted > svg { color: #50616d; }
 .report-selection span:not(.change-kind) { font-size: 12px; }
@@ -106,7 +106,7 @@ async function submit() {
 .kind-picker button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 58px; padding: 6px 2px; border: 1px solid #dde3e8; border-radius: 10px; background: #fff; font: inherit; font-size: 12px; color: #303e47; cursor: pointer; }
 .kind-picker button.selected { border-color: var(--q-brand, #0391a7); background: var(--q-mint, #edf8fc); font-weight: 600; }
 .kind-picker button.teal svg { color: #2197ac; }.kind-picker button.amber svg { color: #dfad36; }.kind-picker button.blue svg { color: #5c707e; }.kind-picker button.purple svg { color: #83a3ae; }.kind-picker button.coral svg { color: #cf6f55; }.kind-picker button.slate svg { color: #5f7186; }.kind-picker button.green svg { color: #3e8e49; }.kind-picker button.muted svg { color: #50616d; }
-.report-map { margin-top: 18px; }
+.report-map { margin-top: 4px; }
 .report-map + .q-location-box { margin-top: 10px; }
 /* 地址旁的定位圖示即為「重新定位」按鈕，觸控區 44px。 */
 .relocate-button { flex-shrink: 0; width: 44px; min-height: 44px; margin: -6px -4px -6px -10px; padding: 0; border-radius: 50%; color: var(--q-brand, #0391a7); }

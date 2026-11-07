@@ -69,3 +69,12 @@ describe('two-layer quick report', () => {
     expect(html).toContain('請在補充說明描述環境狀況')
   })
 })
+describe('report sheet layout', () => {
+  it('shows the map, then the address, then the feeling selection', async () => {
+    const html = await render('noisy')
+    const map = html.indexOf('mini-map'), address = html.indexOf('臺北市中正區承德路一段3號'), selection = html.indexOf('report-selection')
+    expect(map).toBeGreaterThan(-1)
+    expect(map).toBeLessThan(address)
+    expect(address).toBeLessThan(selection)
+  })
+})
