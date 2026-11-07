@@ -6,7 +6,6 @@ import { requestNative } from '../lib/nativeClient.js'
 import { assessSensory, rankPlaces } from '../lib/sensoryIndex.js'
 import { reverseGeocoder } from '../lib/reverseGeocode.js'
 import { readNoiseHistory, saveNoiseEntry } from '../lib/noiseHistory.js'
-import { ZONE_RANK, parseZones, zoneOf } from '../lib/sensoryZones.js'
 
 function useRemote(query, fetcher) {
   // source 只在請求完成時更新，重新載入期間保留上一次結果，避免通知反覆跳出。
@@ -116,18 +115,9 @@ export function useQuietCity(notify) {
   const map = useRemote(mapQuery, sensoryApi.getMap)
   const places = useRemote(placeQuery, sensoryApi.getPlaces)
   // 篩選範圍以地圖中心計算，但清單顯示的直線距離一律從目前位置算。
-  // 低刺激綠區：只用後端（或標示的模擬資料）回傳的多邊形；目前依聲音維度呈現。
-  const ZONE_LAYER = 'noise'
-  const zoneData = computed(() => parseZones(map.data.value, now.value))
-  const lowZones = computed(() => zoneData.value.features.filter(feature => feature.properties.layer === ZONE_LAYER))
-  const ranked = computed(() => rankPlaces((places.data.value?.places || []).map(place => ({
+  const recommendations = computed(() => rankPlaces((places.data.value?.places || []).map(place => ({
     ...place, distanceM: distanceMeters(center.value, place.location) ?? place.distanceM, assessment: assess(place, places.meta.value),
-    zoneStatus: zoneOf(place, ZONE_LAYER, now.value),
   })), preferences.value.sort))
-  // 低刺激模式：周邊低刺激區優先、資料不足其次、非低刺激最後（不隱藏場所，同組內維持原排序）。
-  const recommendations = computed(() => preferences.value.lowStimulus
-    ? [...ranked.value].sort((a, b) => ZONE_RANK[a.zoneStatus] - ZONE_RANK[b.zoneStatus])
-    : ranked.value)
   // 任一資料改用模擬就視為模擬模式；三者都取得後端資料才算恢復。
   const dataSource = computed(() => {
     const sources = [overview, map, places].map(remote => remote.source.value)
@@ -196,5 +186,5 @@ export function useQuietCity(notify) {
   onScopeDispose(() => { disposed = true; locationController?.abort(); addressController?.abort(); clearInterval(refreshTimer); window.removeEventListener?.('focus', resume) })
   // 模擬模式下強度選項可完整操作；後端模式需後端宣告支援。
   const reportIntensityEnabled = computed(() => sensoryApi.supportsReportIntensity || usingMock.value)
-  return { lowZones, zoneRule: computed(() => zoneData.value.rule), noiseHistory, recordNoise, mapCenter, mapView, searchRadius, viewTruncated, searchArea, searchAvailable, searchingElsewhere, setMapView, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, map, places, locating, locate, reportLocation }
+  return { noiseHistory, recordNoise, mapCenter, mapView, searchRadius, viewTruncated, searchArea, searchAvailable, searchingElsewhere, setMapView, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, map, places, locating, locate, reportLocation }
 }

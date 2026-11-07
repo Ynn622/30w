@@ -25,10 +25,9 @@ const showLayer = ref(true)
     <template v-else>
     <div class="explore-stage">
       <div class="map-switches">
-        <label class="layer-switch"><span>{{ city.preferences.value.lowStimulus ? '低刺激區域' : '聲音圖層' }}</span><input v-model="showLayer" class="q-switch" type="checkbox" role="switch" :aria-checked="showLayer" :aria-label="city.preferences.value.lowStimulus ? '顯示低刺激區域' : '顯示聲音刺激圖層'"/></label>
-        <label class="layer-switch"><span>低刺激模式</span><input v-model="city.preferences.value.lowStimulus" class="q-switch" type="checkbox" role="switch" :aria-checked="city.preferences.value.lowStimulus" aria-label="低刺激模式"/></label>
+        <label class="layer-switch"><span>聲音圖層</span><input v-model="showLayer" class="q-switch" type="checkbox" role="switch" :aria-checked="showLayer" aria-label="顯示聲音刺激圖層"/></label>
       </div>
-      <SensoryMap :places="city.recommendations.value" :low-stimulus="city.preferences.value.lowStimulus" :cells="city.map.data.value?.cells || []" :center="city.center.value" :layer="layer" :layer-visible="showLayer" :mock="Boolean(city.map.meta.value?.mock)" :zones="city.lowZones.value" :device-located="Boolean(city.deviceLocation.value)" @select="$emit('select', $event)" @locate="city.locate" @viewchange="city.setMapView" />
+      <SensoryMap :places="city.recommendations.value" :low-stimulus="city.preferences.value.lowStimulus" :cells="city.map.data.value?.cells || []" :center="city.center.value" :layer="layer" :layer-visible="showLayer" :mock="Boolean(city.map.meta.value?.mock)" :device-located="Boolean(city.deviceLocation.value)" @select="$emit('select', $event)" @locate="city.locate" @viewchange="city.setMapView" />
       <BottomSheet v-model:snap="sheet" :peek="SHEET_PEEK" label="附近靜音推薦">
         <template #header>
           <div class="section-heading"><h2>{{ mode === 'quiet' ? '符合你的靜音推薦' : '附近靜音推薦' }}<small>（{{ city.viewTruncated.value ? '地圖中心 1 公里內' : '地圖範圍內' }}）</small></h2><span class="count-badge">{{ city.searchAvailable.value ? city.recommendations.value.length : 0 }} 處</span></div>
@@ -39,7 +38,7 @@ const showLayer = ref(true)
         <p v-if="!city.searchAvailable.value" class="outside-search" role="status">地圖中心不在臺北市內，無法提供此區域的地點；請把地圖移回臺北市。</p>
         <AsyncState v-else-if="city.places.state.value !== 'ready'" :state="city.places.state.value" :message="city.places.error.value" retry @retry="city.places.reload" />
         <AsyncState v-else-if="!city.recommendations.value.length" title="還沒有符合條件的場所" message="試著放寬感官條件或增加距離；資料不足不代表環境安靜。" />
-        <PlaceCard v-for="place in city.recommendations.value" v-else :key="place.id" :place="place" :mock="Boolean(city.places.meta.value?.mock)" :low-stimulus="city.preferences.value.lowStimulus" @select="$emit('select', $event)" />
+        <PlaceCard v-for="place in city.recommendations.value" v-else :key="place.id" :place="place" :mock="Boolean(city.places.meta.value?.mock)" @select="$emit('select', $event)" />
         <p class="q-helper list-footnote"><AppIcon name="shield" :size="15"/>開放與無障礙狀況以現場為準。</p>
       </BottomSheet>
     </div>
@@ -56,7 +55,7 @@ const showLayer = ref(true)
 .map-switches { position: absolute; z-index: 3; top: 12px; left: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
 .layer-switch { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 6px 0 12px; border: 1px solid #dce6ed; border-radius: 22px; background: #fffffff2; color: #34434c; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; box-shadow: 0 2px 8px #2447561a; }
 .layer-switch .q-switch { margin: 0; }
-.explore-stage :deep(.map-legend) { top: 118px; }
+.explore-stage :deep(.map-legend) { top: 66px; }
 .explore-stage :deep(.sensory-map-wrap) { position: absolute; inset: 0 0 calc(var(--sheet-peek, 124px) - 18px); height: auto; border: 0; border-radius: 0; }
 .explore-stage :deep(.maplibregl-ctrl-bottom-left) { margin-bottom: 18px; }
 .truncated-search { margin: 4px 0 10px; padding: 8px 11px; border-radius: 8px; background: #eef6f9; color: #3f5d6b; font-size: 13px; line-height: 1.6; }

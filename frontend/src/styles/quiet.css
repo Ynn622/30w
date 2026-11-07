@@ -497,8 +497,7 @@ body { background: #edf3f7; }
 .q-low-stimulus .quiet-app .home-heading { min-height: 0; padding-right: 4px; }
 .q-low-stimulus .quiet-app .sensory-weather,
 .q-low-stimulus .quiet-app .report-grid button { background: #f7f9fa; }
-.q-low-stimulus .quiet-app :is(.sense-tile, .report-grid button, .q-tag, .score-chip, .sensory-map, .detail-tags) { filter: saturate(.55); }
-.q-low-stimulus .quiet-app .q-map-pin-icon { filter: none; }
+.q-low-stimulus .quiet-app :is(.sense-tile, .report-grid button, .q-tag, .score-chip, .detail-tags) { filter: saturate(.55); }
 .q-low-stimulus :is(.quiet-app, .quiet-overlay) :is(.q-primary, .q-secondary, .q-text-button, .report-grid button, .filter-select select, .explore-tabs button, .detail-tabs button) { min-height: 52px; }
 .q-low-stimulus :is(.quiet-app, .quiet-overlay) .q-icon-button { min-width: 52px; min-height: 52px; }
 
@@ -506,12 +505,6 @@ body { background: #edf3f7; }
 .quiet-overlay.dialog { align-items: center; padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom)); }
 .quiet-sheet.dialog { width: min(100%, 360px); max-height: min(80dvh, 560px); padding: 6px 18px 18px; border-radius: 16px; box-shadow: 0 12px 40px #14344d33; }
 
-/* 低刺激模式的地圖標記：統一低彩度；周邊低刺激區以綠色與文字標籤標示，不只靠顏色。 */
-.q-map-pin-zone { display: block; margin-top: 1px; padding: 0 4px; border-radius: 4px; background: #e3f1e7; color: #2f6a45; font-size: 11px; font-weight: 600; line-height: 15px; white-space: nowrap; }
-.q-low-stimulus .q-map-pin-icon svg > path:first-of-type { fill: #8a9c94; }
-.q-low-stimulus .q-map-pin-icon svg g { stroke: #8a9c94; }
-.q-low-stimulus .q-map-pin.in-zone .q-map-pin-icon svg > path:first-of-type { fill: #5f9d78; }
-.q-low-stimulus .q-map-pin.in-zone .q-map-pin-icon svg g { stroke: #5f9d78; }
 /* 低刺激模式的首頁快速回報：圖示縮小、間距加大，降低畫面密度。 */
 .q-low-stimulus .quiet-app .report-grid { gap: 10px; }
 .q-low-stimulus .quiet-app .report-grid button svg { width: 22px; height: 22px; }

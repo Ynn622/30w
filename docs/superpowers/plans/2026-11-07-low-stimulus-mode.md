@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **2026-11-07 開發者決定：低刺激模式只調整介面，與地圖無關。** 已實作的地圖綠區、熱圖切換、標記改色與標籤、低刺激優先排序、卡片判定文字、地圖上的快速開關，以及原本的熱圖淡化與地圖去飽和，均已移除；Task 1–3 取消（`zones` 契約保留，供日後另行規劃地圖功能），Task 4 介面與通知行為保留。
+
 **Goal:** 把「低刺激模式」從單純的介面配色開關，擴充成一個完整的使用情境：介面本身不刺激（畫面、動態、通知），地圖只呈現後端判定的低刺激綠區，推薦只列出有資料支持的低刺激場所，且資料不足時誠實說明。
 
 **Architecture:** 沿用 `preferences.lowStimulus`（僅存本機）作為唯一開關，`body.q-low-stimulus` 讓 Teleport sheet 一併套用。新增 `sensory/map` 的 `zones`／`zoneRule` 解析與 `Place.zone` 判讀（契約見 `docs/backend-api.md` 2.1），由 composable 提供 `lowZones`、`zoneOf(place)`，SensoryMap 依模式切換熱圖或綠區圖層。後端未提供 `zones` 時前端不自行推算綠區。
@@ -43,7 +45,7 @@
 - 模式切換不重新打 API（`zones` 一次回傳四維）；切換後地圖、清單、sheet 同步。
 - 關閉模式後完全回到原畫面，不殘留 class、paint 屬性或篩選。
 
-### Task 1: 資料層——解析綠區與場所標註
+### ~~Task 1: 資料層——解析綠區與場所標註~~（已取消）
 
 **Files:** 修改 `frontend/src/lib/sensoryApi.js`、`frontend/src/lib/sensoryDomain.js`、`frontend/src/composables/useQuietCity.js`、`frontend/src/data/quietMock.js`；新增 `frontend/src/lib/sensoryZones.js`、`sensoryZones.test.js`。
 
@@ -58,7 +60,7 @@
 - [x] 實作解析與 composable 介接，確認舊後端（無 `zones`）不報格式錯誤。
 - [x] 更新 `docs/backend-api.md` 階段表：綠區「前端已讀取」。
 
-### Task 2: 地圖——低刺激模式改畫綠區
+### ~~Task 2: 地圖——低刺激模式改畫綠區~~（已取消）
 
 **Files:** 修改 `frontend/src/components/quiet/SensoryMap.vue`、`ExploreView.vue`、`frontend/src/styles/quiet.css`。
 
@@ -69,7 +71,7 @@
 - [x] 場所標記在模式中降為單色（灰綠），並依 `zoneOf` 加文字標記「低刺激區」，不只靠顏色區分。
 - [x] 「聲音圖層」開關在模式中改名「低刺激區域」，控制綠區顯示。
 
-### Task 3: 推薦與快速入口
+### Task 3: 推薦與快速入口（地圖快速開關、排序與卡片標籤已取消；僅保留首頁快速回報間距調整）
 
 **Files:** 修改 `ExploreView.vue`、`QuietHome.vue`、`PlaceCard.vue`、`useQuietCity.js`。
 

@@ -1,5 +1,5 @@
 import { apiRequest } from './apiClient.js'
-import { annotateMockZones, mockCells, mockMeta, mockOverview, mockPlace, mockPlaces, mockZones } from '../data/quietMock.js'
+import { mockCells, mockMeta, mockOverview, mockPlace, mockPlaces } from '../data/quietMock.js'
 import { filterPlaces, INTENSITY_KINDS, isCoordinate, REPORT_INTENSITIES, REPORT_PERSISTENCE, REPORT_SETTINGS, reportKind } from './sensoryDomain.js'
 
 export const MOCK_NOTICE = '後端感官服務暫時無法連線，已改用模擬資料顯示。'
@@ -71,30 +71,19 @@ export function createSensoryApi({
       const result = await get('sensory/map', query, options)
       if (!Array.isArray(result.data.cells)) throw new Error('地圖資料格式不符，缺少 cells 陣列。')
       return result
-    }, time => {
-      const cells = mockCells(query.areaId, time, centerOf(query))
-      return { cells, ...mockZones(cells) }
-    }, options.signal),
+    }, time => ({ cells: mockCells(query.areaId, time, centerOf(query)) }), options.signal),
     getPlaces: (query, options = {}) => withFallback(async () => {
       const result = await get('places', query, options)
       if (!Array.isArray(result.data.places) || !result.data.places.every(checkPlace)) throw new Error('場所清單格式不符，請檢查名稱與座標。')
       // 前端再次檢查距離、觀測時間與低刺激條件，不完全信任後端篩選。
       return { ...result, data: { ...result.data, places: filterPlaces(result.data.places, query, now()) } }
-    }, time => {
-      const center = centerOf(query)
-      return { places: annotateMockZones(filterPlaces(mockPlaces(query.areaId, time, center), query, time), mockCells(query.areaId, time, center)) }
-    }, options.signal),
+    }, time => ({ places: filterPlaces(mockPlaces(query.areaId, time, centerOf(query)), query, time) }), options.signal),
     getPlace: (id, options = {}) => withFallback(async () => {
       const result = await get(`places/${encodeURIComponent(id)}`, undefined, options)
       if (!checkPlace(result.data) || result.data.id !== id || (result.data.sources && !validSources(result.data.sources))
         || (result.data.reviews && (!Array.isArray(result.data.reviews) || !result.data.reviews.every(review => review && typeof review.text === 'string')))) throw new Error('場所詳情格式不符或場所編號不一致。')
       return result
-    }, time => {
-      const place = mockPlace(id, time, areaId => mockCenters.get(areaId))
-      if (!place) return null
-      const areaId = id.split('-')[0]
-      return annotateMockZones([place], mockCells(areaId, time, mockCenters.get(areaId)))[0]
-    }, options.signal),
+    }, time => mockPlace(id, time, areaId => mockCenters.get(areaId)), options.signal),
     async createReport(body) {
       locationOf(body)
       const kind = reportKind(body.kind)

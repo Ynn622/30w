@@ -105,16 +105,3 @@ describe('sense info dialog', () => {
     expect(html).toContain('AQI 不能代替氣味')
   })
 })
-describe('low-stimulus place labels', () => {
-  it('labels zone status in text only when low-stimulus mode is on', async () => {
-    const place = { ...samplePlaces()[1], indoor: false, zoneStatus: 'low' }
-    const on = await renderToString(createSSRApp(PlaceCard, { place, lowStimulus: true }))
-    expect(on).toContain('周邊低刺激區')
-    const unknown = await renderToString(createSSRApp(PlaceCard, { place: { ...place, zoneStatus: 'unknown' }, lowStimulus: true }))
-    expect(unknown).toContain('周邊資料不足')
-    const indoor = await renderToString(createSSRApp(PlaceCard, { place: { ...place, indoor: true, zoneStatus: 'low' }, lowStimulus: true }))
-    expect(indoor).toContain('室內低刺激')
-    const off = await renderToString(createSSRApp(PlaceCard, { place, lowStimulus: false }))
-    expect(off).not.toContain('周邊低刺激區')
-  })
-})
