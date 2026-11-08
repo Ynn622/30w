@@ -51,6 +51,9 @@ describe('hourly test grid adapter (issues #5, #8)', () => {
       { ...hourlyPayloadFor(), meta: { ...hourlyMetaFor(), datasetVersion: 'taipei-hourly-grid-v1' } },
       { ...hourlyPayloadFor(), meta: { ...hourlyMetaFor(), modelVersion: 'taipei-hourly-grid-v2' } },
       { ...hourlyPayloadFor(), meta: { ...hourlyMetaFor(), noiseMapping: { version: 'other' } } },
+      // 舊的分段鐘型映射（test-noise-demo-v1）與錯誤端點都不接受。
+      { ...hourlyPayloadFor(), meta: { ...hourlyMetaFor(), noiseMapping: { version: 'test-noise-demo-v1', thresholds: [50, 60, 70], unit: 'dB(A)' } } },
+      { ...hourlyPayloadFor(), meta: { ...hourlyMetaFor(), noiseMapping: { ...hourlyMetaFor().noiseMapping, inputMax: 80 } } },
     ]
     for (const payload of cases) await expect(createHourlyApi({ request: ok(payload) }).getGrid(SLOT)).rejects.toThrow('測試網格格式不符')
   })

@@ -6,7 +6,7 @@ export function hourlyMetaFor({ dayType = 'weekday', hour = 8, simulatedAt = SIM
     test: true, demo: true, mode: 'test-only', datasetVersion: 'taipei-hourly-grid-v2', modelVersion: 'taipei-hourly-grid-v1', storage: 'precomputed',
     dayType, hour, timezone: 'Asia/Taipei', recordsPerHour: 30000, observedAt: null, updatedAt: null, confidence: 'low',
     simulatedAt, validUntil: new Date(Date.parse(simulatedAt) + 30 * 60_000).toISOString(), timeBasis: 'simulated_request_time',
-    noiseMapping: { version: 'test-noise-demo-v1', thresholds: [50, 60, 70], unit: 'dB(A)' },
+    noiseMapping: { version: 'test-noise-linear-v2', method: 'linear_min_max', unit: 'dB(A)', inputMin: 35, inputMax: 100, outputMin: 0, outputMax: 100, rounding: 'nearest_integer' },
     notice: '人工逐小時網格情境；非即時、非實測。',
     sources: [
       { id: 'boundary', name: '臺北市區界圖 20220915', url: 'https://data.taipei/', attribution: '臺北市政府民政局', licenseUrl: 'https://data.gov.tw/license' },

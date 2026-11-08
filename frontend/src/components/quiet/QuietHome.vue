@@ -166,7 +166,7 @@ defineEmits(['report', 'measure', 'explore', 'select'])
       <p class="q-helper">{{ city.places.meta.value?.mock ? `${MOCK_LABEL}。` : '' }}依偏好篩選；直線距離不等於步行距離。{{ city.preferences.value.sort === 'fit' ? '依個人適配排序，完整資料優先。' : '依直線距離排序。' }}</p>
       <AsyncState v-if="city.places.state.value !== 'ready'" :state="city.places.state.value" :message="city.places.error.value" retry @retry="city.places.reload" />
       <AsyncState v-else-if="!city.recommendations.value.length" title="還沒找到符合偏好的角落" message="試著擴大探索距離，或在探索頁調整條件。" />
-      <PlaceCard v-for="place in city.recommendations.value" v-else :key="place.id" :place="place" :mock="Boolean(city.places.meta.value?.mock)" @select="$emit('select', $event)" />
+      <PlaceCard v-for="place in city.recommendations.value" v-else :key="place.renderKey ?? place.id" :place="place" :mock="Boolean(city.places.meta.value?.mock)" @select="$emit('select', $event)" />
     </section>
     <footer class="quiet-footer"><AppIcon name="leaf" :size="16" /><span>每一種感受，都值得被城市接住。</span></footer>
   </section>

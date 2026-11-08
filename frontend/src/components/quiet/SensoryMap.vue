@@ -86,7 +86,8 @@ function pinElement(place) {
   label.setAttribute('aria-hidden', 'true')
   label.textContent = place.name
   button.append(icon, label)
-  button.addEventListener('click', () => emit('select', place.id))
+  // 雙來源場所帶 ref（來源、正式／test id 與情境），詳情依此讀取同一來源。
+  button.addEventListener('click', () => emit('select', place.ref ?? place.id))
   return button
 }
 // 縮小到街廓以外時隱藏名稱，避免標籤互相重疊。

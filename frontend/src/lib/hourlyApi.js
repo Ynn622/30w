@@ -8,7 +8,8 @@ export { taipeiSlot } from './sensoryDomain.js'
 
 export const HOURLY_DATASET_VERSION = 'taipei-hourly-grid-v2'
 export const HOURLY_MODEL_VERSION = 'taipei-hourly-grid-v1'
-export const HOURLY_NOISE_VERSION = 'test-noise-demo-v1'
+// 聲音分數改為線性換算（Ynn622/30w_backend#16）：round(clamp((dB(A) − 35) ÷ (100 − 35) × 100, 0, 100))；資料集與模型版本不變。
+export const HOURLY_NOISE_VERSION = 'test-noise-linear-v2'
 export const HOURLY_LABEL = '典型時段推估・非即時觀測'
 export const DAY_TYPES = Object.freeze([{ id: 'weekday', label: '平日' }, { id: 'weekend', label: '週末' }])
 export const HOURS = Object.freeze(Array.from({ length: 24 }, (_, hour) => hour))
@@ -37,7 +38,7 @@ export class HourlyDataError extends Error {
 export function validTestGridMeta(meta) {
   return Boolean(meta) && meta.test === true && meta.demo === true && meta.mode === 'test-only'
     && meta.datasetVersion === HOURLY_DATASET_VERSION && meta.modelVersion === HOURLY_MODEL_VERSION
-    && meta.noiseMapping?.version === HOURLY_NOISE_VERSION
+    && meta.noiseMapping?.version === HOURLY_NOISE_VERSION && meta.noiseMapping.inputMin === 35 && meta.noiseMapping.inputMax === 100
 }
 export function validHourlyMeta(meta, { dayType, hour }) {
   return validTestGridMeta(meta) && meta.dayType === dayType && meta.hour === hour

@@ -9,7 +9,7 @@ import { reverseGeocoder } from '../lib/reverseGeocode.js'
 import { readNoiseHistory, saveNoiseEntry } from '../lib/noiseHistory.js'
 import { fakeLocation } from '../config/locationConfig.js'
 import { cropGrid, hourlyApi } from '../lib/hourlyApi.js'
-import { tianmuApi } from '../lib/tianmuApi.js'
+import { placeSources } from '../lib/placeSources.js'
 
 function useRemote(query, fetcher) {
   // source 只在請求完成時更新，重新載入期間保留上一次結果，避免通知反覆跳出。
@@ -114,9 +114,8 @@ export function useQuietCity(notify) {
   const mapCenter = computed(() => mapView.value ? { lat: mapView.value.lat, lng: mapView.value.lng } : null)
   const searchCenter = computed(() => serviceAvailable.value ? (mapCenter.value || center.value) : null)
   // places 依地圖長邊半徑，後端支援時送精確值（searchRadius 為舊的 300／500／1000 級距，僅用來判斷是否需重查）。
-  // 場所清單與詳情的資料來源：目前先以天母場所接口（test/tianmu/places）當正式資料使用（開發者 2026-11-08 決定）。
-  // 之後改接正式 places 時，只要把 placesApi 換成 sensoryApi（getPlaces／getPlace／supportsFreeRadius 介面相同）即可。
-  const placesApi = tianmuApi
+  // 場所清單與詳情：正式 places 與 test/places（場所情境）同時請求、依明確身份合併（Ynn622/30w#7，見 placeSources.js）。
+  const placesApi = placeSources
   const freeRadius = { free: Boolean(placesApi.supportsFreeRadius) }
   const searchRadius = computed(() => pickSearchRadius(mapView.value?.radius))
   const placesSearchRadius = computed(() => placesRadius(mapView.value?.radius, freeRadius))
@@ -141,13 +140,14 @@ export function useQuietCity(notify) {
   // 平常自動取臺北當下的平日／週末與小時；開啟「模擬環境」時改用使用者在探索頁選的時段。
   // 只影響地圖的敏感圖層；具名推薦從 placesApi 取得（網格沒有名稱與照片），首頁概況、回報與量測照常。
   const remoteTest = computed(() => preferences.value.dataMode === 'remote-hourly')
-  const getPlace = (id, options) => placesApi.getPlace(id, options)
+  // 詳情依清單記下的 { origin, liveId, testId, scenario } 讀取，同情境走同來源；舊的字串 id 視為正式場所。
+  const getPlace = (target, options) => placesApi.getPlace(target, options)
   const currentSlot = computed(() => taipeiSlot(now.value))
   const fieldSlot = computed(() => remoteTest.value ? { dayType: preferences.value.dayType, hour: preferences.value.hour } : currentSlot.value)
   const searchQuery = computed(() => searchArea.value
     ? { areaId: searchArea.value.id, lat: searchCenter.value.lat, lng: searchCenter.value.lng, radius: searchRadius.value } : null)
-  // 地點查詢只帶區域、座標與半徑（已移除使用者感官篩選）；各接口的 radius 規則不同，分開建立。
-  const placeQuery = computed(() => searchQuery.value && { ...searchQuery.value, radius: placesSearchRadius.value, max: PLACES_MAX })
+  // 地點查詢只帶區域、座標、半徑與場所情境（已移除使用者感官篩選）；切換情境或位置會取消舊請求並重新合併。
+  const placeQuery = computed(() => searchQuery.value && { ...searchQuery.value, radius: placesSearchRadius.value, max: PLACES_MAX, scenario: preferences.value.scenario })
   // 首頁概況：後端 test/overview（目前位置 150 公尺內網格平均，時段由後端依當下臺北時間決定），目前當正式資料對待；
   // 只送 lat／lng，失敗時顯示錯誤並可重試，不改用內建模擬資料。
   const overviewQuery = computed(() => query.value && { lat: query.value.lat, lng: query.value.lng })

@@ -278,7 +278,7 @@ VITE_REPORT_INTENSITY=false
 
 - 清單與詳情內嵌 `image`（`kind: reviewed|linked|nearby|illustration`）；前端只用 `image.url`（同場所 `/api/v1/places/{id}/image?v=…`，以 API origin 解析）與 `image.photo` 署名，不逐卡查 `image-info`、不自行換 `v`。illustration 或失敗時改用前端原創插畫，不重試。
 - 清單已排重；舊 UUID 詳情 `data.id` 為請求 id、另附 `canonicalId`，前端保留 id 相等檢查。
-- 天母 `test/tianmu/places` 與 `/{id}` 走獨立介接（不經正式 `sensoryApi`），目前是探索頁推薦清單與詳情的唯一來源（先當正式資料使用，之後改回正式 `places`）；清單只送 `areaId`／`lat`／`lng`／`radius`／`max`，詳情不帶 query。
+- 2026-11-08 起（#7 最新契約）探索頁改為正式 `places` 與 `test/places`（`scenario=weekday_day|weekday_evening|weekend_day`）同時請求並依明確身份合併，詳情走 `places/{id}` 與 `test/places/{id}?scenario=`；前端驗證 `meta.test`、`demo`、`mode: test-only`、`datasetVersion: taipei-places-test-v1`、`timeBasis: typical_scenario`、`meta.scenario` 與每筆 `testData`，且 `sensoryIndex`／`observedAt`／`updatedAt` 必須為 null。舊的天母 `test/tianmu/places` 前端已不再呼叫。
 
 ## 4 場所詳情
 
@@ -521,7 +521,7 @@ dimensionCoverage = 有效維度數 / 4
 | `GET test/hourly/{tg00001}?dayType=&hour=` | 前端目前未使用（網格沒有詳情頁） |
 | `GET test/overview?lat=&lng=` | 首頁感官概況（目前當正式資料對待）：只送目前位置座標，後端固定 150 公尺、自動取當下臺北時段；驗證 `aggregationVersion: hourly-radius-mean-v1`、`radiusMeters: 150`、時段一致、四維 0–100（可小數）或 null、`validPointCounts ≤ pointCount`、`confidence` 與全 null 一致、`observedAt`／`reportCount` 為 null。失敗顯示錯誤並可重試，不改用內建模擬資料 |
 
-前端驗證（Ynn622/30w#8 起）：`meta.test === true`、`demo === true`、`mode === "test-only"`、`datasetVersion === "taipei-hourly-grid-v2"`、`modelVersion === "taipei-hourly-grid-v1"`、`noiseMapping.version === "test-noise-demo-v1"`、`meta.dayType`／`hour` 與查詢相同、`timeBasis === "simulated_request_time"`、`simulatedAt` 為有效時間；每點 `id` 符合 `tg\d{5}`、座標有效、`coordinateKind === "synthetic_grid_center"`、`quality ∈ estimated|insufficient`、四維為 0–100 整數或 null、`sound.unit === "dB(A)"`；回傳筆數須等於 `total`。不符即顯示「測試網格格式不符」，不改用內建模擬資料。400／404／429／503 各自顯示說明並可重試。
+前端驗證（Ynn622/30w#8 起）：`meta.test === true`、`demo === true`、`mode === "test-only"`、`datasetVersion === "taipei-hourly-grid-v2"`、`modelVersion === "taipei-hourly-grid-v1"`、`noiseMapping.version === "test-noise-linear-v2"`（端點 35／100，Ynn622/30w_backend#16）、`meta.dayType`／`hour` 與查詢相同、`timeBasis === "simulated_request_time"`、`simulatedAt` 為有效時間；每點 `id` 符合 `tg\d{5}`、座標有效、`coordinateKind === "synthetic_grid_center"`、`quality ∈ estimated|insufficient`、四維為 0–100 整數或 null、`sound.unit === "dB(A)"`；回傳筆數須等於 `total`。不符即顯示「測試網格格式不符」，不改用內建模擬資料。400／404／429／503 各自顯示說明並可重試。
 
 顯示規則：只影響探索地圖——以上方「模擬環境」按鈕為準（圖例不另加標籤），開啟模擬環境時長駐「模擬環境：時段・典型時段推估・非即時觀測」，網格只畫敏感圖層與綠區；推薦、詳情、首頁概況、回報與量測仍為正式資料；時段滑桿放開才查詢；新鮮度以 `meta.simulatedAt` 判斷；null 不補 0、不當作安靜；不計入正式 SSI。
 

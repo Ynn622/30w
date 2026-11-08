@@ -37,7 +37,7 @@ Vue 3 + JavaScript + Vite 的行動版城市感官服務。首頁、探索、我
 - **平常**：自動取臺北當下的平日／週末與小時；每到整點、下次定時重新整理時才換時段重抓，平常的重新整理不重抓網格。
 - **模擬環境**：探索地圖左上的「模擬環境」按鈕（`TestDataPanel.vue`）點開後可開啟「使用模擬環境」，自選平日／週末與時段滑桿（0–23 時；拖曳時只更新畫面上的時段文字，放開才寫入並查詢）。開啟時按鈕本身長駐顯示「模擬環境：週末 14:00・典型時段推估・非即時觀測」；預設值由 `VITE_DATA_MODE` 決定，選擇存在此裝置。
 - **只影響地圖**：首頁概況、推薦清單、詳情、回報與量測不受模擬環境影響。網格沒有名稱、照片，也不是可進入場所，推薦清單仍是正式 places，綠區篩選依網格算出的敏感圖層。
-- 介接在 `src/lib/hourlyApi.js`，與正式 `sensoryApi` 分開：每個時段以 `limit=30000` 一次取完整市（gzip 約 0.5 MB，依 `nextOffset` 續取），驗證 `meta.test`／`demo`、`mode: test-only`、`datasetVersion: taipei-hourly-grid-v2`、`modelVersion: taipei-hourly-grid-v1`、噪音對照 `test-noise-demo-v1`、時段、`timeBasis`、`tg00001` 格式網格 ID、座標、四維 0–100 整數或 null、聲音單位與筆數完整。400／404／429／503 顯示錯誤並可重試，不改用內建 quietMock；取消請求不顯示錯誤。
+- 介接在 `src/lib/hourlyApi.js`，與正式 `sensoryApi` 分開：每個時段以 `limit=30000` 一次取完整市（gzip 約 0.5 MB，依 `nextOffset` 續取），驗證 `meta.test`／`demo`、`mode: test-only`、`datasetVersion: taipei-hourly-grid-v2`、`modelVersion: taipei-hourly-grid-v1`、噪音對照 `test-noise-linear-v2`（35–100 dB(A) 線性換算）、時段、`timeBasis`、`tg00001` 格式網格 ID、座標、四維 0–100 整數或 null、聲音單位與筆數完整。400／404／429／503 顯示錯誤並可重試，不改用內建 quietMock；取消請求不顯示錯誤。
 - 依地圖範圍（外加 400 公尺）裁切後交給與原本相同的內插與個人敏感度加權；新鮮度以後端 `meta.simulatedAt` 判斷，不受裝置時鐘誤差影響；資料不足（null）的網格不當作安靜。
 - 圖例不另加模擬標籤（以上方「模擬環境」按鈕為準），展開說明註明資料為後端模擬網格的典型時段推估、非即時觀測，並說明載入中／失敗／無資料；面板只放開關與時段設定，並顯示載入中、錯誤與重試（不列說明文字與資料來源清單，開發者 2026-11-08 決定）。切換時段會取消舊請求並先清空舊網格。
 - 後端 CORS 只允許 `http://localhost:5173` 與 GitHub Pages，其他埠開發時敏感圖層會顯示讀取錯誤。
@@ -47,7 +47,7 @@ Vue 3 + JavaScript + Vite 的行動版城市感官服務。首頁、探索、我
 - **正式場所照片**：`GET places` 與 `places/{id}` 內嵌 `image`（後端依序選 reviewed 同場所照片 → linked 同主體照片 → nearby 1 公里內參考照片 → illustration）。`src/lib/placeImage.js` 只接受同場所的 `/api/v1/places/{id}/image?v=…` 路徑並以 API origin 解析（不重複 `/api/v1`、不連到 Pages origin），版本參數照後端提供；插畫、格式不符或缺作者／授權時改用前端原創插畫，不多打一次 API。`PlacePhoto.vue` 以 `crossorigin="anonymous"`、`referrerpolicy="no-referrer"`、`loading="lazy"` 載入，固定比例避免版面跳動；載入失敗（404／429／網路）只換回插畫、不重試，換新網址才重新嘗試。（目前場所資料暫用天母接口，天母資料沒有照片，所以畫面上都是插畫；改回正式 places 後照片才會出現。）
 - 卡片縮圖不顯示小標，只列純文字署名「照片／參考照片：作者・授權」；詳情照片右下角顯示小標（reviewed 為「歷史照片・年份・非即時」，其他為「參考照片・非即時」，插畫為「原創示意插畫・非實景」）與完整署名（作者、credit、授權連結、原始來源、修改說明、後端 notice），nearby 另註明「附近參考照片：來源名稱（約 N 公尺），非此場所實景」。依開發者決定照片優先、允許附近圖，不因 `verified=false` 拒圖、不加「未人工核對」警語；清單不逐卡查 `image-info`。低刺激模式隱藏照片。
 - **排重與舊 UUID**：清單已由後端排重，前端不再以距離合併；詳情保留請求 id 相等檢查，舊 UUID 回應的 `canonicalId` 照常顯示，圖片直接用後端提供的網址。
-- **場所資料來源（目前為天母接口）**：開發者決定先把 `test/tianmu/places`（`src/lib/tianmuApi.js`，天母體育館周邊 2 公里公開場所靜態快照）當正式資料使用，推薦清單與詳情一律走這個接口，不另加標示、也沒有切換開關；之後改接正式 places 時，把 `useQuietCity.js` 的 `placesApi` 換成 `sensoryApi` 即可（`getPlaces`／`getPlace`／`supportsFreeRadius` 介面相同）。清單只送 `areaId`／`lat`／`lng`／`radius`／`max`，驗證 `mode: test-only`、`datasetVersion: tianmu-places-test-v1`、`dataBasis: reviewed_public_place_snapshot`；400／404／429／503 顯示錯誤，不改用內建虛構資料。天母資料沒有照片與感官值，卡片與詳情顯示插畫、感官未知；天母 2 公里以外的地圖範圍清單為空。
+- **場所資料來源（正式＋場所情境雙來源，Ynn622/30w#7）**：探索頁推薦清單與詳情同時請求正式 `places` 與 `test/places?scenario=`（`src/lib/placeSources.js`、`src/lib/testPlacesApi.js`），只依同 UUID、`test.livePlaceIds` 或共同 `sourceIdentities` 一對一合併：保留正式的名稱、地址、照片與來源，感官整筆改用情境資料（null 維持未知、0 是有效低值）；多候選不合併，test 獨有與正式獨有都照常顯示，Vue key 用來源限定的 `renderKey`。清單上方的「場所情境」切換平日下午／平日晚上／週末下午（存在本機偏好 `scenario`，預設依臺北當下時間挑最接近的一種），與敏感圖層的「模擬環境」時段分開。詳情依清單記下的 `{ origin, liveId, testId, scenario }` 讀同一來源，合併場所兩邊都查並重驗身份；任一來源失敗標示部分資料、兩邊都失敗顯示錯誤，正式介接退回內建虛構資料時視為失敗。情境資料（`taipei-places-test-v1`、`typical_scenario`）走獨立展示路徑：只算安靜程度 SFS、不計 SSI，詳情標示「典型時段推估，非即時觀測」；test 場所沒有照片，不借正式照片。舊的天母 `test/tianmu/places` 介接已移除。
 
 ### SSI、SFS 與低刺激模式
 

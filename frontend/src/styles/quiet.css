@@ -454,7 +454,7 @@ body.q-low-stimulus, html:has(body.q-low-stimulus) { background: #ebe8e3; }
 }
 .q-low-stimulus .quiet-app .quiet-home :is(.sense-tile, .report-grid button) { background: var(--q-canvas); border-color: var(--q-line); }
 .q-low-stimulus .quiet-app .map-tools .q-icon-button { background: var(--q-surface); border-color: var(--q-line); color: var(--q-icon); }
-.q-low-stimulus .quiet-app :is(.area-source, .count-badge, .count-badge.green, .place-search, .sort-switch, .info-icon) { background: var(--q-mint); border-color: var(--q-line); }
+.q-low-stimulus .quiet-app :is(.area-source, .count-badge, .count-badge.green, .place-search, .sort-switch, .scenario-switch, .info-icon) { background: var(--q-mint); border-color: var(--q-line); }
 .q-low-stimulus .quiet-overlay { background: #2a2f3352; backdrop-filter: none; }
 /* 圖示一律單色：感官四格與快速回報不再用橘、綠、紅區分，狀態改由文字表達。 */
 .q-low-stimulus .quiet-app .sense-grid .sense-tile,

@@ -13,7 +13,7 @@ defineEmits(['select'])
 </script>
 
 <template>
-  <button class="q-place-card" type="button" @click="$emit('select', place.id)">
+  <button class="q-place-card" type="button" @click="$emit('select', place.ref ?? place.id)">
     <div class="place-thumbnail"><PlacePhoto :place="place" /></div>
     <div class="place-card-copy">
       <div class="place-card-title"><h3>{{ place.name }}</h3><span class="q-tag">{{ place.tag || '候選休息點' }}</span></div>

@@ -5,9 +5,10 @@ import AsyncState from '../AsyncState.vue'
 import PlacePhoto from './PlacePhoto.vue'
 import SensoryScore from './SensoryScore.vue'
 import { MOCK_NOTICE } from '../../lib/sensoryApi.js'
-import { MOCK_LABEL, distanceMeters, formatTime, googleMapsDirectionsUrl, isFresh, levelText } from '../../lib/sensoryDomain.js'
+import { MOCK_LABEL, SCENARIOS, distanceMeters, formatTime, googleMapsDirectionsUrl, isFresh, levelText } from '../../lib/sensoryDomain.js'
 import { sendToNative } from '../../lib/webview.js'
-const props = defineProps({ id: { type: String, required: true }, city: { type: Object, required: true } })
+// target：雙來源場所為 { origin, liveId, testId, scenario }（同情境走同來源），舊資料為字串 id。
+const props = defineProps({ target: { type: [String, Object], required: true }, city: { type: Object, required: true } })
 const emit = defineEmits(['back', 'notify'])
 const place = ref(null), meta = ref(null), state = ref('loading'), error = ref(''), tab = ref('sensory')
 let controller, serial = 0
@@ -17,6 +18,10 @@ const distanceText = computed(() => distance.value === null ? '距離未知' : `
 // 長條與指數只採有效觀測；過期、不足或未知維度不畫長條。
 const assessment = computed(() => place.value ? props.city.assess(place.value, meta.value) : null)
 const fresh = computed(() => isFresh(place.value?.updatedAt, Date.now()))
+// 場所情境（test/places）：典型時段推估，沒有觀測時間，改標示情境而非「已過期」。
+const scenario = computed(() => assessment.value?.basis === 'typical_scenario' ? SCENARIOS.find(item => item.id === place.value?.testData?.scenario) || null : null)
+// 雙來源只取得一邊時明示部分資料。
+const partialText = computed(() => ({ test: '場所情境暫時無法取得，只顯示正式場所資料。', live: '正式場所資料暫時無法取得，只顯示場所情境資料。' })[meta.value?.partial] || '')
 // 只有內建模擬備援才是虛構場所；後端 test-only 接口（目前的場所資料）當正式資料呈現。
 const builtinMock = computed(() => Boolean(meta.value?.mock) && meta.value?.mode !== 'test-only')
 // 基本資訊的設施：依開放資料標示 true／false；null 為未知，不顯示（不把未知當成沒有）。
@@ -28,10 +33,10 @@ const facilities = computed(() => Object.entries(FACILITY_LABELS)
 async function load() {
   controller?.abort(); controller = new AbortController(); const current = ++serial
   state.value = 'loading'; error.value = ''; place.value = null
-  try { const result = await props.city.getPlace(props.id, { signal: controller.signal }); if (current !== serial) return; place.value = result.data; meta.value = result.meta; state.value = 'ready'; if (result.meta?.mock && result.meta.mode !== 'test-only' && !props.city.usingMock.value) emit('notify', MOCK_NOTICE) }
+  try { const result = await props.city.getPlace(props.target, { signal: controller.signal }); if (current !== serial) return; place.value = result.data; meta.value = result.meta; state.value = 'ready'; if (result.meta?.mock && result.meta.mode !== 'test-only' && !props.city.usingMock.value) emit('notify', MOCK_NOTICE) }
   catch (reason) { if (current === serial) { error.value = reason.message; state.value = 'error' } }
 }
-watch(() => props.id, load, { immediate: true })
+watch(() => props.target, load, { immediate: true })
 onUnmounted(() => { serial++; controller?.abort() })
 function navigate() {
   if (builtinMock.value) { emit('notify', '模擬場所沒有實際位置，不提供導航。'); return }
@@ -68,13 +73,15 @@ async function share() {
         <div class="detail-nav"><span class="detail-distance">{{ distanceText }}</span><button type="button" class="detail-nav-button" @click="navigate"><span><AppIcon name="route" :size="15"/>導航</span></button></div>
       </div>
       <p v-if="builtinMock" class="mock-inline">{{ MOCK_LABEL }}，場所與地址為虛構。</p>
+      <p v-if="partialText" class="partial-note" role="status">{{ partialText }}</p>
       <div class="q-segment detail-tabs" role="group" aria-label="場所資訊分頁"><button v-for="item in [{ id: 'sensory', label: '感官資訊' }, { id: 'info', label: '基本資訊' }, { id: 'reviews', label: '回報摘要' }]" :key="item.id" type="button" :class="{ selected: tab === item.id }" :aria-pressed="tab === item.id" @click="tab = item.id">{{ item.label }}</button></div>
       <Transition name="quiet-fade" mode="out-in">
         <div :key="tab" class="detail-content">
           <template v-if="tab === 'sensory'">
             <h3>感官概況 <small>資料整理摘要</small></h3>
             <div class="sensory-summary"><AppIcon name="leaf" :size="30"/><p>{{ place.summary || '目前尚無足夠資料提供摘要。' }}</p></div>
-            <p v-if="!fresh" class="q-error">感官資訊已超過 30 分鐘或時間未知，請勿視為目前狀況。</p>
+            <p v-if="scenario" class="scenario-note">{{ scenario.label }} {{ scenario.time }}・典型時段推估，非即時觀測。</p>
+            <p v-else-if="!fresh" class="q-error">感官資訊已超過 30 分鐘或時間未知，請勿視為目前狀況。</p>
             <div class="sense-bars">
               <div v-for="sense in [{ key: 'noise', label: '聲音刺激', icon: 'sound' }, { key: 'light', label: '光線刺激', icon: 'sun' }, { key: 'crowd', label: '人潮密度', icon: 'people' }, { key: 'odor', label: '氣味刺激', icon: 'wind' }]" :key="sense.key"><AppIcon :name="sense.icon" :size="23"/><span>{{ sense.label }}</span><div class="sense-track"><i v-if="Number.isFinite(assessment?.dimensions[sense.key])" :style="{ width: `${assessment.dimensions[sense.key]}%` }"></i></div><strong>{{ levelText(assessment?.dimensions[sense.key]) }}</strong></div>
             </div>
@@ -127,6 +134,8 @@ async function share() {
 .detail-tags > span:first-child { display: inline-flex; align-items: center; gap: 5px; color: #66747d; font-size: 13px; }
 .detail-tags > span:first-child svg { color: #8b609e; }
 .detail-tags .q-tag { padding: 3px 7px; border-radius: 6px; color: #367d39; background: #e5f4de; font-size: 13px; line-height: 1.4; }
+.partial-note { margin: 0 0 11px; padding: 7px 9px; border-radius: 6px; background: #fff4e8; color: #7a4a1f; font-size: 13px; line-height: 1.6; }
+.scenario-note { margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: #eef6f9; color: #3f5d6b; font-size: 13px; line-height: 1.6; }
 .mock-inline { margin: 0 0 11px; padding: 7px 9px; background: #f4f7f9; color: #65747d; border-radius: 6px; font-size: 12px; line-height: 1.6; }
 .detail-tabs { gap: 0; padding: 0; margin: 0 0 19px; background: #f1f3f5; border-radius: 9px; overflow: hidden; }
 .detail-tabs button { position: relative; min-height: 47px; padding: 9px 4px; border: 0; border-radius: 0; color: #606d76; background: transparent; box-shadow: none; font-size: 15px; font-weight: 500; }

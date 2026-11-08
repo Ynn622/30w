@@ -10,7 +10,8 @@ const partial = computed(() => props.assessment?.ssi != null && missing.value.le
 const percent = value => `${Math.round((value || 0) * 100)}%`
 const confidenceText = computed(() => ({ high: '資料信心高', medium: '資料信心中等', low: '資料信心低' })[props.assessment?.confidence] || '資料不足')
 // 舊版接口只有 senses，沒有版本化指數；此時不自行推造 SSI。
-const unavailable = computed(() => props.assessment?.availableCount > 0 && !props.assessment?.scoreVersion ? '尚無版本化指數' : '資料不足')
+const scenario = computed(() => props.assessment?.basis === 'typical_scenario')
+const unavailable = computed(() => scenario.value && props.assessment?.availableCount > 0 ? '情境推估不計 SSI' : props.assessment?.availableCount > 0 && !props.assessment?.scoreVersion ? '尚無版本化指數' : '資料不足')
 </script>
 
 <template>
@@ -38,6 +39,7 @@ const unavailable = computed(() => props.assessment?.availableCount > 0 && !prop
       <template v-if="assessment?.ssi != null">
         {{ partial ? '部分資料：' : '完整四維：' }}涵蓋 {{ assessment.availableCount }}／4 維（環境權重 {{ percent(assessment.coverage) }}、個人權重 {{ percent(assessment.fitCoverage) }}）<template v-if="partial">，缺少{{ missing.join('、') }}，缺值不當作低刺激</template>。{{ confidenceText }}
       </template>
+      <template v-else-if="scenario && assessment?.sfs != null">典型時段情境推估：依你的敏感度計算安靜程度，涵蓋 {{ assessment.availableCount }}／4 維<template v-if="missing.length">，缺少{{ missing.join('、') }}，未知不當作安靜</template>；不計環境刺激 SSI。</template>
       <template v-else>沒有足夠的有效觀測可計算指數；未知或過期資料不代表環境安靜。</template>
     </p>
   </section>

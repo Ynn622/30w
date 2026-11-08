@@ -11,7 +11,7 @@ import PlaceCard from './PlaceCard.vue'
 import BottomSheet from './BottomSheet.vue'
 import LocationGate from './LocationGate.vue'
 import TestDataPanel from './TestDataPanel.vue'
-import { MOCK_LABEL, searchPlaces } from '../../lib/sensoryDomain.js'
+import { MOCK_LABEL, SCENARIOS, searchPlaces } from '../../lib/sensoryDomain.js'
 import { buildSensoryField, zoneOf } from '../../lib/sensoryField.js'
 
 const SensoryMap = defineAsyncComponent(() => import('./SensoryMap.vue'))
@@ -50,6 +50,10 @@ onMounted(() => { if (showLayer.value && !layerReminded) { layerReminded = true;
 // 只有內建模擬備援才標示模擬；後端 test-only 接口（目前的場所資料）當正式資料呈現。
 const builtinMock = computed(() => Boolean(props.city.places.meta.value?.mock) && props.city.places.meta.value?.mode !== 'test-only')
 const SORTS = [{ id: 'distance', label: '距離優先' }, { id: 'fit', label: '安靜程度優先' }]
+// 場所情境（Ynn622/30w#7）：清單與標記的感官改看所選典型時段（與敏感圖層的「模擬環境」時段分開）。
+const scenarioTime = computed(() => SCENARIOS.find(item => item.id === props.city.preferences.value.scenario)?.time || '')
+// 正式與情境資料只取得一邊時明示部分資料，不當成完整清單。
+const partialText = computed(() => ({ test: '場所情境暫時無法取得，只列出正式場所（感官多為未知）。', live: '正式場所暫時無法取得，只列出有情境資料的場所。' })[props.city.places.meta.value?.partial] || '')
 const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlaces.value.every(place => place.assessment?.sfs == null))
 </script>
 
@@ -70,6 +74,12 @@ const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlac
         </template>
         <div class="list-tools">
           <label class="place-search"><AppIcon name="search" :size="18"/><span class="sr-only">搜尋地點</span><input v-model="searchText" type="search" enterkeyhint="search" placeholder="搜尋地點名稱、類別或地址" autocomplete="off"/></label>
+          <div class="scenario-row">
+            <span id="scenario-label" class="scenario-label">場所情境<small>{{ scenarioTime }}・典型時段推估</small></span>
+            <div class="scenario-switch" role="group" aria-labelledby="scenario-label">
+              <button v-for="item in SCENARIOS" :key="item.id" type="button" :class="{ selected: city.preferences.value.scenario === item.id }" :aria-pressed="city.preferences.value.scenario === item.id" @click="city.preferences.value.scenario = item.id">{{ item.label }}</button>
+            </div>
+          </div>
           <div class="sort-switch" role="group" aria-label="推薦排序">
             <button v-for="item in SORTS" :key="item.id" type="button" :class="{ selected: city.preferences.value.sort === item.id }" :aria-pressed="city.preferences.value.sort === item.id" @click="city.preferences.value.sort = item.id">{{ item.label }}</button>
           </div>
@@ -78,13 +88,14 @@ const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlac
         </div>
         <AsyncState v-if="fieldSource.state.value === 'error'" state="error" :message="fieldSource.error.value" retry @retry="fieldSource.reload" />
         <p v-if="builtinMock" class="mock-inline">{{ MOCK_LABEL }}</p>
+        <p v-if="partialText && city.places.state.value === 'ready'" class="outside-search" role="status">{{ partialText }}</p>
         <p v-if="city.searchAvailable.value && city.viewTruncated.value" class="truncated-search" role="status">地圖範圍較大，只列出地圖中心 {{ city.searchCap / 1000 }} 公里內的地點；放大地圖可查看完整範圍。</p>
         <p v-if="!city.searchAvailable.value" class="outside-search" role="status">地圖中心不在臺北市內，無法提供此區域的地點；請把地圖移回臺北市。</p>
         <AsyncState v-else-if="city.places.state.value !== 'ready'" :state="city.places.state.value" :message="city.places.error.value" retry @retry="city.places.reload" />
         <AsyncState v-else-if="!city.recommendations.value.length" title="還沒有符合條件的場所" message="試著移動或放大地圖；資料不足不代表環境安靜。" />
         <AsyncState v-else-if="!visiblePlaces.length" :title="`找不到符合「${searchText.trim()}」的地點`" message="試試其他關鍵字，或清除搜尋。" />
         <AsyncState v-else-if="!listPlaces.length" title="目前範圍內沒有位於綠區的地點" message="關閉敏感圖層可查看全部地點，或移動地圖、調整「我的」感官敏感度。" />
-        <PlaceCard v-for="place in listPlaces" v-else :key="place.id" :place="place" :mock="builtinMock" @select="$emit('select', $event)" />
+        <PlaceCard v-for="place in listPlaces" v-else :key="place.renderKey ?? place.id" :place="place" :mock="builtinMock" @select="$emit('select', $event)" />
         <p class="q-helper list-footnote"><AppIcon name="shield" :size="15"/>開放與無障礙狀況以現場為準。</p>
       </BottomSheet>
     </div>
@@ -109,6 +120,12 @@ const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlac
 .place-search { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 1px solid #d6e2e8; border-radius: 22px; background: #f7fafb; color: #6a7a83; }
 .place-search input { flex: 1; min-width: 0; min-height: 42px; border: 0; background: transparent; color: var(--q-ink, #27323a); font: inherit; font-size: 15px; outline: none; }
 .place-search:focus-within { border-color: var(--q-brand, #0391a7); background: #fff; }
+.scenario-row { display: flex; flex-direction: column; gap: 6px; }
+.scenario-label { display: flex; align-items: baseline; gap: 8px; color: var(--q-ink, #27323a); font-size: 14px; font-weight: 600; }
+.scenario-label small { color: var(--q-muted); font-size: 12px; font-weight: 400; }
+.scenario-switch { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 2px; border-radius: 22px; background: #eef2f4; }
+.scenario-switch button { min-height: 44px; border: 0; border-radius: 22px; background: transparent; color: #56656e; font: inherit; font-size: 14px; cursor: pointer; }
+.scenario-switch button.selected { background: #fff; color: var(--q-deep, #007a90); font-weight: 600; box-shadow: 0 1px 3px #1d3c4a24; }
 .sort-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 2px; border-radius: 22px; background: #eef2f4; }
 .sort-switch button { min-height: 44px; border: 0; border-radius: 22px; background: transparent; color: #56656e; font: inherit; font-size: 14px; cursor: pointer; }
 .sort-switch button.selected { background: #fff; color: var(--q-deep, #007a90); font-weight: 600; box-shadow: 0 1px 3px #1d3c4a24; }
