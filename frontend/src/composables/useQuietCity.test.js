@@ -93,7 +93,7 @@ describe('sensory queries', () => {
     const { scope, city } = located()
     await vi.advanceTimersByTimeAsync(0)
     expect(city.recommendations.value.map(place => place.id)).toEqual(['zhongzheng-reading', 'zhongzheng-park', 'zhongzheng-hall'])
-    expect(city.recommendations.value[0].assessment).toMatchObject({ ssi: 27, sfs: 74, fitCoverage: 1 })
+    expect(city.recommendations.value[0].assessment).toMatchObject({ ssi: 27, sfs: 75, fitCoverage: 1 })
     city.preferences.value.sensitivities = { noise: 1, light: 5, crowd: 1, odor: 1 }
     await nextTick()
     expect(city.recommendations.value.map(place => place.id)).toEqual(['zhongzheng-park', 'zhongzheng-reading', 'zhongzheng-hall'])

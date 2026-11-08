@@ -1,6 +1,14 @@
 export const SENSORY_KEYS = ['noise', 'light', 'crowd', 'odor']
 export const SSI_WEIGHTS = Object.freeze({ noise: 0.4, light: 0.2, crowd: 0.3, odor: 0.1 })
 export const DEFAULT_SENSITIVITIES = Object.freeze({ noise: 4, light: 2, crowd: 3, odor: 1 })
+// 聲音權重加倍（2026-11-08 開發者決定）：個人加權時聲音的權重 = 「我的」設定的敏感度 × 2，其他感官不變。
+// 場所安靜程度、敏感圖層與首頁概況都經過 personalWeights，三處一致；SSI 的固定環境權重不受影響。
+export const NOISE_WEIGHT_MULTIPLIER = 2
+export function personalWeights(sensitivities = DEFAULT_SENSITIVITIES) {
+  const weights = { ...sensitivities }
+  if ('noise' in weights) weights.noise = weights.noise * NOISE_WEIGHT_MULTIPLIER
+  return weights
+}
 const confidences = ['low', 'medium', 'high']
 // test 場所情境（Ynn622/30w#7）：典型時段人工推估，沒有觀測時間，不能套正式 30 分鐘新鮮度與 SSI。
 // 只有通過 testPlacesApi 驗證、帶這個資料集版本與 typical_scenario 的紀錄才走獨立展示路徑（四維直接用、只算 SFS）。
@@ -50,7 +58,7 @@ export function assessSensory(record, sensitivities = DEFAULT_SENSITIVITIES, now
   // 安靜程度（SFS）依使用者敏感度佔比加權，可直接使用場所回傳的有效四維 senses（新鮮且信心足夠）。
   const scoreable = record?.sensoryIndex?.scoreVersion === 'ssi-v0.1'
   const environmental = weightedScore(scoreable ? dimensions : {}, SSI_WEIGHTS)
-  const personal = weightedScore(dimensions, sensitivities)
+  const personal = weightedScore(dimensions, personalWeights(sensitivities))
   const availableCount = SENSORY_KEYS.filter(key => dimensions[key] !== null).length
   return { dimensions, ssi: environmental.score === null ? null : roundScore(environmental.score),
     sfs: personal.score === null ? null : roundScore(100 - personal.score),

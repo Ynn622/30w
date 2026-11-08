@@ -28,7 +28,7 @@ Vue 3 + JavaScript + Vite 的行動版城市感官服務。首頁、探索、我
 
 ### 首頁概況（test/overview）
 
-首頁四張感官卡片讀後端 `test/overview`（目前位置 150 公尺內網格的四維平均，時段由後端依**當下**臺北時間決定），開發者決定目前當正式資料對待：只送 `lat`／`lng`，顯示「更新：時間」（取 `simulatedAt`）。標題與說明不用後端固定文字，由 `src/lib/overviewSummary.js` 以四維平均依「我的」感官敏感度加權計算個人化指數（未知維度不列入、其餘權重重新換算）：0–33「整體舒適」、34–66「整體普通」、67–100「整體偏刺激」，說明點名中等以上的感官（用各自刻度，如聲音「有點吵」、人潮「擁擠」）並註明資料不足的項目；概況說明視窗的箭頭指向此個人刺激指數。數值可為小數、0 為有效、各維獨立為 null，空圈或全未知顯示「資料不足」與原因；感官卡片說明視窗以刺激指數呈現。不受「模擬環境」影響，失敗時顯示錯誤並可重試，不改用內建模擬資料。`sensory/overview` 目前不呼叫。
+首頁四張感官卡片讀後端 `test/overview`（目前位置 150 公尺內網格的四維平均，時段由後端依**當下**臺北時間決定），開發者決定目前當正式資料對待：只送 `lat`／`lng`，顯示「更新：時間」（取 `simulatedAt`）。標題與說明不用後端固定文字，由 `src/lib/overviewSummary.js` 以四維平均依「我的」感官敏感度加權計算個人化指數（聲音權重 ×2，未知維度不列入、其餘權重重新換算）：0–33「整體舒適」、34–66「整體普通」、67–100「整體偏刺激」，說明點名中等以上的感官（用各自刻度，如聲音「有點吵」、人潮「擁擠」）並註明資料不足的項目；概況說明視窗的箭頭指向此個人刺激指數。數值可為小數、0 為有效、各維獨立為 null，空圈或全未知顯示「資料不足」與原因；感官卡片說明視窗以刺激指數呈現。不受「模擬環境」影響，失敗時顯示錯誤並可重試，不改用內建模擬資料。`sensory/overview` 目前不呼叫。
 
 ### 敏感圖層與模擬環境（Ynn622/30w#5）
 
@@ -52,7 +52,7 @@ Vue 3 + JavaScript + Vite 的行動版城市感官服務。首頁、探索、我
 ### SSI、SFS 與低刺激模式
 
 - `src/lib/sensoryIndex.js`：`assessSensory(record, sensitivities, now)` 只採 `sensoryIndex.scoreVersion=ssi-v0.1`、信心非 insufficient、`sourceType=subjective_report`、有樣本且 30 分鐘內有效的維度；回傳 SSI、SFS、`coverage`（環境權重）、`fitCoverage`（個人權重）與 `dimensionCoverage`。缺值、過期與不支援版本不當作低刺激；舊版只有 `senses` 的回應仍顯示各維，但不推造 SSI。
-- `useQuietCity` 的 `city.assess(record, meta)` 供各畫面使用；`city.recommendations` 在本機依安靜程度（SFS：依「我的」1–5 敏感度佔比加權場所有效四維 `senses`，未版本化的 `senses` 也可計分）或直線距離排序。探索頁附近推薦提供文字搜尋（`searchPlaces`，比對名稱、類別、地址、標籤，地圖標記同步篩選）與「距離優先／安靜程度優先」切換。環境指數 SSI 仍只在後端提供版本化 `sensoryIndex` 時計算。敏感度、排序與低刺激模式皆不加入 API query。
+- `useQuietCity` 的 `city.assess(record, meta)` 供各畫面使用；`city.recommendations` 在本機依安靜程度（SFS：依「我的」1–5 敏感度佔比加權場所有效四維 `senses`，聲音權重為敏感度 ×2〔`personalWeights`、`NOISE_WEIGHT_MULTIPLIER`〕，首頁概況與敏感圖層共用同一權重；未版本化的 `senses` 也可計分）或直線距離排序。探索頁附近推薦提供文字搜尋（`searchPlaces`，比對名稱、類別、地址、標籤，地圖標記同步篩選）與「距離優先／安靜程度優先」切換。環境指數 SSI 仍只在後端提供版本化 `sensoryIndex` 時計算。敏感度、排序與低刺激模式皆不加入 API query。
 - 「我的」提供四維 1–5 敏感度（預設 聲音 4／光線 2／人潮 3／氣味 1）與低刺激模式；舊版或損壞的 localStorage 會回到有效預設。
 - 低刺激模式（「我的」→「介面」開啟，開啟後首頁標題旁顯示「低刺激」標記可點選關閉；本機設定）**不改變敏感圖層資料、場所或推薦**：`body` 加上 `q-low-stimulus`，讓 Teleport sheet 一併套用。介面改為米白暖灰底（不用大面積純白）、卡片無陰影與漸層、圖示單色（級距與警示仍以文字顯示）、停止動畫（含地圖移動動畫）、加大操作區、隱藏裝飾插畫與照片、首頁快速回報的 8 類收進「選擇要回報的感受」按鈕；探索地圖與回報小地圖改用 OpenFreeMap `positron` 灰階底圖（同一開源服務，不新增依賴），隱藏 POI、機場與道路盾牌，場所圖釘改單色、市界改低飽和色（`src/lib/mapStyle.js`）。通知停留 6 秒可點擊關閉、新版本改為手動重新整理；裝置開啟「減少動態」時只提示、不自動開啟；裝置要求高對比時加深文字色。計畫見 `docs/superpowers/plans/2026-11-07-low-stimulus-mode.md`。
 - 快速回報為兩層式：8 種類型（聲音、光線、人潮、氣味、溫度、動線、舒適、其他）＋該類型的快速標籤（可複選），另有未預選的感受程度（`mild | noticeable | strong`，四種 SSI 類型與溫度、動線）、持續狀態（`ongoing | ended | recurring`）與室內／室外（`indoor | outdoor`），後兩者選填；「其他感受」需填說明。欄位與後端彙整規則見 `docs/backend-api.md` 第 5 節。改用模擬資料時可完整操作但不上傳；後端模式需 `VITE_REPORT_INTENSITY=true` 才顯示並送出 `intensity`，否則維持舊 body。

@@ -1,7 +1,7 @@
-// 首頁感官概況的標題與說明：由附近 150 公尺的四維平均，依使用者在「我的」設定的感官敏感度加權計算（個人化指數），
+// 首頁感官概況的標題與說明：由附近 150 公尺的四維平均，依使用者在「我的」設定的感官敏感度加權計算（個人化指數，聲音權重 ×2），
 // 與敏感圖層的做法一致。數值越高越刺激；未知（null）的維度不列入，其餘權重重新換算比例。
 import { SENSES } from './sensoryDomain.js'
-import { DEFAULT_SENSITIVITIES, weightedScore } from './sensoryIndex.js'
+import { DEFAULT_SENSITIVITIES, personalWeights, weightedScore } from './sensoryIndex.js'
 
 export const OVERALL_HEADLINES = Object.freeze(['整體舒適', '整體普通', '整體偏刺激'])
 // 0–33 低、34–66 中等、67–100 高，與色帶及「低／中等／偏高」分段一致。
@@ -11,7 +11,7 @@ const valid = value => Number.isFinite(value) && value >= 0 && value <= 100
 // senses：{ noise, light, crowd, odor }（0–100，可為小數或 null）；sensitivities：{ noise: 1–5, ... }，缺值用預設敏感度。
 // 回傳 { stimulus, level, headline, description }；四維皆未知時回傳 null。
 export function summarizeOverview(senses = {}, sensitivities = {}) {
-  const { score } = weightedScore(senses, Object.fromEntries(SENSES.map(sense => [sense.key, Number(sensitivities?.[sense.key]) || DEFAULT_SENSITIVITIES[sense.key]])))
+  const { score } = weightedScore(senses, personalWeights(Object.fromEntries(SENSES.map(sense => [sense.key, Number(sensitivities?.[sense.key]) || DEFAULT_SENSITIVITIES[sense.key]]))))
   if (score === null) return null
   const stimulus = Math.round(Number(score.toFixed(6)))
   const level = levelIndex(stimulus)
