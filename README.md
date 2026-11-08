@@ -24,11 +24,7 @@
 VITE_API_BASE_URL=https://your-backend.example/api/v1
 # 後端確認 POST reports 支援 intensity 後才開啟
 VITE_REPORT_INTENSITY=false
-# true：鎖定在臺北市天母體育館（士林區）測試，不呼叫定位；false：維持裝置定位
-VITE_FAKE_LOCATION=false
 ```
-
-`VITE_FAKE_LOCATION=true` 時，`useQuietCity.locate()` 不呼叫城市通 `location` 或瀏覽器 Geolocation，直接使用 `frontend/src/config/locationConfig.js` 的天母體育館座標（取自 OpenStreetMap「天母運動公園」），第一次定位時跳通知「測試模式：已固定使用天母體育館位置，非實際定位。」。回報與量測仍照常帶這個座標，僅供展示與開發測試；正式上架請維持 `false`。GitHub Pages 部署由 repo 的 Actions Variable `VITE_FAKE_LOCATION` 控制（Settings → Secrets and variables → Actions → Variables），未設定等同 `false`；修改後需重跑部署流程。
 
 敏感圖層（熱力圖）一律呼叫後端逐小時模擬網格 `test/hourly`：平常自動取臺北當下時段，開啟探索頁的「模擬環境」時改用自選時段，不再呼叫 `sensory/map`；失敗時顯示錯誤並可重試，不使用本機模擬格網（原 `VITE_MOCK_MAP` 與 `mock-sensory-cells.json` 已移除）。
 

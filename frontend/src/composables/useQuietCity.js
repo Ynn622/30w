@@ -7,7 +7,6 @@ import { requestNative } from '../lib/nativeClient.js'
 import { assessSensory, rankPlaces } from '../lib/sensoryIndex.js'
 import { reverseGeocoder } from '../lib/reverseGeocode.js'
 import { readNoiseHistory, saveNoiseEntry } from '../lib/noiseHistory.js'
-import { fakeLocation } from '../config/locationConfig.js'
 import { cropGrid, hourlyApi } from '../lib/hourlyApi.js'
 import { placeSources } from '../lib/placeSources.js'
 
@@ -203,11 +202,7 @@ export function useQuietCity(notify) {
     locating.value = true
     try {
       let result
-      if (fakeLocation.enabled) {
-        // 固定測試位置：不詢問定位權限，並以通知標示不是實際定位。
-        result = { lat: fakeLocation.lat, lng: fakeLocation.lng }
-        if (!deviceLocation.value) notify(`測試模式：已固定使用${fakeLocation.name}位置，非實際定位。`)
-      } else if (getNativeChannel(window) === 'town-pass') {
+      if (getNativeChannel(window) === 'town-pass') {
         locationController = new AbortController()
         const reply = await requestNative('location', null, { host: window, signal: locationController.signal, timeoutMs: 15_000 })
         result = { lat: reply.data?.latitude ?? reply.data?.lat, lng: reply.data?.longitude ?? reply.data?.lng }
