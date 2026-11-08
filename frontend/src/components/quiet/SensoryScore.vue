@@ -33,9 +33,10 @@ const unavailable = computed(() => props.assessment?.availableCount > 0 && !prop
         <small>{{ assessment?.sfs == null ? unavailable : '依你的敏感度・越高越適合' }}</small>
       </div>
     </div>
-    <p class="score-coverage" :class="{ warn: partial || assessment?.ssi == null }">
-      <template v-if="assessment?.ssi != null">
-        {{ partial ? '部分資料：' : '完整四維：' }}涵蓋 {{ assessment.availableCount }}／4 維（環境權重 {{ percent(assessment.coverage) }}、個人權重 {{ percent(assessment.fitCoverage) }}）<template v-if="partial">，缺少{{ missing.join('、') }}，缺值不當作低刺激</template>。
+    <!-- 四維完整時不另外說明；只在缺少維度或無法計算時提示。 -->
+    <p v-if="partial || assessment?.ssi == null" class="score-coverage warn">
+      <template v-if="partial">
+        部分資料：涵蓋 {{ assessment.availableCount }}／4 維（環境權重 {{ percent(assessment.coverage) }}、個人權重 {{ percent(assessment.fitCoverage) }}），缺少{{ missing.join('、') }}，缺值不當作低刺激。
       </template>
       <template v-else>沒有足夠的有效觀測可計算指數；未知或過期資料不代表環境安靜。</template>
     </p>

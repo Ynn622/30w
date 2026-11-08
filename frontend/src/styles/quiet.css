@@ -241,8 +241,6 @@ body { background: #edf3f7; }
 .detail-content { min-height: 250px; }
 .detail-content h3 { margin: 0 0 12px; font-size: 17px; }
 .detail-content h3 small { font-size: 12px; color: var(--q-muted); font-weight: 400; margin-left: 5px; }
-.sensory-summary { display: flex; gap: 12px; align-items: center; padding: 13px; background: var(--q-mint); color: #3b8c4d; border-radius: 10px; }
-.sensory-summary p { margin: 0; font-size: 15px; line-height: 1.65; color: var(--q-ink); }
 .sense-bars { margin: 18px 0; }
 .sense-bars > div { display: flex; gap: 10px; align-items: center; margin: 14px 0; font-size: 15px; color: #3b87a2; }
 .sense-bars > div:nth-child(2) { color: #d7a627; }
@@ -442,7 +440,7 @@ body.q-low-stimulus, html:has(body.q-low-stimulus) { background: #ebe8e3; }
 .q-low-stimulus .quiet-app,
 .q-low-stimulus .quiet-app :is(.quiet-view, .quiet-home, .explore-view, .profile-quiet-view, .place-detail-view, .recommendation-panel) { background: var(--q-canvas); }
 /* 卡片與面板：單一淺色底加細框線，不用漸層。 */
-.q-low-stimulus :is(.quiet-app, .quiet-overlay) :is(.sensory-weather, .quick-report-section, .q-settings-card, .q-place-card, .info-card, .bottom-sheet, .quiet-sheet, .quiet-bottom-nav, .map-legend, .layer-switch, .test-data-toggle, .test-data-panel, .noise-history li, .info-intro, .sensory-summary) {
+.q-low-stimulus :is(.quiet-app, .quiet-overlay) :is(.sensory-weather, .quick-report-section, .q-settings-card, .q-place-card, .info-card, .bottom-sheet, .quiet-sheet, .quiet-bottom-nav, .map-legend, .layer-switch, .test-data-toggle, .test-data-panel, .noise-history li, .info-intro) {
   background: var(--q-surface); border-color: var(--q-line);
 }
 .q-low-stimulus .quiet-app .quiet-home :is(.sense-tile, .report-grid button) { background: var(--q-canvas); border-color: var(--q-line); }
@@ -453,7 +451,7 @@ body.q-low-stimulus, html:has(body.q-low-stimulus) { background: #ebe8e3; }
 .q-low-stimulus .quiet-app .sense-grid .sense-tile,
 .q-low-stimulus .quiet-app .quick-report-section .report-grid button,
 .q-low-stimulus .quiet-app :is(.setting-icon, .info-icon) { color: var(--q-icon); }
-.q-low-stimulus .quiet-app .place-detail-view :is(.sense-bars > div, .sensory-summary > svg) { color: var(--q-icon); }
+.q-low-stimulus .quiet-app .place-detail-view .sense-bars > div { color: var(--q-icon); }
 .q-low-stimulus .quiet-app :is(.q-tag, .score-chip, .detail-tags) { filter: saturate(.55); }
 .q-low-stimulus .quiet-app .q-user-dot { background: #3f6f82; }
 .q-low-stimulus .quiet-app .history-chart .history-dot { fill: var(--q-icon); }

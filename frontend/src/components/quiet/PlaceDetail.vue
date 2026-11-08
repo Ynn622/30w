@@ -97,14 +97,11 @@ async function share() {
       <Transition name="quiet-fade" mode="out-in">
         <div :key="tab" class="detail-content">
           <template v-if="tab === 'sensory'">
-            <h3>感官概況 <small>資料整理摘要</small></h3>
-            <div class="sensory-summary"><AppIcon name="leaf" :size="30"/><p>{{ place.summary || '目前尚無足夠資料提供摘要。' }}</p></div>
             <p v-if="!scenario && !fresh" class="q-error">感官資訊已超過 30 分鐘或時間未知，請勿視為目前狀況。</p>
             <div class="sense-bars">
               <div v-for="sense in [{ key: 'noise', label: '聲音刺激', icon: 'sound' }, { key: 'light', label: '光線刺激', icon: 'sun' }, { key: 'crowd', label: '人潮密度', icon: 'people' }, { key: 'odor', label: '氣味刺激', icon: 'wind' }]" :key="sense.key"><AppIcon :name="sense.icon" :size="23"/><span>{{ sense.label }}</span><div class="sense-track"><i v-if="Number.isFinite(assessment?.dimensions[sense.key])" :style="{ width: `${assessment.dimensions[sense.key]}%` }"></i></div><strong>{{ levelText(assessment?.dimensions[sense.key]) }}</strong></div>
             </div>
             <SensoryScore :assessment="assessment" :mock="builtinMock" />
-            <p class="q-helper">刺激指數為 0–100 相對尺度，非分貝、照度或人數。</p>
           </template>
           <template v-else-if="tab === 'history'">
             <h3>個人化歷史趨勢 <small>依你的敏感度加權</small></h3>
@@ -170,9 +167,6 @@ async function share() {
 .detail-content { min-height: 0; padding-inline: 4px; }
 .detail-content h3 { margin: 0 0 10px; font-size: 17px; font-weight: 650; line-height: 1.5; color: #2c3941; }
 .detail-content h3 small { margin-left: 5px; color: #66747d; font-size: 12px; font-weight: 400; }
-.sensory-summary { gap: 12px; padding: 12px; background: #eefaFE; border-radius: 9px; }
-.sensory-summary > svg { flex-shrink: 0; color: #398749; }
-.sensory-summary p { margin: 0; color: #394852; font-size: 15px; line-height: 1.65; }
 .sense-bars { margin: 17px 0 14px; }
 .sense-bars > div { display: grid; grid-template-columns: 25px 73px minmax(0, 1fr) 32px; align-items: center; gap: 10px; margin: 13px 0; color: #54879b; font-size: 15px; line-height: 1.4; }
 .sense-bars > div:nth-child(2) { color: #c99a26; }
