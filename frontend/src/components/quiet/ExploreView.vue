@@ -46,10 +46,10 @@ function remindLayer() {
 }
 watch(showLayer, on => { if (on) remindLayer() })
 onMounted(() => { if (showLayer.value && !layerReminded) { layerReminded = true; remindLayer() } })
-// 排序：距離優先，或依使用者敏感度佔比加權的安靜程度優先（無感官資料的地點排在後面）。
+// 排序：距離優先，或依使用者敏感度佔比加權的「我的舒適優先」（無感官資料的地點排在後面）。
 // 只有內建模擬備援才標示模擬；後端 test-only 接口（目前的場所資料）當正式資料呈現。
 const builtinMock = computed(() => Boolean(props.city.places.meta.value?.mock) && props.city.places.meta.value?.mode !== 'test-only')
-const SORTS = [{ id: 'distance', label: '距離優先' }, { id: 'fit', label: '安靜程度優先' }]
+const SORTS = [{ id: 'distance', label: '距離優先' }, { id: 'fit', label: '我的舒適優先' }]
 // 正式與情境資料只取得一邊時明示部分資料，不當成完整清單。
 const partialText = computed(() => ({ test: '部分感官資料暫時無法取得，只列出基本場所資訊（感官多為未知）。', live: '部分場所資料暫時無法取得，清單可能不完整。' })[props.city.places.meta.value?.partial] || '')
 const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlaces.value.every(place => place.assessment?.sfs == null))
@@ -76,7 +76,7 @@ const noQuietData = computed(() => visiblePlaces.value.length > 0 && visiblePlac
             <button v-for="item in SORTS" :key="item.id" type="button" :class="{ selected: city.preferences.value.sort === item.id }" :aria-pressed="city.preferences.value.sort === item.id" @click="city.preferences.value.sort = item.id">{{ item.label }}</button>
           </div>
           <p v-if="city.preferences.value.sort === 'fit' && noQuietData" class="q-helper sort-note">目前地點尚無有效感官資料，暫依距離排列。</p>
-          <p v-else-if="city.preferences.value.sort === 'fit'" class="q-helper sort-note">依你在「我的」設定的感官敏感度佔比，計算各地點的安靜程度。</p>
+          <p v-else-if="city.preferences.value.sort === 'fit'" class="q-helper sort-note">依你在「我的」設定的感官敏感度佔比，計算各地點的舒適度。</p>
         </div>
         <AsyncState v-if="fieldSource.state.value === 'error'" state="error" :message="fieldSource.error.value" retry @retry="fieldSource.reload" />
         <p v-if="builtinMock" class="mock-inline">{{ MOCK_LABEL }}</p>

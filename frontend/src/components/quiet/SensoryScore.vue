@@ -4,6 +4,7 @@ import { SENSES, levelText } from '../../lib/sensoryDomain.js'
 import { SENSORY_KEYS } from '../../lib/sensoryIndex.js'
 
 const props = defineProps({ assessment: { type: Object, default: null }, mock: Boolean, compact: Boolean })
+// compact（清單卡片）只顯示依個人敏感度計算的舒適度；環境刺激 SSI 只在場所詳情顯示。
 const labels = Object.fromEntries(SENSES.map(sense => [sense.key, sense.label]))
 const missing = computed(() => SENSORY_KEYS.filter(key => props.assessment?.dimensions?.[key] == null).map(key => labels[key]))
 const partial = computed(() => props.assessment?.ssi != null && missing.value.length > 0)
@@ -13,11 +14,10 @@ const unavailable = computed(() => props.assessment?.availableCount > 0 && !prop
 </script>
 
 <template>
-  <div v-if="compact" class="score-compact" :class="{ unknown: assessment?.ssi == null && assessment?.sfs == null }">
-    <span v-if="assessment?.ssi != null" class="score-chip" :class="`level-${levelText(assessment.ssi)}`"><b>SSI {{ assessment.ssi }}</b>{{ levelText(assessment.ssi) }}刺激</span>
-    <span v-if="assessment?.sfs != null" class="score-chip fit"><b>安靜程度 {{ assessment.sfs }}</b></span>
+  <div v-if="compact" class="score-compact" :class="{ unknown: assessment?.sfs == null }">
+    <span v-if="assessment?.sfs != null" class="score-chip fit"><b>舒適度 {{ assessment.sfs }}</b></span>
     <span v-if="assessment?.sfs != null && missing.length" class="score-partial">部分資料・缺{{ missing.join('、') }}</span>
-    <span v-if="assessment?.ssi == null && assessment?.sfs == null" class="score-partial">刺激指數：{{ unavailable }}</span>
+    <span v-else-if="assessment?.sfs == null" class="score-partial">舒適度：資料不足</span>
   </div>
 
   <section v-else class="score-panel" aria-label="感官指數">

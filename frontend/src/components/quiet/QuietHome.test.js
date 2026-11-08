@@ -87,13 +87,20 @@ describe('home sensory presentation', () => {
   })
 })
 describe('place card index honesty', () => {
-  it('shows a quiet score from plain senses without inventing an SSI', async () => {
+  it('shows only the personal comfort score on list cards, never an SSI', async () => {
     const { sensoryIndex, ...legacy } = samplePlaces()[0]
     const html = await renderToString(createSSRApp(PlaceCard, { place: { ...legacy, assessment: assessSensory(legacy, undefined, NOW) } }))
-    expect(html).toContain('安靜程度')
+    expect(html).toContain('舒適度')
     expect(html).not.toContain('SSI')
     const unknown = await renderToString(createSSRApp(PlaceCard, { place: { ...legacy, assessment: assessSensory({ ...legacy, confidence: 'insufficient' }, undefined, NOW) } }))
     expect(unknown).toContain('資料不足')
+  })
+  it('hides SSI on list cards even when the place has one', async () => {
+    const place = { ...samplePlaces()[0], assessment: { ssi: 54, sfs: 47, dimensions: { noise: 40, light: 30, crowd: 50, odor: 10 }, availableCount: 4, coverage: 1, fitCoverage: 1, scoreVersion: 'ssi-v0.1' } }
+    const html = await renderToString(createSSRApp(PlaceCard, { place }))
+    expect(html).toContain('舒適度 47')
+    expect(html).not.toContain('SSI')
+    expect(html).not.toContain('54')
   })
 })
 describe('location-only service', () => {
