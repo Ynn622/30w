@@ -49,11 +49,12 @@ Vue 3 + JavaScript + Vite 的行動版城市感官服務。首頁、探索、我
 - **排重與舊 UUID**：清單已由後端排重，前端不再以距離合併；詳情保留請求 id 相等檢查，舊 UUID 回應的 `canonicalId` 照常顯示，圖片直接用後端提供的網址。
 - **場所資料來源（正式＋場所情境雙來源，Ynn622/30w#7）**：探索頁推薦清單與詳情同時請求正式 `places` 與 `test/places?scenario=`（`src/lib/placeSources.js`、`src/lib/testPlacesApi.js`），只依同 UUID、`test.livePlaceIds` 或共同 `sourceIdentities` 一對一合併：保留正式的名稱、地址、照片與來源，感官整筆改用情境資料（null 維持未知、0 是有效低值）；多候選不合併，test 獨有與正式獨有都照常顯示，Vue key 用來源限定的 `renderKey`。場所情境（平日下午／平日晚上／週末下午）不提供切換，依臺北當下時間自動挑最接近的一種（週末→週末下午、平日 18 點後→平日晚上、其餘→平日下午），重新整理跨過界線時自動重查。詳情依清單記下的 `{ origin, liveId, testId, scenario }` 讀同一來源，合併場所兩邊都查並重驗身份；任一來源失敗標示部分資料、兩邊都失敗顯示錯誤，正式介接退回內建虛構資料時視為失敗。情境資料（`taipei-places-test-v1`、`typical_scenario`）依開發者決定先當正式資料呈現：不套 30 分鐘新鮮度、不顯示過期提示，以同一組 SSI 權重計算 SSI 與 SFS（信心沿用 `confidence`，多為 low）；test 場所沒有照片，不借正式照片。舊的天母 `test/tianmu/places` 介接已移除。
 
-### 個人化歷史趨勢（後端開發中）
+### 個人化歷史趨勢（API 規格：Ynn622/30w_backend#19，後端開發中）
 
-- 場所詳情的分頁為「感官資訊／基本資訊／歷史趨勢」（原「回報摘要」已移除）。歷史趨勢以場所座標與平日／假日 POST 後端（`src/lib/historyApi.js`，只送 `lat`、`lng`、`dayType=weekday|weekend`），後端回傳一天各時段（每 3 小時一點）的聲音／光線／人潮／氣味四個值。
-- 前端回來後依「我的」敏感度加權（`personalWeights`，聲音權重 ×2，與場所安靜程度一致），得到 0–100 個人刺激值，以 `HistoryChart.vue` 的 SVG 折線圖呈現；33／66 虛線與敏感圖層分界一致，未知時段不畫點、折線斷開，不當作安靜。
-- 後端接口路徑未定：設定 `VITE_HISTORY_PATH`（相對 API base）後才發請求；未設定時分頁顯示「歷史資料尚未提供」。回傳格式暫時寬鬆接受 `data.slots／points／series` 或陣列、`hour／startHour` 或 `"HH:00"`、`senses` 物件或平鋪四維，後端公布正式契約後再收緊驗證。
+- 場所詳情的分頁為「感官資訊／基本資訊／歷史趨勢」（原「回報摘要」已移除）。歷史趨勢以場所座標與平日／假日 `POST test/history`（`src/lib/historyApi.js`），body 只送 `lat`、`lng`、`dayType=weekday|weekend`。
+- 後端回傳典型日 8 個時段（`startHour` 0／3／…／21、`endHour` = +3）的聲音／光線／人潮／氣味原始值（150 公尺內網格平均，0–100 或 null）。前端驗證 `meta.test`／`demo`／`mode: test-only`、`datasetVersion: taipei-hourly-grid-v2`、`aggregationVersion: history-3h-radius-mean-v1`、`noiseMapping.version: test-noise-linear-v2`，以及 `dayType`、`radiusMeters: 150`、`stepHours: 3`、8 個時段與 `missingReason`；不符即顯示格式不符。
+- 前端依「我的」敏感度加權（`personalWeights`，聲音權重 ×2，與場所安靜程度一致）得到 0–100 個人刺激值，以 `HistoryChart.vue` 的 SVG 折線圖呈現；33／66 虛線與敏感圖層分界一致，未知時段不畫點、折線斷開。個人設定不上傳。
+- 後端上線前接口回 404，分頁顯示「歷史資料尚未提供」；路徑若改名可用 `VITE_HISTORY_PATH` 覆寫（預設 `test/history`）。
 
 ### SSI、SFS 與低刺激模式
 

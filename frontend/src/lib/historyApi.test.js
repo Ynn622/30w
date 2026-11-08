@@ -2,49 +2,74 @@ import { createSSRApp } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from './apiClient.js'
-import { createHistoryApi, normalizeHistory, personalizeHistory } from './historyApi.js'
+import { HISTORY_PATH, createHistoryApi, personalizeHistory, validHistory } from './historyApi.js'
 import HistoryChart from '../components/quiet/HistoryChart.vue'
 
-const slots = (overrides = {}) => [0, 3, 6, 9, 12, 15, 18, 21].map(hour => ({ hour, senses: { noise: 20 + hour, light: 10, crowd: hour * 2, odor: 5 }, ...overrides[hour] }))
+// 依 Ynn622/30w_backend#19 規格的回應樣本。
+function historyPayloadFor({ dayType = 'weekday', slots, meta = {}, data = {} } = {}) {
+  return {
+    data: {
+      location: { lat: 25.1161, lng: 121.5349 }, dayType, radiusMeters: 150, stepHours: 3, missingReason: null,
+      slots: slots ?? [0, 3, 6, 9, 12, 15, 18, 21].map(hour => ({ startHour: hour, endHour: hour + 3, senses: { noise: 20 + hour, light: 10, crowd: hour * 2, odor: 5.5 }, pointCount: 9 })),
+      ...data,
+    },
+    meta: {
+      test: true, demo: true, mode: 'test-only', datasetVersion: 'taipei-hourly-grid-v2', modelVersion: 'taipei-hourly-grid-v1',
+      aggregationVersion: 'history-3h-radius-mean-v1', timeBasis: 'typical_day', noiseMapping: { version: 'test-noise-linear-v2', inputMin: 35, inputMax: 100 }, sources: [],
+      ...meta,
+    },
+  }
+}
 const ok = payload => vi.fn(async () => ({ data: payload }))
+const QUERY = { lat: 25.1161, lng: 121.5349, dayType: 'weekday' }
 
-describe('personal history adapter', () => {
-  it('posts only lat, lng and dayType to the configured path', async () => {
-    const request = ok({ data: { slots: slots() } })
-    const result = await createHistoryApi({ request, path: 'history' }).getHistory({ lat: 25.1, lng: 121.5, dayType: 'weekend', radius: 300 })
-    expect(request).toHaveBeenCalledWith('history', { method: 'POST', body: { lat: 25.1, lng: 121.5, dayType: 'weekend' }, signal: undefined })
-    expect(result.data.slots).toHaveLength(8)
-  })
-  it('does not call anything until the backend path is configured', async () => {
-    const request = ok({})
-    const api = createHistoryApi({ request, path: null })
-    expect(api.available).toBe(false)
-    await expect(api.getHistory({ lat: 25.1, lng: 121.5, dayType: 'weekday' })).rejects.toMatchObject({ code: 'UNAVAILABLE' })
-    expect(request).not.toHaveBeenCalled()
+describe('personal history adapter (Ynn622/30w_backend#19)', () => {
+  it('posts only lat, lng and dayType to test/history', async () => {
+    expect(HISTORY_PATH).toBe('test/history')
+    const request = ok(historyPayloadFor({ dayType: 'weekend' }))
+    const result = await createHistoryApi({ request }).getHistory({ ...QUERY, dayType: 'weekend', radius: 300 })
+    expect(request).toHaveBeenCalledWith('test/history', { method: 'POST', body: { lat: 25.1161, lng: 121.5349, dayType: 'weekend' }, signal: undefined })
+    expect(result.data.slots.map(slot => slot.hour)).toEqual([0, 3, 6, 9, 12, 15, 18, 21])
+    expect(result.data.slots[0].senses).toEqual({ noise: 20, light: 10, crowd: 0, odor: 5.5 })
   })
   it('refuses invalid coordinates and day types before calling the backend', async () => {
     const request = ok({})
-    const api = createHistoryApi({ request, path: 'history' })
-    await expect(api.getHistory({ lat: 'x', lng: 121.5, dayType: 'weekday' })).rejects.toThrow('座標無效')
-    await expect(api.getHistory({ lat: 25.1, lng: 121.5, dayType: 'holiday' })).rejects.toThrow('未知的日期類型')
+    const api = createHistoryApi({ request })
+    await expect(api.getHistory({ ...QUERY, lat: 'x' })).rejects.toThrow('座標無效')
+    await expect(api.getHistory({ ...QUERY, dayType: 'holiday' })).rejects.toThrow('未知的日期類型')
     expect(request).not.toHaveBeenCalled()
   })
-  it('accepts common slot shapes and keeps null as unknown', () => {
-    expect(normalizeHistory({ data: { points: [{ startTime: '03:00', noise: 10, light: null, crowd: 0, odor: 5 }, { startHour: 0, senses: { noise: 1, light: 2, crowd: 3, odor: 4 } }] } }))
-      .toEqual([{ hour: 0, senses: { noise: 1, light: 2, crowd: 3, odor: 4 } }, { hour: 3, senses: { noise: 10, light: null, crowd: 0, odor: 5 } }])
+  it('accepts an all-unknown day as data, not as an error', () => {
+    const empty = historyPayloadFor({ data: { missingReason: 'no_points_within_radius' }, slots: [0, 3, 6, 9, 12, 15, 18, 21].map(hour => ({ startHour: hour, endHour: hour + 3, senses: { noise: null, light: null, crowd: null, odor: null }, pointCount: 0 })) })
+    expect(validHistory(empty, 'weekday').every(slot => Object.values(slot.senses).every(value => value === null))).toBe(true)
   })
-  it('rejects malformed slots, out-of-range values and duplicate hours', async () => {
-    for (const payload of [{ data: { slots: [] } }, { data: { slots: [{ hour: 24, senses: {} }] } }, { data: { slots: [{ hour: 0, senses: { noise: 101 } }] } }, { data: { slots: [{ hour: 0, noise: 1 }, { hour: 0, noise: 2 }] } }]) {
-      await expect(createHistoryApi({ request: ok(payload), path: 'history' }).getHistory({ lat: 25.1, lng: 121.5, dayType: 'weekday' })).rejects.toThrow('格式不符')
-    }
+  it('rejects payloads that do not follow the contract', async () => {
+    const base = historyPayloadFor()
+    const cases = [
+      historyPayloadFor({ meta: { test: false } }),
+      historyPayloadFor({ meta: { datasetVersion: 'taipei-hourly-grid-v1' } }),
+      historyPayloadFor({ meta: { aggregationVersion: 'hourly-radius-mean-v1' } }),
+      historyPayloadFor({ meta: { noiseMapping: { version: 'test-noise-demo-v1' } } }),
+      historyPayloadFor({ dayType: 'weekend' }),
+      historyPayloadFor({ data: { radiusMeters: 300 } }),
+      historyPayloadFor({ data: { stepHours: 1 } }),
+      historyPayloadFor({ data: { missingReason: 'other' } }),
+      historyPayloadFor({ slots: base.data.slots.slice(0, 7) }),
+      historyPayloadFor({ slots: [...base.data.slots].reverse() }),
+      historyPayloadFor({ slots: base.data.slots.map((slot, i) => i === 2 ? { ...slot, endHour: 8 } : slot) }),
+      historyPayloadFor({ slots: base.data.slots.map((slot, i) => i === 2 ? { ...slot, senses: { ...slot.senses, noise: 100.5 } } : slot) }),
+      historyPayloadFor({ slots: base.data.slots.map((slot, i) => i === 2 ? { ...slot, senses: { noise: 1, light: 1, crowd: 1 } } : slot) }),
+    ]
+    for (const payload of cases) await expect(createHistoryApi({ request: ok(payload) }).getHistory(QUERY)).rejects.toThrow('格式不符')
   })
-  it('shows HTTP errors and passes cancellation through', async () => {
+  it('shows HTTP errors (404 as not yet provided) and passes cancellation through', async () => {
     for (const status of [400, 404, 429, 503]) {
       const request = vi.fn(async () => { throw new ApiError('x', { status }) })
-      await expect(createHistoryApi({ request, path: 'history' }).getHistory({ lat: 25.1, lng: 121.5, dayType: 'weekday' })).rejects.toMatchObject({ name: 'HistoryDataError', status })
+      await expect(createHistoryApi({ request }).getHistory(QUERY)).rejects.toMatchObject({ name: 'HistoryDataError', status })
     }
+    await expect(createHistoryApi({ request: vi.fn(async () => { throw new ApiError('x', { status: 404 }) }) }).getHistory(QUERY)).rejects.toThrow('尚未提供')
     const cancelled = new ApiError('請求已取消。', { code: 'CANCELLED' })
-    await expect(createHistoryApi({ request: vi.fn(async () => { throw cancelled }), path: 'history' }).getHistory({ lat: 25.1, lng: 121.5, dayType: 'weekday' })).rejects.toBe(cancelled)
+    await expect(createHistoryApi({ request: vi.fn(async () => { throw cancelled }) }).getHistory(QUERY)).rejects.toBe(cancelled)
   })
 })
 
@@ -69,7 +94,8 @@ describe('personalized history values', () => {
 
 describe('history chart', () => {
   it('draws one point per known slot, breaks the line at unknown slots and summarises for screen readers', async () => {
-    const points = personalizeHistory(slots({ 9: { senses: { noise: null, light: null, crowd: null, odor: null } } }), { noise: 4, light: 2, crowd: 3, odor: 1 })
+    const slots = validHistory(historyPayloadFor(), 'weekday').map(slot => slot.hour === 9 ? { ...slot, senses: { noise: null, light: null, crowd: null, odor: null } } : slot)
+    const points = personalizeHistory(slots, { noise: 4, light: 2, crowd: 3, odor: 1 })
     const html = await renderToString(createSSRApp(HistoryChart, { points, stepHours: 3 }))
     expect(html.match(/<circle[^>]*history-dot/g)).toHaveLength(7)
     expect(html.match(/<polyline/g)).toHaveLength(2)

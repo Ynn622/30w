@@ -41,19 +41,20 @@ async function load() {
 watch(() => props.target, load, { immediate: true })
 // 個人化歷史趨勢：切到該分頁才查詢；以場所座標與平日／假日請求，回來後依「我的」敏感度加權。
 const historyDayType = ref(taipeiSlot().dayType)
-const history = ref(null), historyState = ref('idle'), historyError = ref('')
+// historyPending：後端接口尚未上線（404），顯示「尚未提供」而不是錯誤。
+const history = ref(null), historyState = ref('idle'), historyError = ref(''), historyPending = ref(false)
 const historyPoints = computed(() => history.value ? personalizeHistory(history.value.slots, props.city.preferences.value.sensitivities) : [])
 let historyController, historySerial = 0
 async function loadHistory() {
   historyController?.abort()
   if (!props.city.historyAvailable || !place.value?.location) { historyState.value = 'idle'; return }
   historyController = new AbortController(); const current = ++historySerial
-  historyState.value = 'loading'; historyError.value = ''; history.value = null
+  historyState.value = 'loading'; historyError.value = ''; historyPending.value = false; history.value = null
   try {
     const result = await props.city.getHistory({ lat: place.value.location.lat, lng: place.value.location.lng, dayType: historyDayType.value }, { signal: historyController.signal })
     if (current !== historySerial) return
     history.value = result.data; historyState.value = 'ready'
-  } catch (reason) { if (current === historySerial && reason?.code !== 'CANCELLED') { historyError.value = reason.message; historyState.value = 'error' } }
+  } catch (reason) { if (current === historySerial && reason?.code !== 'CANCELLED') { historyError.value = reason.message; historyPending.value = reason?.status === 404; historyState.value = 'error' } }
 }
 watch(() => [tab.value, historyDayType.value, place.value?.location?.lat, place.value?.location?.lng], () => { if (tab.value === 'history') loadHistory() })
 onUnmounted(() => { serial++; controller?.abort(); historySerial++; historyController?.abort() })
@@ -106,7 +107,7 @@ async function share() {
           <template v-else-if="tab === 'history'">
             <h3>個人化歷史趨勢 <small>依你的敏感度加權</small></h3>
             <div class="history-day-switch" role="group" aria-label="日期類型"><button v-for="item in HISTORY_DAY_TYPES" :key="item.id" type="button" :class="{ selected: historyDayType === item.id }" :aria-pressed="historyDayType === item.id" @click="historyDayType = item.id">{{ item.label }}</button></div>
-            <AsyncState v-if="!city.historyAvailable" title="歷史資料尚未提供" message="後端歷史資料上線後，即可查看這裡一天各時段的變化。" />
+            <AsyncState v-if="!city.historyAvailable || historyPending" title="歷史資料尚未提供" message="後端歷史資料上線後，即可查看這裡一天各時段的變化。" />
             <AsyncState v-else-if="historyState !== 'ready'" :state="historyState === 'idle' ? 'loading' : historyState" :message="historyError" retry @retry="loadHistory" />
             <template v-else>
               <HistoryChart :points="historyPoints" :step-hours="HISTORY_STEP_HOURS" />
