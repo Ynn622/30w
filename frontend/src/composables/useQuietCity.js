@@ -9,6 +9,7 @@ import { reverseGeocoder } from '../lib/reverseGeocode.js'
 import { readNoiseHistory, saveNoiseEntry } from '../lib/noiseHistory.js'
 import { cropGrid, hourlyApi } from '../lib/hourlyApi.js'
 import { placeSources } from '../lib/placeSources.js'
+import { historyApi } from '../lib/historyApi.js'
 
 function useRemote(query, fetcher) {
   // source 只在請求完成時更新，重新載入期間保留上一次結果，避免通知反覆跳出。
@@ -141,6 +142,9 @@ export function useQuietCity(notify) {
   const remoteTest = computed(() => preferences.value.dataMode === 'remote-hourly')
   // 詳情依清單記下的 { origin, liveId, testId, scenario } 讀取，同情境走同來源；舊的字串 id 視為正式場所。
   const getPlace = (target, options) => placesApi.getPlace(target, options)
+  // 場所詳情的個人化歷史趨勢：POST 經緯度與平日／假日（後端開發中，未設定 VITE_HISTORY_PATH 時不發請求）。
+  const historyAvailable = historyApi.available
+  const getHistory = (query, options) => historyApi.getHistory(query, options)
   const currentSlot = computed(() => taipeiSlot(now.value))
   const fieldSlot = computed(() => remoteTest.value ? { dayType: preferences.value.dayType, hour: preferences.value.hour } : currentSlot.value)
   const searchQuery = computed(() => searchArea.value
@@ -240,5 +244,5 @@ export function useQuietCity(notify) {
   onScopeDispose(() => { disposed = true; locationController?.abort(); addressController?.abort(); clearInterval(refreshTimer); window.removeEventListener?.('focus', resume) })
   // 模擬模式下強度選項可完整操作；後端模式需後端宣告支援。
   const reportIntensityEnabled = computed(() => sensoryApi.supportsReportIntensity || usingMock.value)
-  return { village, remoteTest, getPlace, hourly, fieldCells, fieldNow, fieldSource, noiseHistory, recordNoise, mapCenter, mapView, searchRadius, placesSearchRadius, searchCap, viewTruncated, searchArea, searchAvailable, searchingElsewhere, setMapView, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, places, locating, locate, reportLocation }
+  return { village, remoteTest, getPlace, getHistory, historyAvailable, hourly, fieldCells, fieldNow, fieldSource, noiseHistory, recordNoise, mapCenter, mapView, searchRadius, placesSearchRadius, searchCap, viewTruncated, searchArea, searchAvailable, searchingElsewhere, setMapView, dataSource, usingMock, fallbackReason, reportIntensityEnabled, now, refresh, assess, recommendations, areaId, area, center, deviceLocation, locationStatus, locationError, serviceAvailable, address, addressState, preferences, overview, places, locating, locate, reportLocation }
 }

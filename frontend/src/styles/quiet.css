@@ -447,7 +447,7 @@ body.q-low-stimulus, html:has(body.q-low-stimulus) { background: #ebe8e3; }
 }
 .q-low-stimulus .quiet-app .quiet-home :is(.sense-tile, .report-grid button) { background: var(--q-canvas); border-color: var(--q-line); }
 .q-low-stimulus .quiet-app .map-tools .q-icon-button { background: var(--q-surface); border-color: var(--q-line); color: var(--q-icon); }
-.q-low-stimulus .quiet-app :is(.area-source, .count-badge, .count-badge.green, .place-search, .sort-switch, .info-icon) { background: var(--q-mint); border-color: var(--q-line); }
+.q-low-stimulus .quiet-app :is(.area-source, .count-badge, .count-badge.green, .place-search, .sort-switch, .history-day-switch, .info-icon) { background: var(--q-mint); border-color: var(--q-line); }
 .q-low-stimulus .quiet-overlay { background: #2a2f3352; backdrop-filter: none; }
 /* 圖示一律單色：感官四格與快速回報不再用橘、綠、紅區分，狀態改由文字表達。 */
 .q-low-stimulus .quiet-app .sense-grid .sense-tile,
@@ -456,6 +456,7 @@ body.q-low-stimulus, html:has(body.q-low-stimulus) { background: #ebe8e3; }
 .q-low-stimulus .quiet-app .place-detail-view :is(.sense-bars > div, .sensory-summary > svg) { color: var(--q-icon); }
 .q-low-stimulus .quiet-app :is(.q-tag, .score-chip, .detail-tags) { filter: saturate(.55); }
 .q-low-stimulus .quiet-app .q-user-dot { background: #3f6f82; }
+.q-low-stimulus .quiet-app .history-chart .history-dot { fill: var(--q-icon); }
 .q-low-stimulus .quiet-app :is(.city-illustration, .weather-symbol, .weather-waves, .quiet-footer, .place-thumbnail, .detail-art) { display: none; }
 .q-low-stimulus .quiet-app .home-heading { min-height: 0; padding-right: 4px; }
 .q-low-stimulus .quiet-app .home-heading-copy { flex: 1; min-width: 0; }

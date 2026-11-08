@@ -4,8 +4,10 @@ import AppIcon from '../AppIcon.vue'
 import AsyncState from '../AsyncState.vue'
 import PlacePhoto from './PlacePhoto.vue'
 import SensoryScore from './SensoryScore.vue'
+import HistoryChart from './HistoryChart.vue'
+import { HISTORY_DAY_TYPES, HISTORY_STEP_HOURS, personalizeHistory } from '../../lib/historyApi.js'
 import { MOCK_NOTICE } from '../../lib/sensoryApi.js'
-import { MOCK_LABEL, distanceMeters, googleMapsDirectionsUrl, isFresh, levelText } from '../../lib/sensoryDomain.js'
+import { MOCK_LABEL, distanceMeters, googleMapsDirectionsUrl, isFresh, levelText, taipeiSlot } from '../../lib/sensoryDomain.js'
 import { sendToNative } from '../../lib/webview.js'
 // target：雙來源場所為 { origin, liveId, testId, scenario }（同情境走同來源），舊資料為字串 id。
 const props = defineProps({ target: { type: [String, Object], required: true }, city: { type: Object, required: true } })
@@ -37,7 +39,24 @@ async function load() {
   catch (reason) { if (current === serial) { error.value = reason.message; state.value = 'error' } }
 }
 watch(() => props.target, load, { immediate: true })
-onUnmounted(() => { serial++; controller?.abort() })
+// 個人化歷史趨勢：切到該分頁才查詢；以場所座標與平日／假日請求，回來後依「我的」敏感度加權。
+const historyDayType = ref(taipeiSlot().dayType)
+const history = ref(null), historyState = ref('idle'), historyError = ref('')
+const historyPoints = computed(() => history.value ? personalizeHistory(history.value.slots, props.city.preferences.value.sensitivities) : [])
+let historyController, historySerial = 0
+async function loadHistory() {
+  historyController?.abort()
+  if (!props.city.historyAvailable || !place.value?.location) { historyState.value = 'idle'; return }
+  historyController = new AbortController(); const current = ++historySerial
+  historyState.value = 'loading'; historyError.value = ''; history.value = null
+  try {
+    const result = await props.city.getHistory({ lat: place.value.location.lat, lng: place.value.location.lng, dayType: historyDayType.value }, { signal: historyController.signal })
+    if (current !== historySerial) return
+    history.value = result.data; historyState.value = 'ready'
+  } catch (reason) { if (current === historySerial && reason?.code !== 'CANCELLED') { historyError.value = reason.message; historyState.value = 'error' } }
+}
+watch(() => [tab.value, historyDayType.value, place.value?.location?.lat, place.value?.location?.lng], () => { if (tab.value === 'history') loadHistory() })
+onUnmounted(() => { serial++; controller?.abort(); historySerial++; historyController?.abort() })
 function navigate() {
   if (builtinMock.value) { emit('notify', '模擬場所沒有實際位置，不提供導航。'); return }
   const url = googleMapsDirectionsUrl(place.value.location)
@@ -74,7 +93,7 @@ async function share() {
       </div>
       <p v-if="builtinMock" class="mock-inline">{{ MOCK_LABEL }}，場所與地址為虛構。</p>
       <p v-if="partialText" class="partial-note" role="status">{{ partialText }}</p>
-      <div class="q-segment detail-tabs" role="group" aria-label="場所資訊分頁"><button v-for="item in [{ id: 'sensory', label: '感官資訊' }, { id: 'info', label: '基本資訊' }]" :key="item.id" type="button" :class="{ selected: tab === item.id }" :aria-pressed="tab === item.id" @click="tab = item.id">{{ item.label }}</button></div>
+      <div class="q-segment detail-tabs" role="group" aria-label="場所資訊分頁"><button v-for="item in [{ id: 'sensory', label: '感官資訊' }, { id: 'info', label: '基本資訊' }, { id: 'history', label: '歷史趨勢' }]" :key="item.id" type="button" :class="{ selected: tab === item.id }" :aria-pressed="tab === item.id" @click="tab = item.id">{{ item.label }}</button></div>
       <Transition name="quiet-fade" mode="out-in">
         <div :key="tab" class="detail-content">
           <template v-if="tab === 'sensory'">
@@ -86,6 +105,16 @@ async function share() {
             </div>
             <SensoryScore :assessment="assessment" :mock="builtinMock" />
             <p class="q-helper">刺激指數為 0–100 相對尺度，非分貝、照度或人數。</p>
+          </template>
+          <template v-else-if="tab === 'history'">
+            <h3>個人化歷史趨勢 <small>依你的敏感度加權</small></h3>
+            <div class="history-day-switch" role="group" aria-label="日期類型"><button v-for="item in HISTORY_DAY_TYPES" :key="item.id" type="button" :class="{ selected: historyDayType === item.id }" :aria-pressed="historyDayType === item.id" @click="historyDayType = item.id">{{ item.label }}</button></div>
+            <AsyncState v-if="!city.historyAvailable" title="歷史資料尚未提供" message="後端歷史資料上線後，即可查看這裡一天各時段的變化。" />
+            <AsyncState v-else-if="historyState !== 'ready'" :state="historyState === 'idle' ? 'loading' : historyState" :message="historyError" retry @retry="loadHistory" />
+            <template v-else>
+              <HistoryChart :points="historyPoints" :step-hours="HISTORY_STEP_HOURS" />
+              <p class="q-helper">每 {{ HISTORY_STEP_HOURS }} 小時一點：聲音、光線、人潮、氣味依你在「我的」設定的敏感度加權（聲音權重加倍），0–100 越高越刺激；虛線為 33／66 分界。</p>
+            </template>
           </template>
           <template v-else>
             <!-- 介紹卡片 → 地址與開放時間 → 設施標籤 → 可進入性提醒。 -->
@@ -128,6 +157,9 @@ async function share() {
 .detail-tags > span:first-child { display: inline-flex; align-items: center; gap: 5px; color: #66747d; font-size: 13px; }
 .detail-tags > span:first-child svg { color: #8b609e; }
 .detail-tags .q-tag { padding: 3px 7px; border-radius: 6px; color: #367d39; background: #e5f4de; font-size: 13px; line-height: 1.4; }
+.history-day-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 4px 0 14px; padding: 2px; border-radius: 22px; background: #eef2f4; }
+.history-day-switch button { min-height: 44px; border: 0; border-radius: 22px; background: transparent; color: #56656e; font: inherit; font-size: 14px; cursor: pointer; }
+.history-day-switch button.selected { background: #fff; color: var(--q-deep, #007a90); font-weight: 600; box-shadow: 0 1px 3px #1d3c4a24; }
 .partial-note { margin: 0 0 11px; padding: 7px 9px; border-radius: 6px; background: #fff4e8; color: #7a4a1f; font-size: 13px; line-height: 1.6; }
 .mock-inline { margin: 0 0 11px; padding: 7px 9px; background: #f4f7f9; color: #65747d; border-radius: 6px; font-size: 12px; line-height: 1.6; }
 .detail-tabs { gap: 0; padding: 0; margin: 0 0 19px; background: #f1f3f5; border-radius: 9px; overflow: hidden; }
