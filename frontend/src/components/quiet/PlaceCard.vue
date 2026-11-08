@@ -9,6 +9,12 @@ import { placeImage } from '../../lib/placeImage.js'
 const props = defineProps({ place: { type: Object, required: true }, mock: Boolean })
 // 卡片是按鈕，不能放連結：只列作者與授權的純文字，完整署名與來源連結在場所詳情。
 const image = computed(() => placeImage(props.place))
+// 距離：1 公里內以公尺顯示（取整到 10 公尺），以上以公里顯示到小數第一位（與場所詳情一致）。
+const distanceText = computed(() => {
+  const meters = props.place.distanceM
+  if (!Number.isFinite(meters)) return '距離未知'
+  return meters < 1000 ? `距離約 ${Math.max(10, Math.round(meters / 10) * 10)} 公尺` : `距離約 ${(meters / 1000).toFixed(1)} 公里`
+})
 defineEmits(['select'])
 </script>
 
@@ -17,7 +23,7 @@ defineEmits(['select'])
     <div class="place-thumbnail"><PlacePhoto :place="place" /></div>
     <div class="place-card-copy">
       <div class="place-card-title"><h3>{{ place.name }}</h3><span class="q-tag">{{ place.tag || '候選休息點' }}</span></div>
-      <p class="place-card-meta"><span class="place-category"><AppIcon :name="place.indoor ? 'book' : 'leaf'" :size="15" />{{ place.category }}</span><span class="place-distance">{{ place.distanceM == null ? '距離待確認' : `${place.distanceM} 公尺直線` }}</span></p>
+      <p class="place-card-meta"><span class="place-category"><AppIcon :name="place.indoor ? 'book' : 'leaf'" :size="15" />{{ place.category }}</span><span class="place-distance">{{ distanceText }}</span></p>
       <div class="mini-senses"><span v-for="sense in SENSES" :key="sense.key"><AppIcon :name="sense.icon" :size="17" /><span class="sr-only">{{ sense.label }}</span>{{ levelText((place.assessment?.dimensions || place.senses)?.[sense.key]) }}</span></div>
       <SensoryScore v-if="place.assessment" :assessment="place.assessment" :mock="mock" compact />
       <p v-if="image" class="place-card-credit">{{ image.kind === 'reviewed' ? '照片' : '參考照片' }}：{{ image.author }}・{{ image.license }}</p>

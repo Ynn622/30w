@@ -95,6 +95,13 @@ describe('place card index honesty', () => {
     const unknown = await renderToString(createSSRApp(PlaceCard, { place: { ...legacy, assessment: assessSensory({ ...legacy, confidence: 'insufficient' }, undefined, NOW) } }))
     expect(unknown).toContain('資料不足')
   })
+  it('shows distance in meters under 1 km and in kilometers above, without the word 直線', async () => {
+    const render = distanceM => renderToString(createSSRApp(PlaceCard, { place: { ...samplePlaces()[0], distanceM } }))
+    expect(await render(347)).toContain('距離約 350 公尺')
+    expect(await render(1240)).toContain('距離約 1.2 公里')
+    expect(await render(null)).toContain('距離未知')
+    expect(await render(347)).not.toContain('直線')
+  })
   it('hides SSI on list cards even when the place has one', async () => {
     const place = { ...samplePlaces()[0], assessment: { ssi: 54, sfs: 47, dimensions: { noise: 40, light: 30, crowd: 50, odor: 10 }, availableCount: 4, coverage: 1, fitCoverage: 1, scoreVersion: 'ssi-v0.1' } }
     const html = await renderToString(createSSRApp(PlaceCard, { place }))
