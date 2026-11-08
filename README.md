@@ -1,81 +1,106 @@
 # 聆靜
 
-
 <p align="center">
   <img src="https://img.shields.io/badge/Vue.js-35495E?logo=vuedotjs&logoColor=4FC08D" alt="Vue.js">
   <img src="https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white" alt="Vite">
   <img src="https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black" alt="JavaScript">
+  <img src="https://img.shields.io/badge/MapLibre-396CB2?logo=maplibre&logoColor=white" alt="MapLibre">
+  <img src="https://img.shields.io/badge/License-AGPL--3.0--or--later-blue" alt="AGPL-3.0-or-later">
 </p>
+
+**在台北，找到屬於你的安靜角落。**
+
+聆靜是一個在台北通 App 裡開啟的城市感官服務，幫對聲音、光線、人潮或氣味比較敏感的人，在出門前和移動中看出哪裡比較安靜、舒服。
+
+同一個地方，怕吵的人和怕擠的人感受不同。聆靜會依你在「我的」設定的感官敏感度，重新計算每個地點的刺激程度，畫成**只屬於你的敏感圖層**。
+
+- 線上版本：<https://ynn622.github.io/30w/>
+- 前端（本專案）：<https://github.com/Ynn622/30w>
+- 後端：<https://github.com/Ynn622/30w_backend>（API：`https://30wbackend.idfc.dev/api/v1`）
 
 ---
 
-## 本次功能
+## 主要功能
 
-城市感官 WebView：首頁感官天氣（聲音／光線／人潮／氣味四維與另列 AQI）、兩層式快速回報（8 類型、快速標籤、強度、持續狀態、室內外）、感官地圖與靜音推薦、場所詳情、1–5 感官敏感度與低刺激模式（已移除感官篩選偏好與收藏功能）。保留隱藏測試工作台與版本檢查，移除參考圖最上方的服務導覽列；底部分頁為首頁、探索、我的。
+| 頁面 | 功能 |
+|---|---|
+| **首頁** | 依目前位置顯示所在的區和里（例如「士林區・三玉里」），以及周圍 150 公尺的聲音、光線、人潮、氣味。整體狀態會依你的敏感度算出「整體舒適／普通／偏刺激」。每 2 分鐘自動更新，也可以手動重新整理。 |
+| **快速回報** | 分享當下的感受：選類型、標籤、強度與室內外，回報會帶上目前位置。 |
+| **聽見此刻的環境** | 用手機麥克風在裝置上即時計算音量。**不錄音、不上傳聲音**，只有在你同意後，才分享平均值、峰值等統計數字。 |
+| **探索** | 全螢幕地圖加上可拖曳的推薦清單。開啟**敏感圖層**後，地圖會畫出綠到紅的平滑色帶，清單只列出綠區內的地點。 |
+| **場所詳情** | 分成三個分頁：感官資訊、基本資訊（地址、開放時間、設施、無障礙），以及依你的敏感度計算的平日／假日歷史趨勢。可以直接開啟導航。 |
+| **我的** | 調整四種感官的敏感度（1–5），以及**低刺激模式**（米白底、單色圖示、灰階地圖、減少動畫）。設定只存在這支手機，不會上傳。 |
 
-- 先讀 [前端實作計畫](docs/superpowers/plans/2026-11-07-city-quiet.md) 與 [感官個人化計畫](docs/superpowers/plans/2026-11-07-sensory-personalization.md)。
-- 後端直接依 [API 接口與資料契約](docs/backend-api.md) 實作六個接口。
-- Flutter／iOS 團隊依 [環境噪音訊息協定](docs/flutter-noise-interface.md) 實作 native handler。
-- 地圖、素材與資料授權見 [來源紀錄](docs/data-sources.md)。
+## 個人刺激值怎麼算
 
-切換後端時在 `frontend/.env.local` 設定：
+首頁、敏感圖層、場所排序與歷史趨勢都用同一條公式：
 
-```dotenv
-VITE_API_BASE_URL=https://your-backend.example/api/v1
-# 後端確認 POST reports 支援 intensity 後才開啟
-VITE_REPORT_INTENSITY=false
+```text
+聲音權重 = 你的聲音敏感度 × 2，其他感官權重 = 你的敏感度
+個人刺激值 = Σ(感官值 × 權重) ÷ Σ(有資料感官的權重)
 ```
 
-敏感圖層（熱力圖）一律呼叫後端逐小時模擬網格 `test/hourly`：平常自動取臺北當下時段，開啟探索頁的「模擬環境」時改用自選時段，不再呼叫 `sensory/map`；失敗時顯示錯誤並可重試，不使用本機模擬格網（原 `VITE_MOCK_MAP` 與 `mock-sensory-cells.json` 已移除）。
+- 感官值是 0–100，越高越刺激。
+- 沒資料的感官不列入計算，不會被當成安靜。
+- 0–33 是綠色（舒適）、34–66 是黃色（普通）、67–100 是紅色（刺激）。
+- 敏感圖層會把每個網格的個人刺激值，用高斯加權平均內插成平滑色帶，並畫出 33 和 66 兩條等值線。
 
-SSI（環境感官刺激指數）與 SFS（個人適配分數）在前端以 `frontend/src/lib/sensoryIndex.js` 計算：只採 `sensoryIndex.scoreVersion=ssi-v0.1` 且 30 分鐘內有效的維度，缺值不當作低刺激並標示涵蓋率；後端未提供版本化指數時只顯示各維度，不自行推算 SSI。敏感度、排序與低刺激模式只存本機，不加入 API query。
+程式在 [`frontend/src/lib/sensoryIndex.js`](frontend/src/lib/sensoryIndex.js) 與 [`frontend/src/lib/sensoryField.js`](frontend/src/lib/sensoryField.js)。
 
-感官資料一律先呼叫後端（`VITE_API_BASE_URL`）；連不上、路由不存在（404）、伺服器錯誤或回應格式不符時，該次請求改用 `frontend/src/data/quietMock.js` 的完整模擬資料，並跳出通知「後端感官服務暫時無法連線，已改用模擬資料顯示。」。模擬期間畫面以「模擬」小標與首頁「感官概況說明」視窗標示（競賽規則要求清楚標示模擬內容），每 2 分鐘持續重試後端（切回視窗時也會立即重試），三種資料都取得後端回應時自動切回並通知。取消請求不改用模擬；回報／量測只有在無法連線或路由不存在時才模擬完成（不上傳），驗證錯誤與頻率限制仍顯示錯誤讓使用者重試。
+## 系統架構
 
-2026-11-07 晚間查核 `https://30wbackend.idfc.dev/api/v1`：`places`、`places/{id}` 已上線，回傳臺北市開放資料場所（公園、涼適點、圖書館等，感官四維目前皆為 null、信心 insufficient，因此開啟「低噪」等低刺激篩選時清單為空）；`sensory/overview`、`sensory/map`、`POST reports`、`POST measurements` 仍回 404，這些部分繼續使用模擬資料並以通知標示。後端另提供 `resources` 系列（無障礙設施、公廁、涼適點等開放資料點位，見後端 `/openapi.json`），前端尚未使用。後端 CORS 允許 `localhost:5173` 與 `ynn622.github.io`，但不含 `localhost:7890`；本機要連真實後端請用 `.claude/launch.json` 的 `frontend-5173`（`npm run dev -- --port 5173`）。修改後重新啟動或建置。偏好與收藏 ID 僅存在此裝置；精確位置不會持久化；環境音量量測的數值摘要保留最近 20 筆於此裝置（`quiet-city-noise-history`，不含座標與音訊），首頁顯示最近三筆。畫面以「dBFS + 校準值」估計 dB（預設 120，可在 `#debug` 的「噪音校準」用參考音量計校準，存於 `quiet-city-noise-offset`），並依估計值自動顯示安靜（<50）／普通（50–69）／吵雜（≥70）；未校準時標示誤差可能達 ±10 dB 以上，不是 dBA 或法規量測。上傳後端仍只送 dBFS。
+```text
+台北通 App（Flutter WebView）
+  └─ 聆靜前端（本專案，Vue 3，部署在 GitHub Pages）
+       ├─ window.flutterObject ⇄ App：定位、開啟連結、導航等原生功能
+       ├─ 後端 API（Ynn622/30w_backend）：場所、感官概況、逐小時網格、回報、量測
+       ├─ OpenFreeMap 底圖（MapLibre GL）
+       └─ OpenStreetMap Nominatim：座標轉地址
+```
 
-## 地圖與噪音量測
+- 個人敏感度、排序方式、低刺激模式和量測紀錄只存在手機上，**不會送到後端**。
+- 所在的里是在手機上用臺北市里界判斷的，座標不會為此送到任何服務。
+- 後端提供的場所來自臺北市開放資料。感官網格與場所情境目前是後端的**典型時段推估**，不是即時觀測，畫面上會標示。
+- 場所清單在後端連不上時，會改用內建模擬資料，並跳出通知、標上「模擬」。
 
-地圖採 **MapLibre GL JS + OpenFreeMap Liberty** 開源底圖（低刺激模式改用同服務的 Positron 灰階底圖），支援繁中標籤、拖曳縮放、聲音／光線／人潮圖層及場所選取。來源與 attribution 保留於地圖角落；不使用商用地圖 SDK。場所圖片是原創插畫，距離為直線估算，沒有假裝提供步行分鐘數。
+## 文件
 
-環境音量面板由網頁以 `getUserMedia` + Web Audio 在裝置上計算，不需自訂 bridge handler；城市通 App 內需由 App 團隊加入麥克風權限宣告與 WebView 權限處理（見 [docs/flutter-noise-interface.md](docs/flutter-noise-interface.md)），**尚待實機驗證**。不支援或未授權時顯示說明，不模擬音量。未校準量測為 **dBFS，不能當 dBA**，使用者須主動開始並另行同意分享摘要，不會上傳錄音。
+- [前端開發說明](frontend/README.md)：功能細節、環境變數、模組說明
+- [後端 API 與資料契約](docs/backend-api.md)
+- [台北通 App 環境噪音協定](docs/flutter-noise-interface.md)：給 Flutter／iOS 團隊
+- [地圖、素材與資料來源授權](docs/data-sources.md)
+- [AGENTS.md](AGENTS.md)：開發規範與競賽限制
 
-## 技術框架
+## 本機開發
 
-- 前端：Vue 3、JavaScript、Vite
-- 測試：Vitest
-- 部署：GitHub Pages
-
-## 授權
-
-專案原創程式依 [GNU AGPL 第 3 版或更新版本](LICENSE) 釋出（`AGPL-3.0-or-later`）。第三方套件、底圖、圖資與字型保留各自授權與著作權聲明，見 [來源紀錄](docs/data-sources.md) 與 `frontend/public/third-party/`。
-
-## WebView 支援
-
-前端依照[城市通雙向溝通規範](https://tpe-guideline.web.app/docs/two-way-connection/web.html)，透過 `window.flutterObject` 與 App 傳送及接收 `{ name, data }` 格式的 JSON 字串。
-
-感官資料是否改用模擬資料只取決於後端是否可用，與是否在瀏覽器／App 中開啟無關；需要原生能力的功能會獨立檢查 bridge 支援。
-
-## 本機啟動
-
-需要 Node.js **22.12 或以上**，可依 `frontend/.nvmrc` 切換 Node 22。
+需要 Node.js **22.12 以上**（可用 `frontend/.nvmrc` 切換）。
 
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev -- --port 5173
 ```
 
-啟動後開啟 `http://localhost:7890`。若 port 已被占用，請先釋放再啟動。
+開啟 <http://localhost:5173>。後端 CORS 只允許 `localhost:5173` 和 GitHub Pages。直接執行 `npm run dev` 會用預設的 7890 port，這時連不到後端：場所清單會改用模擬資料，首頁概況和敏感圖層會顯示讀取錯誤。
 
-## 測試與建置
+要切換後端或調整功能開關，請把 `frontend/.env.example` 複製成 `frontend/.env.local` 再修改，修改後需重新啟動。
 
 ```bash
-# 執行測試
+cd frontend
 npm test
-
-# 建立正式版本
 npm run build
 ```
 
-建置完成的檔案會輸出至 `frontend/dist`。
+建置結果輸出到 `frontend/dist`。推送到 `main` 且有修改 `frontend/` 時，GitHub Actions 會自動部署到 GitHub Pages。
+
+## 技術框架
+
+- 前端：Vue 3、JavaScript、Vite
+- 地圖：MapLibre GL JS、OpenFreeMap（Liberty／Positron），不使用商用地圖 SDK
+- 測試：Vitest
+- 部署：GitHub Actions → GitHub Pages
+- App 介接：依[台北通雙向溝通規範](https://tpe-guideline.web.app/docs/two-way-connection/web.html)，透過 `window.flutterObject` 收發 `{ name, data }` JSON
+
+## 授權
+
+本專案原創程式依 [GNU AGPL 第 3 版或更新版本](LICENSE)（`AGPL-3.0-or-later`）釋出。第三方套件、底圖、圖資與字型保留各自的授權與著作權聲明，詳見[來源紀錄](docs/data-sources.md)與 `frontend/public/third-party/`。
