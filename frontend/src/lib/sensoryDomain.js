@@ -195,19 +195,19 @@ export function taipeiSlot(now = Date.now()) {
 // dataMode：live（正式資料）或 remote-hourly（後端測試專用逐小時模擬網格，Ynn622/30w#5）；預設可由 VITE_DATA_MODE 設定，使用者可在「我的」切換。
 // 舊版 remote-mock（已退役的 60 點 API）讀取時略過，回到正式資料。
 const DEFAULT_DATA_MODE = import.meta.env?.VITE_DATA_MODE === 'remote-hourly' ? 'remote-hourly' : 'live'
-// 場所情境（test/places 的 scenario，Ynn622/30w#7）：三種典型時段，與 hourly 的平日／週末＋小時分開。
+// 場所情境（test/places 的 scenario，Ynn622/30w#7）：三種典型時段，不提供使用者切換，依臺北當下時間自動挑選（見 defaultScenario）。
 export const SCENARIOS = Object.freeze([
   { id: 'weekday_day', label: '平日下午', time: '14:00–16:00' },
   { id: 'weekday_evening', label: '平日晚上', time: '19:00–21:00' },
   { id: 'weekend_day', label: '週末下午', time: '14:00–16:00' },
 ])
-// 預設情境依臺北當下時間挑最接近的一種（週末→週末下午；平日 18 點後→平日晚上；其餘→平日下午），使用者可自行切換。
+// 依臺北當下時間挑最接近的一種：週末→週末下午；平日 18 點後→平日晚上；其餘→平日下午。
 export function defaultScenario(now = Date.now()) {
   const { dayType, hour } = taipeiSlot(now)
   return dayType === 'weekend' ? 'weekend_day' : hour >= 18 ? 'weekday_evening' : 'weekday_day'
 }
-export const DEFAULT_PREFERENCES = Object.freeze({ lowStimulus: false, sort: 'fit', dataMode: DEFAULT_DATA_MODE, ...taipeiSlot(), scenario: defaultScenario() })
-const PREFERENCE_VALUES = { sort: ['fit', 'distance'], dataMode: ['live', 'remote-hourly'], dayType: ['weekday', 'weekend'], hour: Array.from({ length: 24 }, (_, hour) => hour), scenario: SCENARIOS.map(item => item.id) }
+export const DEFAULT_PREFERENCES = Object.freeze({ lowStimulus: false, sort: 'fit', dataMode: DEFAULT_DATA_MODE, ...taipeiSlot() })
+const PREFERENCE_VALUES = { sort: ['fit', 'distance'], dataMode: ['live', 'remote-hourly'], dayType: ['weekday', 'weekend'], hour: Array.from({ length: 24 }, (_, hour) => hour) }
 export function readPreferences(storage) {
   const defaults = () => ({ ...DEFAULT_PREFERENCES, sensitivities: { ...DEFAULT_SENSITIVITIES } })
   try {

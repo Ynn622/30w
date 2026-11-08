@@ -252,13 +252,6 @@ body { background: #edf3f7; }
 .sense-bars strong { color: #4a5963; min-width: 32px; text-align: right; font-size: 14px; font-weight: 500; }
 .sense-track { flex: 1; height: 9px; border-radius: 10px; background: #e5ecf0; overflow: hidden; }
 .sense-track i { display: block; height: 100%; border-radius: inherit; background: #2aa4b5; animation: q-bar-in .6s ease-out both; }
-.detail-description { font-size: 15px; line-height: 1.8; color: #53626c; }
-.review-count { display: flex; align-items: center; gap: 14px; color: var(--q-deep); }
-.review-count > strong { font-size: 40px; font-weight: 500; }
-.review-count span { font-size: 15px; line-height: 1.7; }
-.review-count small { font-size: 12px; color: var(--q-muted); }
-.review-item { font-size: 15px; padding: 10px; border-bottom: 1px solid var(--q-line); }
-.review-item small { font-size: 12px; color: var(--q-muted); }
 
 /* 地圖的容器尺寸由 SensoryMap.vue 的 scoped 規則管理，避免載入順序覆蓋。 */
 .sensory-map-wrap { position: relative; height: 340px; overflow: hidden; border: 1px solid #dce6ed; border-radius: 12px; background: #edf4f8; }
@@ -454,7 +447,7 @@ body.q-low-stimulus, html:has(body.q-low-stimulus) { background: #ebe8e3; }
 }
 .q-low-stimulus .quiet-app .quiet-home :is(.sense-tile, .report-grid button) { background: var(--q-canvas); border-color: var(--q-line); }
 .q-low-stimulus .quiet-app .map-tools .q-icon-button { background: var(--q-surface); border-color: var(--q-line); color: var(--q-icon); }
-.q-low-stimulus .quiet-app :is(.area-source, .count-badge, .count-badge.green, .place-search, .sort-switch, .scenario-switch, .info-icon) { background: var(--q-mint); border-color: var(--q-line); }
+.q-low-stimulus .quiet-app :is(.area-source, .count-badge, .count-badge.green, .place-search, .sort-switch, .info-icon) { background: var(--q-mint); border-color: var(--q-line); }
 .q-low-stimulus .quiet-overlay { background: #2a2f3352; backdrop-filter: none; }
 /* 圖示一律單色：感官四格與快速回報不再用橘、綠、紅區分，狀態改由文字表達。 */
 .q-low-stimulus .quiet-app .sense-grid .sense-tile,

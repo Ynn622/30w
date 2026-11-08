@@ -457,40 +457,38 @@ describe('hourly grid layer and simulated environment (issue #5)', () => {
     expect(hourlyApi.getOverview).toHaveBeenCalledTimes(calls + 1)
     scope.stop()
   })
-  it('ignores the retired remote-mock preference and reads saved day type, hour and place scenario', () => {
+  it('ignores the retired remote-mock preference and a saved place scenario, and reads saved day type and hour', () => {
     vi.stubGlobal('window', { localStorage: { getItem: () => JSON.stringify({ dataMode: 'remote-mock', scenario: 'weekend_day', dayType: 'weekend', hour: 21 }), setItem: vi.fn() } })
     const { scope, city } = located()
-    expect(city.preferences.value).toMatchObject({ dataMode: 'live', dayType: 'weekend', hour: 21, scenario: 'weekend_day' })
-    scope.stop()
-  })
-  it('drops an unknown place scenario and falls back to a valid default', () => {
-    vi.stubGlobal('window', { localStorage: { getItem: () => JSON.stringify({ scenario: 'holiday_night' }), setItem: vi.fn() } })
-    const { scope, city } = located()
-    expect(['weekday_day', 'weekday_evening', 'weekend_day']).toContain(city.preferences.value.scenario)
+    expect(city.preferences.value).toMatchObject({ dataMode: 'live', dayType: 'weekend', hour: 21 })
+    // 場所情境不提供切換，依臺北當下時間自動決定，不存成偏好。
+    expect(city.preferences.value).not.toHaveProperty('scenario')
     scope.stop()
   })
 })
 
 describe('places come from the live + test scenario sources (issue #7)', () => {
-  it('requests both sources with the chosen scenario and opens details by the stored source reference', async () => {
-    vi.stubGlobal('window', { localStorage: { getItem: () => JSON.stringify({ placeSource: 'live', scenario: 'weekday_evening' }), setItem: vi.fn() } })
+  it('picks the scenario from Taipei time and opens details by the stored source reference', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-04T20:30:00+08:00')) // 週三晚上
+    vi.stubGlobal('window', { localStorage: { getItem: () => JSON.stringify({ placeSource: 'live', scenario: 'weekend_day' }), setItem: vi.fn() } })
     const ref = { origin: 'merged', liveId: 'p-1', testId: 'p-1', scenario: 'weekday_evening' }
     placeSources.getPlaces.mockResolvedValue({ data: { places: [{ id: 'p-1', name: '天福綠地', location: { lat: 25.1185, lng: 121.5329 }, origin: 'merged', renderKey: 'merged:p-1:p-1', ref }] }, meta: { scenario: 'weekday_evening', partial: null } })
     placeSources.getPlace.mockResolvedValue({ data: { id: 'p-1' }, meta: { origin: 'merged' } })
     const notify = vi.fn()
     const { scope, city } = located(notify, at(25.1145, 121.5352))
     await nextTick(); await Promise.resolve(); await Promise.resolve()
+    // 已存的 scenario 偏好不再使用：週三 20:30 → 平日晚上。
     expect(placeSources.getPlaces.mock.calls[0][0]).toMatchObject({ lat: 25.1145, lng: 121.5352, max: 100, scenario: 'weekday_evening' })
     expect(city.recommendations.value.map(place => place.renderKey)).toEqual(['merged:p-1:p-1'])
     await city.getPlace(ref)
     expect(placeSources.getPlace).toHaveBeenCalledWith(ref, undefined)
     expect(sensoryApi.getPlace).not.toHaveBeenCalled()
-    // 不是內建模擬備援，不跳模擬通知；舊的 placeSource 偏好讀取時略過。
     expect(city.places.source.value).toBe('api')
     expect(notify).not.toHaveBeenCalledWith('MOCK_NOTICE')
     expect(city.preferences.value).not.toHaveProperty('placeSource')
-    // 切換情境會重新查詢（舊請求由 useRemote 取消）。
-    city.preferences.value.scenario = 'weekend_day'
+    // 重新整理時跨到週六下午，情境自動改為週末下午並重新查詢。
+    vi.setSystemTime(new Date('2026-11-07T15:00:00+08:00'))
+    city.refresh()
     await nextTick(); await Promise.resolve()
     expect(placeSources.getPlaces.mock.calls.at(-1)[0]).toMatchObject({ scenario: 'weekend_day' })
     scope.stop()

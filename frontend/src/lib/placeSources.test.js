@@ -38,10 +38,13 @@ describe('merging live places with test scenarios (issue #7)', () => {
     expect(twoTest.map(place => place.origin).sort()).toEqual(['live', 'test', 'test'])
     expect(new Set(twoTest.map(place => place.renderKey)).size).toBe(3)
   })
-  it('scores validated scenario records with SFS only, keeping 0 and null as given', () => {
+  it('scores validated scenario records as live data with SSI and SFS, keeping 0 and null as given', () => {
     const [place] = mergePlaces([livePlaceFor()], [testPlaceFor()], 'weekday_day')
     const assessment = assessSensory(place)
-    expect(assessment).toMatchObject({ ssi: null, basis: 'typical_scenario', dimensions: { noise: 42, light: 0, crowd: 35, odor: null } })
+    expect(assessment).toMatchObject({ basis: 'typical_scenario', confidence: 'low', dimensions: { noise: 42, light: 0, crowd: 35, odor: null } })
+    // SSI 固定權重 0.4／0.2／0.3（氣味缺值不計）：(42×0.4 + 0×0.2 + 35×0.3) ÷ 0.9 ≈ 30。
+    expect(assessment.ssi).toBe(30)
+    expect(assessment.coverage).toBe(0.9)
     expect(assessment.sfs).not.toBeNull()
     // 沒有 testData 的正式紀錄仍需新鮮觀測，不會因此算出分數。
     expect(assessSensory(livePlaceFor({ senses: { noise: 42, light: 0, crowd: 35, odor: 10 }, confidence: 'low', updatedAt: null })).sfs).toBeNull()

@@ -5,7 +5,7 @@ import AsyncState from '../AsyncState.vue'
 import PlacePhoto from './PlacePhoto.vue'
 import SensoryScore from './SensoryScore.vue'
 import { MOCK_NOTICE } from '../../lib/sensoryApi.js'
-import { MOCK_LABEL, SCENARIOS, distanceMeters, formatTime, googleMapsDirectionsUrl, isFresh, levelText } from '../../lib/sensoryDomain.js'
+import { MOCK_LABEL, distanceMeters, googleMapsDirectionsUrl, isFresh, levelText } from '../../lib/sensoryDomain.js'
 import { sendToNative } from '../../lib/webview.js'
 // target：雙來源場所為 { origin, liveId, testId, scenario }（同情境走同來源），舊資料為字串 id。
 const props = defineProps({ target: { type: [String, Object], required: true }, city: { type: Object, required: true } })
@@ -18,10 +18,10 @@ const distanceText = computed(() => distance.value === null ? '距離未知' : `
 // 長條與指數只採有效觀測；過期、不足或未知維度不畫長條。
 const assessment = computed(() => place.value ? props.city.assess(place.value, meta.value) : null)
 const fresh = computed(() => isFresh(place.value?.updatedAt, Date.now()))
-// 場所情境（test/places）：典型時段推估，沒有觀測時間，改標示情境而非「已過期」。
-const scenario = computed(() => assessment.value?.basis === 'typical_scenario' ? SCENARIOS.find(item => item.id === place.value?.testData?.scenario) || null : null)
+// 場所情境（test/places）目前當正式資料呈現：沒有觀測時間，但不顯示「已過期」提示。
+const scenario = computed(() => assessment.value?.basis === 'typical_scenario')
 // 雙來源只取得一邊時明示部分資料。
-const partialText = computed(() => ({ test: '場所情境暫時無法取得，只顯示正式場所資料。', live: '正式場所資料暫時無法取得，只顯示場所情境資料。' })[meta.value?.partial] || '')
+const partialText = computed(() => ({ test: '部分感官資料暫時無法取得，只顯示基本場所資訊。', live: '部分場所資料暫時無法取得，資訊可能不完整。' })[meta.value?.partial] || '')
 // 只有內建模擬備援才是虛構場所；後端 test-only 接口（目前的場所資料）當正式資料呈現。
 const builtinMock = computed(() => Boolean(meta.value?.mock) && meta.value?.mode !== 'test-only')
 // 基本資訊的設施：依開放資料標示 true／false；null 為未知，不顯示（不把未知當成沒有）。
@@ -74,21 +74,20 @@ async function share() {
       </div>
       <p v-if="builtinMock" class="mock-inline">{{ MOCK_LABEL }}，場所與地址為虛構。</p>
       <p v-if="partialText" class="partial-note" role="status">{{ partialText }}</p>
-      <div class="q-segment detail-tabs" role="group" aria-label="場所資訊分頁"><button v-for="item in [{ id: 'sensory', label: '感官資訊' }, { id: 'info', label: '基本資訊' }, { id: 'reviews', label: '回報摘要' }]" :key="item.id" type="button" :class="{ selected: tab === item.id }" :aria-pressed="tab === item.id" @click="tab = item.id">{{ item.label }}</button></div>
+      <div class="q-segment detail-tabs" role="group" aria-label="場所資訊分頁"><button v-for="item in [{ id: 'sensory', label: '感官資訊' }, { id: 'info', label: '基本資訊' }]" :key="item.id" type="button" :class="{ selected: tab === item.id }" :aria-pressed="tab === item.id" @click="tab = item.id">{{ item.label }}</button></div>
       <Transition name="quiet-fade" mode="out-in">
         <div :key="tab" class="detail-content">
           <template v-if="tab === 'sensory'">
             <h3>感官概況 <small>資料整理摘要</small></h3>
             <div class="sensory-summary"><AppIcon name="leaf" :size="30"/><p>{{ place.summary || '目前尚無足夠資料提供摘要。' }}</p></div>
-            <p v-if="scenario" class="scenario-note">{{ scenario.label }} {{ scenario.time }}・典型時段推估，非即時觀測。</p>
-            <p v-else-if="!fresh" class="q-error">感官資訊已超過 30 分鐘或時間未知，請勿視為目前狀況。</p>
+            <p v-if="!scenario && !fresh" class="q-error">感官資訊已超過 30 分鐘或時間未知，請勿視為目前狀況。</p>
             <div class="sense-bars">
               <div v-for="sense in [{ key: 'noise', label: '聲音刺激', icon: 'sound' }, { key: 'light', label: '光線刺激', icon: 'sun' }, { key: 'crowd', label: '人潮密度', icon: 'people' }, { key: 'odor', label: '氣味刺激', icon: 'wind' }]" :key="sense.key"><AppIcon :name="sense.icon" :size="23"/><span>{{ sense.label }}</span><div class="sense-track"><i v-if="Number.isFinite(assessment?.dimensions[sense.key])" :style="{ width: `${assessment.dimensions[sense.key]}%` }"></i></div><strong>{{ levelText(assessment?.dimensions[sense.key]) }}</strong></div>
             </div>
             <SensoryScore :assessment="assessment" :mock="builtinMock" />
             <p class="q-helper">刺激指數為 0–100 相對尺度，非分貝、照度或人數。</p>
           </template>
-          <template v-else-if="tab === 'info'">
+          <template v-else>
             <!-- 介紹卡片 → 地址與開放時間 → 設施標籤 → 可進入性提醒。 -->
             <p v-if="place.description" class="info-intro">{{ place.description }}</p>
             <p v-else class="info-empty">暫無場所介紹。</p>
@@ -102,11 +101,6 @@ async function share() {
             </ul>
             <p v-else class="info-empty">設施資訊待確認。</p>
             <div class="info-access"><AppIcon name="shield" :size="18"/><div><strong>可進入性與無障礙</strong><p>{{ place.accessibility || '尚未取得可進入性資訊，請先向管理單位確認。' }}</p></div></div>
-          </template>
-          <template v-else>
-            <h3>回報摘要</h3><div class="review-count"><strong>{{ place.reportCount ?? 0 }}</strong><span>近期主觀回報<br><small>不等於裝置音量量測</small></span></div><p class="detail-description">{{ place.summary || '回報數量不足，暫無摘要。' }}</p>
-            <AsyncState v-if="!place.reviews?.length" title="尚無可公開的文字回報" message="不公開個人資料，待後端提供匿名摘要。"/>
-            <div v-for="(review, i) in place.reviews || []" :key="i" class="review-item"><p>{{ review.text }}</p><small>{{ formatTime(review.observedAt) }}</small></div>
           </template>
         </div>
       </Transition>
@@ -135,7 +129,6 @@ async function share() {
 .detail-tags > span:first-child svg { color: #8b609e; }
 .detail-tags .q-tag { padding: 3px 7px; border-radius: 6px; color: #367d39; background: #e5f4de; font-size: 13px; line-height: 1.4; }
 .partial-note { margin: 0 0 11px; padding: 7px 9px; border-radius: 6px; background: #fff4e8; color: #7a4a1f; font-size: 13px; line-height: 1.6; }
-.scenario-note { margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: #eef6f9; color: #3f5d6b; font-size: 13px; line-height: 1.6; }
 .mock-inline { margin: 0 0 11px; padding: 7px 9px; background: #f4f7f9; color: #65747d; border-radius: 6px; font-size: 12px; line-height: 1.6; }
 .detail-tabs { gap: 0; padding: 0; margin: 0 0 19px; background: #f1f3f5; border-radius: 9px; overflow: hidden; }
 .detail-tabs button { position: relative; min-height: 47px; padding: 9px 4px; border: 0; border-radius: 0; color: #606d76; background: transparent; box-shadow: none; font-size: 15px; font-weight: 500; }
@@ -159,7 +152,6 @@ async function share() {
 .sense-track i { background: linear-gradient(90deg, #41b7c3, #269fb0); }
 .detail-content > .q-helper { margin: 9px 0 0; color: #66747d; font-size: 12px; line-height: 1.65; }
 .detail-content .q-error { color: #97572e; font-size: 13px; line-height: 1.6; }
-.detail-description { margin: 0 0 9px; color: #556671; font-size: 15px; line-height: 1.8; }
 /* 基本資訊 */
 .info-intro { margin: 0 0 14px; padding: 13px 14px; border-radius: 14px; background: linear-gradient(135deg, #eef8fb, #f7fbfc); color: #3f525d; font-size: 15px; line-height: 1.75; }
 .info-empty { margin: 0 0 12px; color: #7a8a93; font-size: 13px; }
@@ -177,12 +169,6 @@ async function share() {
 .info-access > svg { flex: none; margin-top: 2px; color: var(--q-brand, #0391a7); }
 .info-access strong { display: block; color: #3a4850; font-size: 14px; font-weight: 600; }
 .info-access p { margin: 2px 0 0; font-size: 13px; line-height: 1.65; }
-.review-count { gap: 14px; color: var(--q-deep, #007a90); }
-.review-count > strong { font-size: 38px; }
-.review-count > span { font-size: 15px; line-height: 1.6; }
-.review-count small { color: #66747d; font-size: 12px; }
-.review-item { padding: 12px 0; font-size: 15px; color: #4c606c; border-color: #e5ebee; }
-.review-item small { color: #66747d; font-size: 12px; }
 @media (max-width: 359px) {
   .place-detail-view { padding-inline: 10px; }
   .detail-art { height: 132px; }

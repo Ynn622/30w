@@ -1,7 +1,7 @@
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { MOCK_NOTICE, sensoryApi } from '../lib/sensoryApi.js'
 import { findVillage } from '../lib/villages.js'
-import { AREAS, PLACES_MAX, SEARCH_RADIUS, distanceMeters, isCoordinate, nearestArea, pickSearchRadius, placesRadius, placesRadiusCap, readPreferences, taipeiSlot } from '../lib/sensoryDomain.js'
+import { AREAS, PLACES_MAX, defaultScenario, SEARCH_RADIUS, distanceMeters, isCoordinate, nearestArea, pickSearchRadius, placesRadius, placesRadiusCap, readPreferences, taipeiSlot } from '../lib/sensoryDomain.js'
 import { getNativeChannel } from '../lib/webview.js'
 import { requestNative } from '../lib/nativeClient.js'
 import { assessSensory, rankPlaces } from '../lib/sensoryIndex.js'
@@ -145,8 +145,10 @@ export function useQuietCity(notify) {
   const fieldSlot = computed(() => remoteTest.value ? { dayType: preferences.value.dayType, hour: preferences.value.hour } : currentSlot.value)
   const searchQuery = computed(() => searchArea.value
     ? { areaId: searchArea.value.id, lat: searchCenter.value.lat, lng: searchCenter.value.lng, radius: searchRadius.value } : null)
-  // 地點查詢只帶區域、座標、半徑與場所情境（已移除使用者感官篩選）；切換情境或位置會取消舊請求並重新合併。
-  const placeQuery = computed(() => searchQuery.value && { ...searchQuery.value, radius: placesSearchRadius.value, max: PLACES_MAX, scenario: preferences.value.scenario })
+  // 場所情境依臺北當下時間自動選（now 每次重新整理會更新，跨過時段界線時自動重查）；不提供使用者切換。
+  const placeScenario = computed(() => defaultScenario(now.value))
+  // 地點查詢只帶區域、座標、半徑與場所情境（已移除使用者感官篩選）；情境或位置改變會取消舊請求並重新合併。
+  const placeQuery = computed(() => searchQuery.value && { ...searchQuery.value, radius: placesSearchRadius.value, max: PLACES_MAX, scenario: placeScenario.value })
   // 首頁概況：後端 test/overview（目前位置 150 公尺內網格平均，時段由後端依當下臺北時間決定），目前當正式資料對待；
   // 只送 lat／lng，失敗時顯示錯誤並可重試，不改用內建模擬資料。
   const overviewQuery = computed(() => query.value && { lat: query.value.lat, lng: query.value.lng })

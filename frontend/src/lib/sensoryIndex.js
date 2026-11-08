@@ -10,8 +10,9 @@ export function personalWeights(sensitivities = DEFAULT_SENSITIVITIES) {
   return weights
 }
 const confidences = ['low', 'medium', 'high']
-// test 場所情境（Ynn622/30w#7）：典型時段人工推估，沒有觀測時間，不能套正式 30 分鐘新鮮度與 SSI。
-// 只有通過 testPlacesApi 驗證、帶這個資料集版本與 typical_scenario 的紀錄才走獨立展示路徑（四維直接用、只算 SFS）。
+// test 場所情境（Ynn622/30w#7）：典型時段人工推估，沒有觀測時間，不套正式 30 分鐘新鮮度。
+// 只有通過 testPlacesApi 驗證、帶這個資料集版本與 typical_scenario 的紀錄才走這條路徑：四維直接使用，
+// 並依開發者決定（2026-11-08）先當正式資料，以同一組 SSI_WEIGHTS 計算 SSI 與 SFS。
 export const TEST_PLACES_DATASET_VERSION = 'taipei-places-test-v1'
 export const isScenarioRecord = record => record?.testData?.datasetVersion === TEST_PLACES_DATASET_VERSION
   && record.testData.timeBasis === 'typical_scenario' && record.sensoryIndex == null
@@ -54,9 +55,10 @@ export function sensoryValues(record, now = Date.now()) {
 }
 export function assessSensory(record, sensitivities = DEFAULT_SENSITIVITIES, now = Date.now()) {
   const dimensions = sensoryValues(record, now)
-  // 環境指數 SSI 只在後端提供版本化 sensoryIndex 時計算；
+  // 環境指數 SSI 在後端提供版本化 sensoryIndex，或為已驗證的場所情境資料時計算；
   // 安靜程度（SFS）依使用者敏感度佔比加權，可直接使用場所回傳的有效四維 senses（新鮮且信心足夠）。
-  const scoreable = record?.sensoryIndex?.scoreVersion === 'ssi-v0.1'
+  const scenario = isScenarioRecord(record)
+  const scoreable = record?.sensoryIndex?.scoreVersion === 'ssi-v0.1' || scenario
   const environmental = weightedScore(scoreable ? dimensions : {}, SSI_WEIGHTS)
   const personal = weightedScore(dimensions, personalWeights(sensitivities))
   const availableCount = SENSORY_KEYS.filter(key => dimensions[key] !== null).length
@@ -64,10 +66,10 @@ export function assessSensory(record, sensitivities = DEFAULT_SENSITIVITIES, now
     sfs: personal.score === null ? null : roundScore(100 - personal.score),
     coverage: environmental.coverage, fitCoverage: personal.coverage,
     dimensionCoverage: availableCount / 4, availableCount,
-    confidence: environmental.score === null ? 'insufficient' : record.sensoryIndex.confidence,
+    confidence: environmental.score === null ? 'insufficient' : scenario ? (confidences.includes(record.confidence) ? record.confidence : 'low') : record.sensoryIndex.confidence,
     scoreVersion: scoreable ? 'ssi-v0.1' : null,
-    // typical_scenario：情境推估（不計 SSI）；null：正式觀測或資料不足。
-    basis: isScenarioRecord(record) ? 'typical_scenario' : null,
+    // typical_scenario：場所情境資料（目前當正式資料呈現）；null：正式觀測或資料不足。
+    basis: scenario ? 'typical_scenario' : null,
   }
 }
 export function rankPlaces(places, sort = 'fit') {
